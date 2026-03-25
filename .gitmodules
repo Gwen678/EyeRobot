@@ -1,0 +1,3 @@
+[submodule "EyeRobot_MotorControl/components/micro_ros_espidf_component"]
+	path = EyeRobot_MotorControl/components/micro_ros_espidf_component
+	url = https://github.com/micro-ROS/micro_ros_espidf_component.git
