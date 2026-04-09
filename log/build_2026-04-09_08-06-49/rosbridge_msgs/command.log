@@ -1,0 +1,6 @@
+Invoking command in '/ros2_ws/build/rosbridge_msgs': /usr/local/bin/cmake /ros2_ws/src/rosbridge_msgs -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/rosbridge_msgs
+Invoked command in '/ros2_ws/build/rosbridge_msgs' returned '0': /usr/local/bin/cmake /ros2_ws/src/rosbridge_msgs -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/rosbridge_msgs
+Invoking command in '/ros2_ws/build/rosbridge_msgs': /usr/local/bin/cmake --build /ros2_ws/build/rosbridge_msgs -- -j4 -l4
+Invoked command in '/ros2_ws/build/rosbridge_msgs' returned '0': /usr/local/bin/cmake --build /ros2_ws/build/rosbridge_msgs -- -j4 -l4
+Invoking command in '/ros2_ws/build/rosbridge_msgs': /usr/local/bin/cmake --install /ros2_ws/build/rosbridge_msgs
+Invoked command in '/ros2_ws/build/rosbridge_msgs' returned '0': /usr/local/bin/cmake --install /ros2_ws/build/rosbridge_msgs

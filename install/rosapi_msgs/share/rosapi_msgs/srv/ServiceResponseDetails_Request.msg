@@ -1,0 +1,1 @@
+/ros2_ws/build/rosapi_msgs/rosidl_cmake/srv/ServiceResponseDetails_Request.msg

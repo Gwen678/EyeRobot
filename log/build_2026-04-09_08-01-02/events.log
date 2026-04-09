@@ -1,0 +1,48 @@
+[0.000000] (-) TimerEvent: {}
+[0.001254] (rosbridge_suite) JobQueued: {'identifier': 'rosbridge_suite', 'dependencies': OrderedDict()}
+[0.001531] (rosbridge_suite) JobStarted: {'identifier': 'rosbridge_suite'}
+[0.086036] (rosbridge_suite) JobProgress: {'identifier': 'rosbridge_suite', 'progress': 'cmake'}
+[0.087532] (rosbridge_suite) Command: {'cmd': ['/usr/local/bin/cmake', '/ros2_ws/src', '-DCMAKE_INSTALL_PREFIX=/ros2_ws/install/rosbridge_suite'], 'cwd': '/ros2_ws/build/rosbridge_suite', 'env': OrderedDict([('OPENBLAS_CORETYPE', 'ARMV8'), ('PYTHONIOENCODING', 'utf-8'), ('HOSTNAME', 'eyerobot-desktop'), ('LD_LIBRARY_PATH', '/ros2_ws/src/install/rplidar_ros/lib:/ros2_ws/my_ros2_project/install/rosbridge_test_msgs/lib:/ros2_ws/my_ros2_project/install/rosbridge_msgs/lib:/ros2_ws/my_ros2_project/install/rosapi_msgs/lib:/opt/ros/foxy/install/opt/yaml_cpp_vendor/lib:/opt/ros/foxy/install/opt/rviz_ogre_vendor/lib:/opt/ros/foxy/install/lib:/usr/local/cuda-10.2/targets/aarch64-linux/lib:'), ('SHLVL', '1'), ('OLDPWD', '/ros2_ws/install'), ('HOME', '/root'), ('ROS_PYTHON_VERSION', '3'), ('COLCON_PREFIX_PATH', '/ros2_ws/install:/opt/ros/foxy/install:/ros2_ws/src/install:/ros2_ws/my_ros2_project/install'), ('ROS_DISTRO', 'foxy'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NVIDIA_DRIVER_CAPABILITIES', 'all'), ('PKG_CONFIG_PATH', '/opt/ros/foxy/install/lib/aarch64-linux-gnu/pkgconfig:/opt/ros/foxy/install/lib/pkgconfig'), ('TERM', 'xterm'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/foxy/install/bin:/usr/local/cuda-10.2/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('LANG', 'en_US.UTF-8'), ('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('ROS_ROOT', '/opt/ros/foxy'), ('AMENT_PREFIX_PATH', '/ros2_ws/install/rosbridge_suite:/ros2_ws/src/install/rplidar_ros:/opt/ros/foxy/install'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('PWD', '/ros2_ws/build/rosbridge_suite'), ('PYTHONPATH', '/ros2_ws/my_ros2_project/install/rosbridge_test_msgs/lib/python3.6/site-packages:/ros2_ws/my_ros2_project/install/rosbridge_server/lib/python3.6/site-packages:/ros2_ws/my_ros2_project/install/rosbridge_msgs/lib/python3.6/site-packages:/ros2_ws/my_ros2_project/install/rosapi/lib/python3.6/site-packages:/ros2_ws/my_ros2_project/install/rosbridge_library/lib/python3.6/site-packages:/ros2_ws/my_ros2_project/install/rosapi_msgs/lib/python3.6/site-packages:/opt/ros/foxy/install/lib/python3.6/site-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/ros2_ws/install/rosbridge_suite:/ros2_ws/src/install/rplidar_ros:/ros2_ws/my_ros2_project/install/rplidar_ros:/ros2_ws/my_ros2_project/install/rosbridge_test_msgs:/ros2_ws/my_ros2_project/install/rosbridge_server:/ros2_ws/my_ros2_project/install/rosbridge_msgs:/ros2_ws/my_ros2_project/install/rosapi:/ros2_ws/my_ros2_project/install/rosbridge_library:/ros2_ws/my_ros2_project/install/rosapi_msgs:/opt/ros/foxy/install')]), 'shell': False}
+[0.098977] (-) TimerEvent: {}
+[0.200446] (-) TimerEvent: {}
+[0.267360] (rosbridge_suite) StdoutLine: {'line': b'-- Found ament_cmake_core: 0.9.12 (/opt/ros/foxy/install/share/ament_cmake_core/cmake)\n'}
+[0.271403] (rosbridge_suite) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /opt/ros/foxy/install/share/ament_cmake_core/cmake/core/python.cmake:22 (find_package):\n'}
+[0.272100] (rosbridge_suite) StderrLine: {'line': b'  Policy CMP0148 is not set: The FindPythonInterp and FindPythonLibs modules\n'}
+[0.272560] (rosbridge_suite) StderrLine: {'line': b'  are removed.  Run "cmake --help-policy CMP0148" for policy details.  Use\n'}
+[0.273045] (rosbridge_suite) StderrLine: {'line': b'  the cmake_policy command to set the policy and suppress this warning.\n'}
+[0.273540] (rosbridge_suite) StderrLine: {'line': b'\n'}
+[0.274002] (rosbridge_suite) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[0.274653] (rosbridge_suite) StderrLine: {'line': b'  /opt/ros/foxy/install/share/ament_cmake_core/cmake/core/all.cmake:53 (include)\n'}
+[0.275124] (rosbridge_suite) StderrLine: {'line': b'  /opt/ros/foxy/install/share/ament_cmake_core/cmake/ament_cmake_core-extras.cmake:17 (include)\n'}
+[0.275574] (rosbridge_suite) StderrLine: {'line': b'  /opt/ros/foxy/install/share/ament_cmake_core/cmake/ament_cmake_coreConfig.cmake:41 (include)\n'}
+[0.276060] (rosbridge_suite) StderrLine: {'line': b'  CMakeLists.txt:3 (find_package)\n'}
+[0.276551] (rosbridge_suite) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[0.277074] (rosbridge_suite) StderrLine: {'line': b'\x1b[0m\n'}
+[0.300665] (-) TimerEvent: {}
+[0.378045] (rosbridge_suite) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.6.9", minimum required is "3") \n'}
+[0.378980] (rosbridge_suite) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[0.400888] (-) TimerEvent: {}
+[0.501854] (-) TimerEvent: {}
+[0.602603] (-) TimerEvent: {}
+[0.703286] (-) TimerEvent: {}
+[0.804023] (-) TimerEvent: {}
+[0.904776] (-) TimerEvent: {}
+[1.005595] (-) TimerEvent: {}
+[1.106339] (-) TimerEvent: {}
+[1.207055] (-) TimerEvent: {}
+[1.307802] (-) TimerEvent: {}
+[1.408593] (-) TimerEvent: {}
+[1.443216] (rosbridge_suite) StderrLine: {'line': b'\x1b[0mCMake Error: File /ros2_ws/src/package.xml does not exist.\x1b[0m\n'}
+[1.443915] (rosbridge_suite) StderrLine: {'line': b'\x1b[31mCMake Error at /opt/ros/foxy/install/share/ament_cmake_core/cmake/core/stamp.cmake:24 (configure_file):\n'}
+[1.444398] (rosbridge_suite) StderrLine: {'line': b'  configure_file Problem configuring file\n'}
+[1.444836] (rosbridge_suite) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[1.445546] (rosbridge_suite) StderrLine: {'line': b'  /opt/ros/foxy/install/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:73 (stamp)\n'}
+[1.446056] (rosbridge_suite) StderrLine: {'line': b'  /opt/ros/foxy/install/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:49 (_ament_package_xml)\n'}
+[1.446603] (rosbridge_suite) StderrLine: {'line': b'  /opt/ros/foxy/install/share/ament_cmake_core/cmake/core/ament_package.cmake:63 (ament_package_xml)\n'}
+[1.447070] (rosbridge_suite) StderrLine: {'line': b'  CMakeLists.txt:4 (ament_package)\n'}
+[1.447519] (rosbridge_suite) StderrLine: {'line': b'\n'}
+[1.447956] (rosbridge_suite) StderrLine: {'line': b'\x1b[0m\n'}
+[1.455332] (rosbridge_suite) StdoutLine: {'line': b'-- Configuring incomplete, errors occurred!\n'}
+[1.480519] (rosbridge_suite) CommandEnded: {'returncode': 1}
+[1.483127] (rosbridge_suite) JobEnded: {'identifier': 'rosbridge_suite', 'rc': 1}
+[1.487281] (-) EventReactorShutdown: {}

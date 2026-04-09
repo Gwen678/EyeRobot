@@ -1,0 +1,1 @@
+/ros2_ws/build/rosbridge_msgs/rosidl_generator_cpp/rosbridge_msgs/msg/detail/connected_client__traits.hpp

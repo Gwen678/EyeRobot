@@ -1,0 +1,1 @@
+ament_cmake_symlink_install_targets("TARGET_FILES" "/ros2_ws/build/rosbridge_test_msgs/rosidl_generator_py/rosbridge_test_msgs/librosbridge_test_msgs__python.so" "TARGETS" "rosbridge_test_msgs__python" "ARCHIVE_DESTINATION" "lib" "LIBRARY_DESTINATION" "lib" "RUNTIME_DESTINATION" "bin")

@@ -1,0 +1,101 @@
+[1.806s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build', '--symlink-install']
+[1.806s] DEBUG:colcon:Parsed command line arguments: Namespace(ament_cmake_args=None, base_paths=['.'], build_base='build', catkin_cmake_args=None, catkin_skip_building_tests=False, cmake_args=None, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, cmake_target=None, cmake_target_skip_unavailable=False, continue_on_error=False, event_handlers=None, executor='parallel', ignore_user_meta=False, install_base='install', log_base=None, log_level=None, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0x7f8533c8d0>>, merge_install=False, metas=['./colcon.meta'], packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_end=None, packages_ignore=None, packages_ignore_regex=None, packages_select=None, packages_select_build_failed=False, packages_select_by_dep=None, packages_select_regex=None, packages_select_test_failures=False, packages_skip=None, packages_skip_build_finished=False, packages_skip_by_dep=None, packages_skip_regex=None, packages_skip_test_passed=False, packages_skip_up_to=None, packages_start=None, packages_up_to=None, packages_up_to_regex=None, parallel_workers=4, paths=None, symlink_install=True, test_result_base=None, verb_extension=<colcon_core.verb.build.BuildVerb object at 0x7f8533c8d0>, verb_name='build', verb_parser=<colcon_defaults.argument_parser.defaults.DefaultArgumentsDecorator object at 0x7f851ad2e8>)
+[1.903s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[1.904s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[1.904s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[1.904s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[1.904s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) discover
+[1.906s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[1.906s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/ros2_ws'
+[1.906s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ignore', 'ignore_ament_install']
+[1.907s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore'
+[1.907s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore_ament_install'
+[1.908s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_pkg']
+[1.908s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_pkg'
+[1.908s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_meta']
+[1.908s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_meta'
+[1.909s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ros']
+[1.909s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ros'
+[2.098s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['cmake', 'python']
+[2.098s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'cmake'
+[2.099s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python'
+[2.099s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['python_setup_py']
+[2.099s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python_setup_py'
+[2.100s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extensions ['ignore', 'ignore_ament_install']
+[2.100s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extension 'ignore'
+[2.101s] Level 1:colcon.colcon_core.package_identification:_identify(build) ignored
+[2.102s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extensions ['ignore', 'ignore_ament_install']
+[2.103s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extension 'ignore'
+[2.103s] Level 1:colcon.colcon_core.package_identification:_identify(install) ignored
+[2.104s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extensions ['ignore', 'ignore_ament_install']
+[2.104s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extension 'ignore'
+[2.104s] Level 1:colcon.colcon_core.package_identification:_identify(log) ignored
+[2.105s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ignore', 'ignore_ament_install']
+[2.105s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore'
+[2.106s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore_ament_install'
+[2.106s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_pkg']
+[2.106s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_pkg'
+[2.106s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_meta']
+[2.106s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_meta'
+[2.107s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ros']
+[2.107s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ros'
+[2.107s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['cmake', 'python']
+[2.108s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'cmake'
+[2.131s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python'
+[2.132s] DEBUG:colcon.colcon_core.package_identification:Package 'src' with type 'cmake' and name 'rosbridge_suite'
+[2.132s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[2.133s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) discover
+[2.133s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) using defaults
+[2.133s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) discover
+[2.133s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) using defaults
+[2.231s] Level 5:colcon.colcon_core.verb:set package 'rosbridge_suite' build argument 'cmake_args' from command line to 'None'
+[2.231s] Level 5:colcon.colcon_core.verb:set package 'rosbridge_suite' build argument 'cmake_target' from command line to 'None'
+[2.231s] Level 5:colcon.colcon_core.verb:set package 'rosbridge_suite' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[2.232s] Level 5:colcon.colcon_core.verb:set package 'rosbridge_suite' build argument 'cmake_clean_cache' from command line to 'False'
+[2.232s] Level 5:colcon.colcon_core.verb:set package 'rosbridge_suite' build argument 'cmake_clean_first' from command line to 'False'
+[2.232s] Level 5:colcon.colcon_core.verb:set package 'rosbridge_suite' build argument 'cmake_force_configure' from command line to 'False'
+[2.232s] Level 5:colcon.colcon_core.verb:set package 'rosbridge_suite' build argument 'ament_cmake_args' from command line to 'None'
+[2.232s] Level 5:colcon.colcon_core.verb:set package 'rosbridge_suite' build argument 'catkin_cmake_args' from command line to 'None'
+[2.232s] Level 5:colcon.colcon_core.verb:set package 'rosbridge_suite' build argument 'catkin_skip_building_tests' from command line to 'False'
+[2.233s] DEBUG:colcon.colcon_core.verb:Building package 'rosbridge_suite' with the following arguments: {'ament_cmake_args': None, 'build_base': '/ros2_ws/build/rosbridge_suite', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/ros2_ws/install/rosbridge_suite', 'merge_install': False, 'path': '/ros2_ws/src', 'symlink_install': True, 'test_result_base': None}
+[2.234s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[2.239s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[2.240s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/ros2_ws/src'
+[2.250s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[2.252s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[2.253s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[2.259s] WARNING:colcon.colcon_core.prefix_path.colcon:The path '/ros2_ws/src/install' in the environment variable COLCON_PREFIX_PATH doesn't exist
+[2.260s] WARNING:colcon.colcon_core.prefix_path.colcon:The path '/ros2_ws/my_ros2_project/install' in the environment variable COLCON_PREFIX_PATH doesn't exist
+[2.260s] WARNING:colcon.colcon_ros.prefix_path.ament:The path '/ros2_ws/install/rosbridge_suite' in the environment variable AMENT_PREFIX_PATH doesn't exist
+[2.261s] WARNING:colcon.colcon_ros.prefix_path.ament:The path '/ros2_ws/src/install/rplidar_ros' in the environment variable AMENT_PREFIX_PATH doesn't exist
+[2.261s] WARNING:colcon.colcon_ros.prefix_path.catkin:The path '/ros2_ws/install/rosbridge_suite' in the environment variable CMAKE_PREFIX_PATH doesn't exist
+[2.261s] WARNING:colcon.colcon_ros.prefix_path.catkin:The path '/ros2_ws/src/install/rplidar_ros' in the environment variable CMAKE_PREFIX_PATH doesn't exist
+[2.262s] WARNING:colcon.colcon_ros.prefix_path.catkin:The path '/ros2_ws/my_ros2_project/install/rplidar_ros' in the environment variable CMAKE_PREFIX_PATH doesn't exist
+[2.262s] WARNING:colcon.colcon_ros.prefix_path.catkin:The path '/ros2_ws/my_ros2_project/install/rosbridge_test_msgs' in the environment variable CMAKE_PREFIX_PATH doesn't exist
+[2.262s] WARNING:colcon.colcon_ros.prefix_path.catkin:The path '/ros2_ws/my_ros2_project/install/rosbridge_server' in the environment variable CMAKE_PREFIX_PATH doesn't exist
+[2.262s] WARNING:colcon.colcon_ros.prefix_path.catkin:The path '/ros2_ws/my_ros2_project/install/rosbridge_msgs' in the environment variable CMAKE_PREFIX_PATH doesn't exist
+[2.263s] WARNING:colcon.colcon_ros.prefix_path.catkin:The path '/ros2_ws/my_ros2_project/install/rosapi' in the environment variable CMAKE_PREFIX_PATH doesn't exist
+[2.263s] WARNING:colcon.colcon_ros.prefix_path.catkin:The path '/ros2_ws/my_ros2_project/install/rosbridge_library' in the environment variable CMAKE_PREFIX_PATH doesn't exist
+[2.263s] WARNING:colcon.colcon_ros.prefix_path.catkin:The path '/ros2_ws/my_ros2_project/install/rosapi_msgs' in the environment variable CMAKE_PREFIX_PATH doesn't exist
+[2.333s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/ros2_ws/build/rosbridge_suite': /usr/local/bin/cmake /ros2_ws/src -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/rosbridge_suite
+[3.723s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/ros2_ws/build/rosbridge_suite' returned '1': /usr/local/bin/cmake /ros2_ws/src -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/rosbridge_suite
+[3.725s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[3.726s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[3.727s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '1'
+[3.727s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[3.753s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.notify_send': Could not find 'notify-send'
+[3.754s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.terminal_notifier': Not used on non-Darwin systems
+[3.755s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.win32': Not used on non-Windows systems
+[3.755s] INFO:colcon.colcon_notification.desktop_notification:Sending desktop notification using 'notify2'
+[3.755s] DEBUG:colcon.colcon_notification.desktop_notification.notify2:Failed to initialize notify2: org.freedesktop.DBus.Error.NotSupported: Unable to autolaunch a dbus-daemon without a $DISPLAY for X11
+[3.756s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[3.758s] INFO:colcon.colcon_core.shell:Creating prefix script '/ros2_ws/install/local_setup.ps1'
+[3.765s] INFO:colcon.colcon_core.shell:Creating prefix util module '/ros2_ws/install/_local_setup_util_ps1.py'
+[3.774s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/ros2_ws/install/setup.ps1'
+[3.780s] INFO:colcon.colcon_core.shell:Creating prefix script '/ros2_ws/install/local_setup.sh'
+[3.783s] INFO:colcon.colcon_core.shell:Creating prefix util module '/ros2_ws/install/_local_setup_util_sh.py'
+[3.786s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/ros2_ws/install/setup.sh'
+[3.792s] INFO:colcon.colcon_core.shell:Creating prefix script '/ros2_ws/install/local_setup.bash'
+[3.795s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/ros2_ws/install/setup.bash'
+[3.800s] INFO:colcon.colcon_core.shell:Creating prefix script '/ros2_ws/install/local_setup.zsh'
+[3.803s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/ros2_ws/install/setup.zsh'

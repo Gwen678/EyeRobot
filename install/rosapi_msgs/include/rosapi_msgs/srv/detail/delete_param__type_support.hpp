@@ -1,0 +1,1 @@
+/ros2_ws/build/rosapi_msgs/rosidl_generator_cpp/rosapi_msgs/srv/detail/delete_param__type_support.hpp
