@@ -14,7 +14,7 @@ To ensure full hardware acceleration (GPU) and sensor access, your system must m
 
 ---
 
-## 🛠 2. Initial Setup & Installation
+## 2. Initial Setup & Installation
 
 Follow these steps once to configure your host Jetson Nano.
 
@@ -71,7 +71,7 @@ Inside the session opened by `eyerun` (ROS 2 is automatically sourced):
 
 ```bash
 # For RPLidar A1:
-ros2 launch rplidar_ros2 rplidar_a1_launch.py
+ros2 launch rplidar_ros rplidar.launch.py
 
 ```
 
