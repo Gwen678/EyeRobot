@@ -71,7 +71,7 @@ Inside the session opened by `eyerun` (ROS 2 is automatically sourced):
 
 ```bash
 # For sllidar A1:
-ros2 launch sllidar_ros2 sllidar_launch.py
+ros2 launch sllidar_ros2 sllidar_a1_launch.py
 
 ```
 ### Step 3: Launch the OAK-D Camera (Vision)
@@ -105,7 +105,7 @@ ros2 launch rosbridge_server rosbridge_websocket_launch.xml address:=0.0.0.0
 
 ---
 
-## 🔄 5. Developer & Collaboration Workflow
+## 5. Developer & Collaboration Workflow
 
 ### Sharing your work
 If you modify files in the `src/` folder:
