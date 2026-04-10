@@ -70,12 +70,18 @@ eyerun
 Inside the session opened by `eyerun` (ROS 2 is automatically sourced):
 
 ```bash
-# For RPLidar A1:
-ros2 launch rplidar_ros rplidar.launch.py
+# For sllidar A1:
+ros2 launch sllidar_ros2 sllidar_launch.py
 
 ```
+### Step 3: Launch the OAK-D Camera (Vision)
+The camera uses the DepthAI Python API. You can stream images to ROS 2 topics for visualization.
 
-### Step 3: Launch Telemetry Bridge
+```bash
+# Inside the container (or via docker exec):
+python3 camera_streamer.py
+```
+### Step 4: Launch Telemetry Bridge
 Open a second terminal and join the running container to start the bridge:
 
 ```bash
