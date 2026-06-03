@@ -1,22 +1,57 @@
-FROM dustynv/ros:foxy-desktop-l4t-r32.7.1
+# ==============================================================================
+# BASE IMAGE
+# ==============================================================================
+FROM ros:humble-ros-base
 
-RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg 
-# 1. On installe juste ce qui est facile et rapide
-RUN apt-get update && apt-get install -y libusb-1.0-0-dev python3-pip && \
-    pip3 install depthai opencv-python
-FROM dustynv/ros:foxy-desktop-l4t-r32.7.1
+# ==============================================================================
+# SYSTEM DEPENDENCIES
+# ==============================================================================
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-opencv \
+    libusb-1.0-0 \
+    usbutils \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# 1. Install Python dependencies
-RUN pip3 install pymongo tornado depthai
-# 2. On prépare le workspace (SANS le dossier depthai-ros en C++)
-WORKDIR /ros2_ws
-COPY ./src ./src
+# ==============================================================================
+# CORE PYTHON PACKAGES
+# ==============================================================================
+RUN pip3 install --no-cache-dir \
+    numpy==1.26.4 \
+    pillow \
+    flask
 
-# 3. On build le reste (LiDAR, Rosbridge, etc.)
+# ==============================================================================
+# DEPTHAI / OAK ACCELERATION
+# ==============================================================================
+RUN pip3 install --no-cache-dir \
+    depthai==2.25.1.0 \
+    blobconverter==1.4.3
+
+# ==============================================================================
+# ROS2 ENV SETUP
+# ==============================================================================
 SHELL ["/bin/bash", "-c"]
-RUN source /opt/ros/foxy/install/setup.bash && colcon build --symlink-install
 
-RUN echo "source /opt/ros/foxy/install/setup.bash" >> ~/.bashrc && \
-    echo "source /ros2_ws/install/setup.bash" >> ~/.bashrc
+# ==============================================================================
+# WORKSPACE
+# ==============================================================================
+WORKDIR /app
 
-CMD ["bash"]
+# ==============================================================================
+# COPY CODE (OPTIONNEL - mieux avec volume mount en dev)
+# ==============================================================================
+COPY . /app
+
+# ==============================================================================
+# BUILD ROS2 WORKSPACE (si tu utilises colcon ici)
+# ==============================================================================
+RUN source /opt/ros/humble/setup.bash && \
+    colcon build || true
+
+# ==============================================================================
+# ENTRYPOINT (IMPORTANT)
+# ==============================================================================
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["source /opt/ros/humble/setup.bash && source /app/install/setup.bash && bash"]
