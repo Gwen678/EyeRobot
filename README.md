@@ -11,7 +11,7 @@ To connect to the robot onboard computer (Jetson):
 
 ```bash
 ssh eyerobot@128.179.185.128
-
+```
 ### B. Project Setup
 Clone the repository and build the container:
 
