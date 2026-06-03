@@ -14,6 +14,8 @@ ssh eyerobot@128.179.185.128
 ```
 ### B. Project Setup
 Clone the repository and build the container:
+Username: eyerobot
+Password: eyerobot
 
 ```bash
 git clone https://github.com/Gwen678/EyeRobot.git
@@ -23,9 +25,6 @@ cd EyeRobot
 sudo docker build -t eyerobot .
 ```
 
-
-Username: eyerobot
-Password: eyerobot
 ---
 
 ## 2. Project Setup
