@@ -46,6 +46,7 @@ docker run -it --rm \
     --net=host \
     --privileged \
     -v /dev:/dev \
+    -v $(pwd)/ros2_ws:/ros2_ws \
     eyerobot
 ```
 ## 5. ROS2 Workspace Build
