@@ -5,36 +5,12 @@ This repository provides a standardized, Docker-based development environment fo
 
 ---
 
-## 1. System Specifications
-To ensure full hardware acceleration (GPU) and sensor access, your system must meet these requirements:
-* **Hardware:** NVIDIA Jetson Nano (4GB or 2GB Developer Kit).
-* **OS:** Linux for Tegra (L4T) R32.7.1 (Standard for Jetson Nano).
-* **LiDAR:** RPLidar A1/A2 connected via USB.
-* **Visualization:** Foxglove Studio installed on a remote PC (Windows/Linux/Mac).
+# 1. Jetson SSH Access
 
----
+To connect to the robot onboard computer (Jetson):
 
-## 2. Initial Setup & Installation
-
-Follow these steps once to configure your host Jetson Nano.
-
-### A. Host Configuration
-Run these commands to install Docker and the NVIDIA Container Runtime (to allow Docker to use the Jetson GPU):
 ```bash
-# Update and install Docker
-sudo apt-get update && sudo apt-get install -y docker.io
-sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
-
-# Install NVIDIA Container Toolkit
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-sudo apt-get update && sudo apt-get install -y nvidia-docker2
-sudo systemctl restart docker
-```
-
-> **Note:** Logout and log back in to apply the `usermod` group changes.
+ssh eyerobot@128.179.185.128
 
 ### B. Project Setup
 Clone the repository and build the container:
@@ -54,65 +30,53 @@ To avoid typing long Docker commands, create this shortcut in your `.bashrc`:
 echo "alias eyerun='sudo docker run -it --rm --runtime nvidia --network host --privileged -v /dev:/dev eyerobot'" >> ~/.bashrc
 source ~/.bashrc
 ```
-
+Username: eyerobot
+Password: eyerobot
 ---
 
-## 3. Execution Workflow
+## 2. Project Setup
 
-### Step 1: Start the Environment
-Simply open a terminal on your Jetson and type:
-
+Clone the repository:
 ```bash
-eyerun
+git clone https://github.com/Gwen678/EyeRobot.git
+cd EyeRobot
 ```
 
-### Step 2: Launch the LiDAR Driver
-Inside the session opened by `eyerun` (ROS 2 is automatically sourced):
 
+## 3. Build Docker image
 ```bash
-# For sllidar A1:
-ros2 launch sllidar_ros2 sllidar_a1_launch.py
-
+docker build -t eyerobot .
 ```
-### Step 3: Launch the OAK-D Camera (Vision)
-The camera uses the DepthAI Python API. You can stream images to ROS 2 topics for visualization.
-
+## 4. Run container
 ```bash
-# Inside the container (or via docker exec):
-python3 camera_streamer.py
+docker run -it --rm \
+    --net=host \
+    --privileged \
+    -v /dev:/dev \
+    eyerobot
 ```
-### Step 4: Launch Telemetry Bridge
-Open a second terminal and join the running container to start the bridge:
+## 5. ROS2 Workspace Build
 
+Inside the container:
 ```bash
-# Join the active 'eyerobot' session automatically
-docker exec -it $(docker ps -qf "ancestor=eyerobot") bash
-
-# Launch the WebSocket server for Foxglove
-ros2 launch rosbridge_server rosbridge_websocket_launch.xml address:=0.0.0.0
+cd /ros2_ws
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install
+source install/setup.bash
 ```
-
----
-
-## 4. Remote Visualization (Foxglove Studio)
-1. Open Foxglove Studio on your laptop.
-2. Click **Open Connection** and choose **Rosbridge**.
-3. **URL:** `ws://<JETSON_IP>:9090` (Get your IP by typing `hostname -I` on the Jetson).
-4. **Configuration:**
-   * Add a **3D Panel**.
-   * Set **Fixed Frame** to `laser`.
-   * Add the Topic `/scan`.
-
----
-
-## 5. Developer & Collaboration Workflow
+## 6. Launch Robot System
+Full system launch exemple
+```bash
+ros2 launch robot_bringup bringup.launch.py
+```
+## 7. Developer & Collaboration Workflow
 
 ### Sharing your work
 If you modify files in the `src/` folder:
 
 ```bash
 git add .
-git commit -m "feat: updated lidar launch parameters"
+git commit -m "feat: ..."
 git push origin main
 ```
 
@@ -125,7 +89,7 @@ sudo docker build -t eyerobot .
 
 ---
 
-## 6. Troubleshooting
+## 8. Troubleshooting
 
 | Issue | Solution |
 | :--- | :--- |
