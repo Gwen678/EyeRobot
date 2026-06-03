@@ -23,13 +23,7 @@ cd EyeRobot
 sudo docker build -t eyerobot .
 ```
 
-### C. The `eyerun` Shortcut (Alias)
-To avoid typing long Docker commands, create this shortcut in your `.bashrc`:
 
-```bash
-echo "alias eyerun='sudo docker run -it --rm --runtime nvidia --network host --privileged -v /dev:/dev eyerobot'" >> ~/.bashrc
-source ~/.bashrc
-```
 Username: eyerobot
 Password: eyerobot
 ---
