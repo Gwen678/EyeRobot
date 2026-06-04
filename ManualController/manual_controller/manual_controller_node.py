@@ -21,11 +21,12 @@ from tf2_ros import TransformBroadcaster
 
 @dataclass(frozen=True)
 class KeyBinding:
-    right: float
-    left: float
-    rfan: float
-    lfan: float
-    belt: float
+    # Which motor group the key drives ('wheels' | 'fans' | 'belt' | 'stop')
+    # and the values to latch onto that group only. Groups not named are left
+    # untouched, so commands persist independently (a wheel key never zeroes the
+    # fans). 'stop' clears every group.
+    group: str
+    values: tuple[float, ...]
     label: str
 
 
@@ -44,15 +45,16 @@ class Pose2D:
 
 _HEADER = (
     '\n'
-    'EyeRobot manual controller\n'
-    '  hold w/s: forward/backward\n'
-    '  hold a/d: pivot left/right\n'
-    '  hold q/e: fans (coupled, opposite directions)\n'
-    '  hold r/t: belt forward/reverse\n'
-    '  space or x: stop\n'
+    'EyeRobot manual controller (latched: a press stays until changed)\n'
+    '  w/s: forward/backward\n'
+    '  a/d: pivot left/right\n'
+    '  q/e: fans (coupled, opposite directions)\n'
+    '  r/t: belt forward/reverse\n'
+    '  space or x: stop all\n'
     '  o: reset RViz odometry\n'
     '  ctrl-c: quit\n'
     '\n'
+    'Each group latches independently: setting fans does not stop the wheels.\n'
     'RViz topics: /odom, /path, TF odom -> base_link\n'
 )
 
@@ -91,7 +93,6 @@ class ManualControllerNode(Node):
         self.declare_parameter('wheel_separation_m', 0.150)
         self.declare_parameter('command_rate_hz', 20.0)
         self.declare_parameter('odom_rate_hz', 30.0)
-        self.declare_parameter('keyboard_timeout_s', 0.4)
         self.declare_parameter('feedback_timeout_s', 0.5)
         self.declare_parameter('max_odom_step_s', 0.1)
         self.declare_parameter('path_max_len', 2000)
@@ -137,9 +138,6 @@ class ManualControllerNode(Node):
         )
         self._odom_rate = positive_float(
             self.get_parameter('odom_rate_hz').value, 30.0
-        )
-        self._keyboard_timeout = positive_float(
-            self.get_parameter('keyboard_timeout_s').value, 0.7
         )
         self._feedback_timeout = positive_float(
             self.get_parameter('feedback_timeout_s').value, 0.5
@@ -209,23 +207,22 @@ class ManualControllerNode(Node):
         self.create_subscription(Int32, right_fb_topic, self._right_feedback_cb, fb_qos)
         self.create_subscription(Int32, left_fb_topic, self._left_feedback_cb, fb_qos)
 
-        # Keys map to an absolute command for every motor. Each press sets the
-        # full vector (groups not involved go to zero), so only one group runs
-        # at a time and releasing any key lets everything time out to a stop.
+        # Each key latches a single motor group; the rest are left as-is so
+        # commands persist independently. Only 'stop' clears everything.
         cs, ts = self._command_speed, self._turn_speed
         fs, bs = self._fan_speed, self._belt_speed
         self._bindings: dict[str, KeyBinding] = {
-            'w': KeyBinding(cs, cs, 0.0, 0.0, 0.0, 'FORWARD'),
-            's': KeyBinding(-cs, -cs, 0.0, 0.0, 0.0, 'BACKWARD'),
-            'a': KeyBinding(-ts, ts, 0.0, 0.0, 0.0, 'TURN LEFT'),
-            'd': KeyBinding(ts, -ts, 0.0, 0.0, 0.0, 'TURN RIGHT'),
-            ' ': KeyBinding(0.0, 0.0, 0.0, 0.0, 0.0, 'STOP'),
-            'x': KeyBinding(0.0, 0.0, 0.0, 0.0, 0.0, 'STOP'),
+            'w': KeyBinding('wheels', (cs, cs), 'FORWARD'),
+            's': KeyBinding('wheels', (-cs, -cs), 'BACKWARD'),
+            'a': KeyBinding('wheels', (-ts, ts), 'TURN LEFT'),
+            'd': KeyBinding('wheels', (ts, -ts), 'TURN RIGHT'),
+            ' ': KeyBinding('stop', (), 'STOP'),
+            'x': KeyBinding('stop', (), 'STOP'),
             # Fans are mechanically coupled to spin opposite each other.
-            'q': KeyBinding(0.0, 0.0, fs, -fs, 0.0, 'FANS >'),
-            'e': KeyBinding(0.0, 0.0, -fs, fs, 0.0, 'FANS <'),
-            'r': KeyBinding(0.0, 0.0, 0.0, 0.0, bs, 'BELT +'),
-            't': KeyBinding(0.0, 0.0, 0.0, 0.0, -bs, 'BELT -'),
+            'q': KeyBinding('fans', (fs, -fs), 'FANS >'),
+            'e': KeyBinding('fans', (-fs, fs), 'FANS <'),
+            'r': KeyBinding('belt', (bs,), 'BELT +'),
+            't': KeyBinding('belt', (-bs,), 'BELT -'),
         }
 
         now_s = time.monotonic()
@@ -235,7 +232,6 @@ class ManualControllerNode(Node):
         self._cmd_rfan = 0.0
         self._cmd_lfan = 0.0
         self._cmd_belt = 0.0
-        self._last_key_s = now_s
         self._right_feedback = WheelFeedback(stamp_s=now_s)
         self._left_feedback = WheelFeedback(stamp_s=now_s)
         self._pose = Pose2D()
@@ -247,8 +243,8 @@ class ManualControllerNode(Node):
         self.create_timer(1.0 / self._odom_rate, self._publish_odometry)
 
         self.get_logger().info(
-            'Manual controller ready. Hold WASD in this terminal; release stops after '
-            f'{self._keyboard_timeout:.2f}s.'
+            'Manual controller ready. Tap keys in this terminal; commands latch '
+            'until changed or stopped (space/x).'
         )
 
     def apply_key(self, key: str) -> str | None:
@@ -262,12 +258,18 @@ class ManualControllerNode(Node):
             return None
 
         with self._lock:
-            self._cmd_right = binding.right
-            self._cmd_left = binding.left
-            self._cmd_rfan = binding.rfan
-            self._cmd_lfan = binding.lfan
-            self._cmd_belt = binding.belt
-            self._last_key_s = time.monotonic()
+            if binding.group == 'wheels':
+                self._cmd_right, self._cmd_left = binding.values
+            elif binding.group == 'fans':
+                self._cmd_rfan, self._cmd_lfan = binding.values
+            elif binding.group == 'belt':
+                (self._cmd_belt,) = binding.values
+            elif binding.group == 'stop':
+                self._cmd_right = 0.0
+                self._cmd_left = 0.0
+                self._cmd_rfan = 0.0
+                self._cmd_lfan = 0.0
+                self._cmd_belt = 0.0
         # Do NOT publish here. Key auto-repeat fires this dozens of times per
         # second; publishing per-keypress makes the wire rate track how the key
         # is held and floods the shared micro-ROS UART. The fixed-rate timer
@@ -281,7 +283,6 @@ class ManualControllerNode(Node):
             self._cmd_rfan = 0.0
             self._cmd_lfan = 0.0
             self._cmd_belt = 0.0
-            self._last_key_s = time.monotonic()
 
         for _ in range(3):
             self._publish_command()
@@ -305,14 +306,11 @@ class ManualControllerNode(Node):
             )
 
     def _publish_command(self) -> None:
+        # Commands are latched: the fixed-rate timer republishes the current
+        # state continuously so each motor's firmware command-timeout safety net
+        # stays fed. There is no key-release auto-stop — motors run until a new
+        # command for that group or an explicit stop (space/x).
         with self._lock:
-            if (time.monotonic() - self._last_key_s) > self._keyboard_timeout:
-                self._cmd_right = 0.0
-                self._cmd_left = 0.0
-                self._cmd_rfan = 0.0
-                self._cmd_lfan = 0.0
-                self._cmd_belt = 0.0
-
             right = self._cmd_right * self._right_command_sign
             left = self._cmd_left * self._left_command_sign
             rfan = self._cmd_rfan * self._rfan_command_sign

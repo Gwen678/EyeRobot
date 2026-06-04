@@ -74,9 +74,13 @@ void MotorTask::run()
 {
     const size_t idx = static_cast<size_t>(_cfg.id);
     const bool closed_loop = (_cfg.mode == MotorControlMode::ClosedLoopSpeed);
+    // Read the encoder for telemetry whenever the motor has one wired, even in
+    // open-loop mode — otherwise the wheel feedback topics always report 0.
+    // enc pins of 0 are the "no encoder" sentinel used for the fans/belt.
+    const bool has_encoder = (_cfg.enc_a > 0 || _cfg.enc_b > 0);
 
     ESP_ERROR_CHECK(_motor.init());
-    if (closed_loop) {
+    if (has_encoder) {
         ESP_ERROR_CHECK(_encoder.init());
         ESP_ERROR_CHECK(_encoder.start());
     }
@@ -85,8 +89,6 @@ void MotorTask::run()
     TickType_t last_command_tick = wake_time;
     const TickType_t command_timeout_ticks = pdMS_TO_TICKS(_cfg.command_timeout_ms);
 
-    float setpoint_tps = 0.0f;
-    float open_duty = 0.0f;
     int32_t prev_ticks = 0;
 
     while (true) {
@@ -96,50 +98,47 @@ void MotorTask::run()
         MotorCmd cmd;
         if (_bus.to_motor[idx].receiveLatest(cmd, 0)) {
             last_command_tick = now;
-            const float speed_rads = sanitize_command(cmd.speed_rads, _cfg.max_cmd_rads);
-
-            if (closed_loop) {
-                setpoint_tps = speed_rads * encoder_cfg::kTicksPerRad;
-                if (is_stop_setpoint(setpoint_tps)) {
-                    _pi.reset();
-                }
-            } else {
-                open_duty = open_loop_duty_from_command(speed_rads, _cfg.open_loop_duty_percent);
-            }
+            _command_rads = sanitize_command(cmd.speed_rads, _cfg.max_cmd_rads);
         }
 
+        // Safety net only: zero the held command if the stream stops (comms
+        // loss). During normal operation the teleop node republishes at a fixed
+        // rate, so the command persists and a key for one motor never clears
+        // another.
         if ((now - last_command_tick) > command_timeout_ticks) {
-            setpoint_tps = 0.0f;
-            open_duty = 0.0f;
-            _pi.reset();
+            _command_rads = 0.0f;
         }
 
         MotorFeedback fb;
+        fb.ticks      = 0;
+        fb.speed_rads = 0.0f;
+
+        float measured_tps = 0.0f;
+        if (has_encoder) {
+            const int32_t ticks = _encoder.getCount();
+            measured_tps = (ticks - prev_ticks) / kDt;
+            prev_ticks   = ticks;
+            fb.ticks      = ticks;
+            fb.speed_rads = measured_tps / encoder_cfg::kTicksPerRad;
+        }
 
         if (closed_loop) {
-            const int32_t ticks     = _encoder.getCount();
-            const float   speed_tps = (ticks - prev_ticks) / kDt;
-            prev_ticks = ticks;
-
+            const float setpoint_tps = _command_rads * encoder_cfg::kTicksPerRad;
             if (is_stop_setpoint(setpoint_tps)) {
                 _pi.reset();
                 _motor.stop();
             } else {
-                const float duty = _pi.update(setpoint_tps, speed_tps, kDt);
+                const float duty = _pi.update(setpoint_tps, measured_tps, kDt);
                 _motor.setSpeed(duty);
             }
-
-            fb.ticks      = ticks;
-            fb.speed_rads = speed_tps / encoder_cfg::kTicksPerRad;
         } else {
-            if (open_duty == 0.0f) {
+            const float duty =
+                open_loop_duty_from_command(_command_rads, _cfg.open_loop_duty_percent);
+            if (duty == 0.0f) {
                 _motor.stop();
             } else {
-                _motor.setSpeed(open_duty);
+                _motor.setSpeed(duty);
             }
-
-            fb.ticks      = 0;
-            fb.speed_rads = 0.0f;
         }
 
         _bus.from_motor[idx].sendLatest(fb);

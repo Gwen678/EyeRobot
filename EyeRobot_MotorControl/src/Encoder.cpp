@@ -4,6 +4,18 @@
 static constexpr int kHighLimit =  30000;
 static constexpr int kLowLimit  = -30000;
 
+// GPIO 34-39 are input-only pads with no internal pull resistors; calling
+// gpio_set_pull_mode() on them fails. With no external pull-ups wired, enable
+// the internal pull-up on every encoder line that actually supports one. All
+// current encoder pins (see pins.hpp) are < 34, so each gets an internal
+// pull-up; this guard only matters if an input-only pad is reassigned here.
+static void enable_internal_pullup(int pin)
+{
+    if (pin >= 0 && pin < 34) {
+        gpio_set_pull_mode(static_cast<gpio_num_t>(pin), GPIO_PULLUP_ONLY);
+    }
+}
+
 Encoder::Encoder(int pin_a, int pin_b)
     : _pin_a(pin_a), _pin_b(pin_b) {}
 
@@ -58,6 +70,10 @@ esp_err_t Encoder::init()
     pcnt_channel_set_level_action(_chan_b,
         PCNT_CHANNEL_LEVEL_ACTION_KEEP,
         PCNT_CHANNEL_LEVEL_ACTION_INVERSE);
+
+    // No external pull-ups wired: enable internal pull-ups where supported.
+    enable_internal_pullup(_pin_a);
+    enable_internal_pullup(_pin_b);
 
     err = pcnt_unit_enable(_unit);
     if (err != ESP_OK) return err;
