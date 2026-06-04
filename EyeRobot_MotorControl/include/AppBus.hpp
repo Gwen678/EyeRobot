@@ -45,6 +45,11 @@ struct MotorConfig {
     float          max_cmd_rads;
     float          open_loop_duty_percent;
     uint32_t       command_timeout_ms;
+    // Negate the encoder count in firmware (e.g. a mirror-mounted wheel whose
+    // encoder counts down when the robot drives forward) so the published
+    // ticks/speed read positive on forward motion. Entries that omit it default
+    // to false; host-side feedback signs can then stay +1.
+    bool           invert_encoder;
 };
 
 static constexpr float kDefaultMaxCmdRads = 20.0f;
@@ -61,7 +66,8 @@ static constexpr MotorConfig kMotorConfigs[MOTOR_COUNT] = {
       (gpio_num_t)RIGHT_WHEEL_PWM_PIN, (gpio_num_t)RIGHT_WHEEL_DIR_PIN,
       LEDC_CHANNEL_0,
       RIGHT_WHEEL_ENCODER_A_PIN, RIGHT_WHEEL_ENCODER_B_PIN,
-      kDefaultMaxCmdRads, kWheelOpenLoopDuty, kDefaultCommandTimeoutMs },
+      kDefaultMaxCmdRads, kWheelOpenLoopDuty, kDefaultCommandTimeoutMs,
+      /*invert_encoder=*/true },   // mirror-mounted: counts down when driving forward
 
     { MotorID::LEFT_WHEEL,
       MotorControlMode::OpenLoopSign,

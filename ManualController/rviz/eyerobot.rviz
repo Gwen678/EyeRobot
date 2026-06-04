@@ -31,30 +31,39 @@ Visualization Manager:
     - Alpha: 1
       Class: rviz_default_plugins/Odometry
       Color: 25; 160; 255
-      Enabled: true
-      Keep: 100
+      Enabled: false
+      Keep: 1
       Name: Odometry
       Position Tolerance: 0.01
       Shape: Arrow
       Topic:
         Value: /odom
-      Value: true
+      Value: false
     - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
-      Color: 255; 80; 50
+      Color: 255; 0; 0
       Enabled: true
       Line Style: Lines
-      Line Width: 0.04
+      Line Width: 0.05
       Name: Path
       Offset:
         X: 0
         Y: 0
         Z: 0
-      Pose Color: 255; 80; 50
+      Pose Color: 255; 0; 0
       Pose Style: None
       Topic:
         Value: /path
+      Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/RobotModel
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+      Enabled: true
+      Name: RobotModel
+      Visual Enabled: true
       Value: true
   Enabled: true
   Global Options:

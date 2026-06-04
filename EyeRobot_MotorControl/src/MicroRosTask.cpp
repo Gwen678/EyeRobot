@@ -44,7 +44,11 @@ void MicroRosTask::timerCallback(rcl_timer_t* timer, int64_t)
     for (size_t i = 0; i < MOTOR_COUNT; ++i) {
         MotorFeedback fb;
         if (_bus_ptr->from_motor[i].receiveLatest(fb, 0)) {
-            _pub_msgs[i].data = static_cast<int32_t>(fb.speed_rads * 1000.0f);
+            // Publish the raw accumulated encoder count (0 for the encoder-less
+            // fans/belt). The host-side odometry node integrates these counts
+            // into wheel distance; counts give exact position without the drift
+            // of integrating a speed estimate.
+            _pub_msgs[i].data = fb.ticks;
         }
         if (rcl_publish(&_publishers[i], &_pub_msgs[i], NULL)) {}
     }

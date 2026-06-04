@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'manual_controller = manual_controller.manual_controller_node:main',
+            'state_estimator = manual_controller.state_estimator_node:main',
         ],
     },
 )

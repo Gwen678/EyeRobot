@@ -4,90 +4,128 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.substitutions import FindPackageShare
 
 
 def _arg(name: str, default: str, description: str) -> DeclareLaunchArgument:
     return DeclareLaunchArgument(name, default_value=default, description=description)
 
 
+def _f(name: str):
+    return ParameterValue(LaunchConfiguration(name), value_type=float)
+
+
 def generate_launch_description():
     pkg_share = get_package_share_directory('manual_controller')
     rviz_config = os.path.join(pkg_share, 'rviz', 'eyerobot.rviz')
 
+    # Expand the xacro to a URDF string at launch time. robot_description must be
+    # built/installed so $(find robot_description) and package:// mesh URIs
+    # resolve (see URDF/CMakeLists.txt).
+    robot_description = ParameterValue(
+        Command([
+            FindExecutable(name='xacro'), ' ',
+            PathJoinSubstitution([
+                FindPackageShare('robot_description'), 'urdf', 'Robot.xacro']),
+        ]),
+        value_type=str,
+    )
+
+    # The micro-ROS agent is intentionally NOT started here; run it separately
+    # (e.g. `ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0`).
     return LaunchDescription([
-        _arg('micro_ros_agent', 'true', 'Start the micro-ROS serial agent'),
-        _arg('serial_dev', '/dev/ttyUSB0', 'Serial device connected to the ESP32'),
-        _arg('baud', '115200', 'Serial baud rate for the micro-ROS agent'),
         _arg('rviz', 'true', 'Start RViz with the EyeRobot odometry config'),
+        _arg('robot_model', 'true', 'Publish the URDF (robot_state_publisher) for the RViz RobotModel'),
+        # Default OFF: the xterm-wrapped teleop detaches from the launch process
+        # group and survives shutdown, orphaning nodes across runs. Prefer running
+        # teleop in its own terminal (`ros2 run manual_controller manual_controller`),
+        # which gets a real TTY and dies cleanly on Ctrl-C. Set teleop:=true only
+        # if you want the convenience xterm and accept manual cleanup.
+        _arg('teleop', 'false', 'Spawn keyboard teleop in an xterm (off by default; run it in its own terminal instead)'),
+
+        # ── Teleop (control) node ─────────────────────────────────────────────
         _arg('command_speed_rad_s', '8.0', 'Wheel command for forward/backward keys'),
         _arg('turn_speed_rad_s', '5.0', 'Wheel command for pivot turn keys'),
-        _arg('wheel_radius_m', '0.035', 'Wheel radius used for odometry integration'),
-        _arg('wheel_separation_m', '0.150', 'Distance between left and right wheel contact lines'),
+        _arg('fan_command_rad_s', '8.0', 'Fan command magnitude (q/e)'),
+        _arg('belt_command_rad_s', '8.0', 'Belt command magnitude (r/t)'),
         _arg('command_rate_hz', '20.0', 'Motor command publish rate'),
-        _arg('odom_rate_hz', '30.0', 'Odometry and TF publish rate'),
-        _arg('keyboard_timeout_s', '0.2', 'Stop if no key repeat arrives within this time'),
-        _arg('feedback_timeout_s', '0.5', 'Treat stale wheel feedback as zero speed'),
-        _arg('max_odom_step_s', '0.1', 'Clamp large odometry integration steps'),
-        _arg('path_max_len', '2000', 'Maximum number of poses kept in /path'),
-        _arg('right_command_sign', '-1.0', 'Set to -1.0 if right motor command polarity is inverted'),
-        _arg('left_command_sign', '1.0', 'Set to -1.0 if left motor command polarity is inverted'),
-        _arg('right_feedback_sign', '1.0', 'Set to -1.0 if right encoder feedback polarity is inverted'),
-        _arg('left_feedback_sign', '1.0', 'Set to -1.0 if left encoder feedback polarity is inverted'),
+        _arg('release_timeout_s', '0.2', 'Stop wheels if no key repeat arrives within this time'),
+        _arg('right_command_sign', '-1.0', 'Set to -1.0 if right wheel command polarity is inverted'),
+        _arg('left_command_sign', '1.0', 'Set to -1.0 if left wheel command polarity is inverted'),
+
+        # ── State estimator (odometry) node ───────────────────────────────────
+        _arg('counts_per_output_rev', '5756.0', 'Encoder counts per wheel (output) revolution'),
+        _arg('wheel_radius_m', '0.06', 'Wheel radius used for odometry integration'),
+        _arg('wheel_separation_m', '0.150', 'Distance between left and right wheel contact lines'),
+        _arg('odom_rate_hz', '30.0', 'Odometry / TF / path publish rate'),
+        _arg('publish_tf', 'true', 'Publish odom->base_link TF (set false when an EKF owns it)'),
+        _arg('right_feedback_sign', '1.0', 'Encoder polarity corrected in firmware; flip only for host-side testing'),
+        _arg('left_feedback_sign', '1.0', 'Encoder polarity corrected in firmware; flip only for host-side testing'),
         _arg('odom_frame', 'odom', 'Odometry fixed frame'),
         _arg('base_frame', 'base_link', 'Robot base frame'),
-        Node(
-            package='micro_ros_agent',
-            executable='micro_ros_agent',
-            name='micro_ros_agent',
-            arguments=[
-                'serial',
-                '--dev', LaunchConfiguration('serial_dev'),
-                '-b', LaunchConfiguration('baud'),
-            ],
-            condition=IfCondition(LaunchConfiguration('micro_ros_agent')),
-            output='screen',
-        ),
+
+        # ros2 launch does not give a node an interactive stdin, so the raw
+        # keyboard reader can't run in-process. Spawn it in its own xterm, which
+        # provides a real TTY. Set teleop:=false to run it yourself instead
+        # (`ros2 run manual_controller manual_controller`).
         Node(
             package='manual_controller',
             executable='manual_controller',
             name='manual_controller',
             output='screen',
-            emulate_tty=True,   # keeps raw-terminal keyboard input working
+            prefix='xterm -title "EyeRobot teleop" -e',
+            condition=IfCondition(LaunchConfiguration('teleop')),
             parameters=[{
-                'command_speed_rad_s': ParameterValue(
-                    LaunchConfiguration('command_speed_rad_s'), value_type=float),
-                'turn_speed_rad_s': ParameterValue(
-                    LaunchConfiguration('turn_speed_rad_s'), value_type=float),
-                'wheel_radius_m': ParameterValue(
-                    LaunchConfiguration('wheel_radius_m'), value_type=float),
-                'wheel_separation_m': ParameterValue(
-                    LaunchConfiguration('wheel_separation_m'), value_type=float),
-                'command_rate_hz': ParameterValue(
-                    LaunchConfiguration('command_rate_hz'), value_type=float),
-                'odom_rate_hz': ParameterValue(
-                    LaunchConfiguration('odom_rate_hz'), value_type=float),
-                'keyboard_timeout_s': ParameterValue(
-                    LaunchConfiguration('keyboard_timeout_s'), value_type=float),
-                'feedback_timeout_s': ParameterValue(
-                    LaunchConfiguration('feedback_timeout_s'), value_type=float),
-                'max_odom_step_s': ParameterValue(
-                    LaunchConfiguration('max_odom_step_s'), value_type=float),
-                'path_max_len': ParameterValue(
-                    LaunchConfiguration('path_max_len'), value_type=int),
-                'right_command_sign': ParameterValue(
-                    LaunchConfiguration('right_command_sign'), value_type=float),
-                'left_command_sign': ParameterValue(
-                    LaunchConfiguration('left_command_sign'), value_type=float),
-                'right_feedback_sign': ParameterValue(
-                    LaunchConfiguration('right_feedback_sign'), value_type=float),
-                'left_feedback_sign': ParameterValue(
-                    LaunchConfiguration('left_feedback_sign'), value_type=float),
+                'command_speed_rad_s': _f('command_speed_rad_s'),
+                'turn_speed_rad_s': _f('turn_speed_rad_s'),
+                'fan_command_rad_s': _f('fan_command_rad_s'),
+                'belt_command_rad_s': _f('belt_command_rad_s'),
+                'command_rate_hz': _f('command_rate_hz'),
+                'release_timeout_s': _f('release_timeout_s'),
+                'right_command_sign': _f('right_command_sign'),
+                'left_command_sign': _f('left_command_sign'),
+            }],
+        ),
+        Node(
+            package='manual_controller',
+            executable='state_estimator',
+            name='state_estimator',
+            output='screen',
+            parameters=[{
+                'counts_per_output_rev': _f('counts_per_output_rev'),
+                'wheel_radius_m': _f('wheel_radius_m'),
+                'wheel_separation_m': _f('wheel_separation_m'),
+                'odom_rate_hz': _f('odom_rate_hz'),
+                'publish_tf': ParameterValue(LaunchConfiguration('publish_tf'), value_type=bool),
+                'right_feedback_sign': _f('right_feedback_sign'),
+                'left_feedback_sign': _f('left_feedback_sign'),
                 'odom_frame': LaunchConfiguration('odom_frame'),
                 'base_frame': LaunchConfiguration('base_frame'),
             }],
+        ),
+        # Publishes the URDF on /robot_description and the link TFs (base_link ->
+        # wheels) via TF2. The state_estimator supplies odom -> base_link, so the
+        # model rides on the wheel odometry.
+        Node(
+            package='robot_state_publisher',
+            executable='robot_state_publisher',
+            name='robot_state_publisher',
+            output='screen',
+            parameters=[{'robot_description': robot_description}],
+            condition=IfCondition(LaunchConfiguration('robot_model')),
+        ),
+        # The two wheel joints are 'continuous'; publish zeroed joint states so
+        # robot_state_publisher emits their transforms (the wheels just don't
+        # spin in the model).
+        Node(
+            package='joint_state_publisher',
+            executable='joint_state_publisher',
+            name='joint_state_publisher',
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('robot_model')),
         ),
         Node(
             package='rviz2',

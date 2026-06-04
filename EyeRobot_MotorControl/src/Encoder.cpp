@@ -37,6 +37,15 @@ esp_err_t Encoder::init()
     esp_err_t err = pcnt_new_unit(&unit_cfg, &_unit);
     if (err != ESP_OK) return err;
 
+    // Glitch filter: reject sub-microsecond spikes on the encoder lines (brushed
+    // motor / PWM noise) that would otherwise be miscounted as edges and make the
+    // count jitter up and down while the wheel is still. 1 µs is far below a real
+    // edge interval even at full speed (~170 µs/count at 1 rev/s).
+    pcnt_glitch_filter_config_t filter_cfg = {};
+    filter_cfg.max_glitch_ns = 1000;
+    err = pcnt_unit_set_glitch_filter(_unit, &filter_cfg);
+    if (err != ESP_OK) return err;
+
     // Channel A: signal = pin_a, control = pin_b
     //   A↑ B=H → +1 | A↑ B=L → −1
     //   A↓ B=H → −1 | A↓ B=L → +1
@@ -70,6 +79,14 @@ esp_err_t Encoder::init()
     pcnt_channel_set_level_action(_chan_b,
         PCNT_CHANNEL_LEVEL_ACTION_KEEP,
         PCNT_CHANNEL_LEVEL_ACTION_INVERSE);
+
+    // accum_count only accumulates when a high/low limit watch point fires;
+    // without these the hardware counter silently resets to 0 at ±30000 and
+    // those ticks are lost. Register both limits so long runs keep counting.
+    err = pcnt_unit_add_watch_point(_unit, kHighLimit);
+    if (err != ESP_OK) return err;
+    err = pcnt_unit_add_watch_point(_unit, kLowLimit);
+    if (err != ESP_OK) return err;
 
     // No external pull-ups wired: enable internal pull-ups where supported.
     enable_internal_pullup(_pin_a);

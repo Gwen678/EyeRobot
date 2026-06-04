@@ -115,7 +115,8 @@ void MotorTask::run()
 
         float measured_tps = 0.0f;
         if (has_encoder) {
-            const int32_t ticks = _encoder.getCount();
+            const int32_t raw   = _encoder.getCount();
+            const int32_t ticks = _cfg.invert_encoder ? -raw : raw;
             measured_tps = (ticks - prev_ticks) / kDt;
             prev_ticks   = ticks;
             fb.ticks      = ticks;
