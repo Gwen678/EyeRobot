@@ -1,3 +1,11 @@
 [submodule "EyeRobot_MotorControl/components/micro_ros_espidf_component"]
 	path = EyeRobot_MotorControl/components/micro_ros_espidf_component
 	url = https://github.com/micro-ROS/micro_ros_espidf_component.git
+[submodule "MicroRosAgent"]
+	path = MicroRosAgent
+	url = https://github.com/micro-ROS/micro-ROS-Agent.git
+	branch = humble
+[submodule "MicroRosMsgs"]
+	path = MicroRosMsgs
+	url = https://github.com/micro-ROS/micro_ros_msgs.git
+	branch = humble

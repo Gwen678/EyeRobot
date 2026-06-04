@@ -6,15 +6,16 @@
 #include "esp_err.h"
 
 namespace motor_cfg {
-constexpr gpio_num_t PWM_GPIO = GPIO_NUM_18;   // ESP32 -> M1_PWM
-constexpr gpio_num_t DIR_GPIO = GPIO_NUM_19;   // ESP32 -> M1_EN
-
+// Pins and LEDC channel are assigned per motor in kMotorConfigs and passed to
+// the constructor; only the shared LEDC timer/resolution/frequency live here.
 constexpr ledc_mode_t LEDC_MODE = LEDC_LOW_SPEED_MODE;
 constexpr ledc_timer_t LEDC_TIMER = LEDC_TIMER_0;
-constexpr ledc_channel_t LEDC_CHANNEL = LEDC_CHANNEL_0;
 constexpr ledc_timer_bit_t LEDC_RES = LEDC_TIMER_10_BIT;
 
-constexpr uint32_t PWM_FREQ_HZ = 20000;
+// 10 kHz: the DC Motor Driver 2x15A Lite (galvanic isolation) switches cleaner
+// at a lower rate than 20 kHz — its docs caution against fast switching. Still
+// above audible for most of the range. 10-bit resolution is fine up to ~78 kHz.
+constexpr uint32_t PWM_FREQ_HZ = 10000;
 constexpr uint32_t DUTY_MAX = (1u << 10) - 1u;
 }
 
@@ -27,9 +28,9 @@ enum class Direction {
 
 class MotorController {
 public:
-    MotorController(gpio_num_t pwm_pin = motor_cfg::PWM_GPIO,
-                    gpio_num_t dir_pin = motor_cfg::DIR_GPIO,
-                    ledc_channel_t ledc_channel = motor_cfg::LEDC_CHANNEL,
+    MotorController(gpio_num_t pwm_pin,
+                    gpio_num_t dir_pin,
+                    ledc_channel_t ledc_channel,
                     ledc_timer_t ledc_timer = motor_cfg::LEDC_TIMER);
 
     esp_err_t init();
@@ -47,6 +48,10 @@ public:
     gpio_num_t dirPin() const { return _dir_pin; }
 
 private:
+    esp_err_t configure_pwm_timer(ledc_timer_t timer);
+    esp_err_t configure_pwm_channel(gpio_num_t gpio, ledc_timer_t timer, ledc_channel_t channel);
+    esp_err_t configure_direction_pin(gpio_num_t gpio);
+
     gpio_num_t _pwm_pin;
     gpio_num_t _dir_pin;
     ledc_channel_t _ledc_channel;

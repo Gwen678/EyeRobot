@@ -1,0 +1,22 @@
+#pragma once
+
+//correct the pin names
+
+#define BELT_PWM_PIN 5
+#define BELT_DIR_PIN 18
+
+#define RIGHT_WHEEL_PWM_PIN 19
+#define RIGHT_WHEEL_DIR_PIN 21
+#define RIGHT_WHEEL_ENCODER_A_PIN 13
+#define RIGHT_WHEEL_ENCODER_B_PIN 34
+
+#define LEFT_WHEEL_PWM_PIN 22
+#define LEFT_WHEEL_DIR_PIN 23
+#define LEFT_WHEEL_ENCODER_A_PIN 33
+#define LEFT_WHEEL_ENCODER_B_PIN 14
+
+#define RIGHT_FAN_PWM_PIN 26
+#define RIGHT_FAN_DIR_PIN 27
+
+#define LEFT_FAN_PWM_PIN 4
+#define LEFT_FAN_DIR_PIN 25
