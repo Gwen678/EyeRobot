@@ -1,6 +1,23 @@
-build/
-install/
-log/
-build/
-install/
-log/
+# --- Dossiers liés à l'environnement Python (NE PAS COMMITTER) ---
+yolo_env/          # Ton environnement virtuel complet
+__pycache__/       # Fichiers compilés temporaires de Python
+
+# --- Modèles d'IA (souvent >100MB) ---
+*.pt               # Les modèles YOLO (yolov8n.pt, etc.)
+*.onnx
+
+# --- Datasets et Logs (souvent >100MB) ---
+runs/              # Dossier où YOLO enregistre les logs
+datasets/          # Si tu crées un dossier global pour tes datasets
+
+# --- BIBLIOTHÈQUES NVIDIA CUDA VOLUMINEUSES ---
+# Détectées comme >100MB dans l'image 6
+# (yolo_env/lib/.../libcublasLt.so.13)
+*libcublasLt.so.13*
+*libcudnn.so.9*
+*libcusparse.so.12*
+*libnvrtc.so.13*
+
+# --- Local configuration ---
+.DS_Store
+.vscode/
