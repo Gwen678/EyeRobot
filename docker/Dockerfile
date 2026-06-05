@@ -28,7 +28,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libboost-all-dev libtbb-dev \
       # ROS runtime nodes pulled from apt (not built from source)
       ros-humble-nav2-bringup ros-humble-navigation2 \
-      ros-humble-micro-ros-agent \
       ros-humble-rviz2 ros-humble-rviz-default-plugins ros-humble-rviz-imu-plugin \
       ros-humble-robot-state-publisher ros-humble-joint-state-publisher ros-humble-joint-state-publisher-gui \
       ros-humble-xacro \
@@ -46,6 +45,22 @@ RUN pip3 install --no-cache-dir \
 
 # rosdep is already initialized in the base image; just update the cache.
 RUN rosdep update --rosdistro humble || true
+
+# ── micro-ROS agent (built from source) ──────────────────────────────────────
+# There is no `ros-humble-micro-ros-agent` apt package in the ROS 2 repos, so we
+# build the agent with micro_ros_setup into /uros_ws. The entrypoint sources this
+# overlay, making `ros2 run micro_ros_agent micro_ros_agent serial ...` available.
+RUN mkdir -p /uros_ws/src \
+ && git clone -b ${ROS_DISTRO} https://github.com/micro-ROS/micro_ros_setup.git \
+      /uros_ws/src/micro_ros_setup \
+ && source /opt/ros/${ROS_DISTRO}/setup.bash \
+ && cd /uros_ws \
+ && rosdep install --from-paths src --ignore-src -y \
+ && colcon build \
+ && source install/local_setup.bash \
+ && ros2 run micro_ros_setup create_agent_ws.sh \
+ && ros2 run micro_ros_setup build_agent.sh \
+ && rm -rf /uros_ws/build /uros_ws/log
 
 # Workspace is mounted here at runtime (docker/run.sh -v REPO:/eyerobot).
 ENV EYEROBOT_WS=/eyerobot/ros2_ws
