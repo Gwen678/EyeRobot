@@ -37,7 +37,7 @@ def generate_launch_description():
     # The micro-ROS agent is intentionally NOT started here; run it separately
     # (e.g. `ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0`).
     return LaunchDescription([
-        _arg('rviz', 'true', 'Start RViz with the EyeRobot odometry config'),
+        _arg('rviz', 'false', 'Start RViz with the EyeRobot odometry config (off by default; run RViz on the dev PC for Jetson Nano deployments)'),
         _arg('robot_model', 'true', 'Publish the URDF (robot_state_publisher) for the RViz RobotModel'),
         # Default OFF: the xterm-wrapped teleop detaches from the launch process
         # group and survives shutdown, orphaning nodes across runs. Prefer running
