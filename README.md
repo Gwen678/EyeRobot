@@ -82,8 +82,37 @@ sudo docker build -t eyerobot .
 ```
 
 ---
+## 8. Main docker commands
+To create a container with a bridge to the jetson folder (ssh):
+```
+sudo docker run -it --rm --net=host --privileged -v /dev:/dev -v $(pwd)/ros2_ws:/ros2_ws --name eyerobot_core eyerobot bash  
+```
 
-## 8. Troubleshooting
+To reaccess it without creating a new one (ssh): 
+```
+sudo docker exec -it eyerobot_core bash
+```
+To see all alive containers (inside container):
+```
+sudo docker ps
+```
+
+Run both those commands to refresh access to ros2 (every time you access the container from a new window):
+```
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+```
+
+Now, in one window (inside container) run this :
+```
+ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0
+```
+
+In another one (inside container):
+```
+ros2 run manual_controller manual_controller
+```
+## 9. Troubleshooting
 
 | Issue | Solution |
 | :--- | :--- |
