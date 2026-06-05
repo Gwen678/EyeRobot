@@ -1,9 +1,0 @@
-/ros2_ws/build/rosapi/CMakeFiles/uninstall.dir
-/ros2_ws/build/rosapi/CMakeFiles/rosapi_uninstall.dir
-/ros2_ws/build/rosapi/CMakeFiles/test.dir
-/ros2_ws/build/rosapi/CMakeFiles/edit_cache.dir
-/ros2_ws/build/rosapi/CMakeFiles/rebuild_cache.dir
-/ros2_ws/build/rosapi/CMakeFiles/list_install_components.dir
-/ros2_ws/build/rosapi/CMakeFiles/install.dir
-/ros2_ws/build/rosapi/CMakeFiles/install/local.dir
-/ros2_ws/build/rosapi/CMakeFiles/install/strip.dir

@@ -1,1 +1,0 @@
-/ros2_ws/build/rosapi_msgs/rosidl_generator_c/rosapi_msgs/srv/detail/service_type__functions.h
