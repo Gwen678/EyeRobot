@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeRobot · Fusing IMU + Wheel Encoders with a Kalman Filter</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#161b22; --panel2:#1c2330; --ink:#e6edf3; --mut:#9aa7b4;
+    --line:#2a3340; --acc:#4cc2ff; --acc2:#7ee787; --warn:#ffb454; --bad:#ff7b72;
+    --code:#0b0f14; --pill:#22303f;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65;font-size:16px}
+  a{color:var(--acc);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{display:grid;grid-template-columns:280px 1fr;max-width:1280px;margin:0 auto}
+  /* sidebar */
+  nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line);background:var(--panel)}
+  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--mut);margin:18px 0 8px}
+  nav.toc a{display:block;color:var(--mut);padding:4px 10px;border-radius:6px;font-size:14px}
+  nav.toc a:hover{background:var(--panel2);color:var(--ink);text-decoration:none}
+  nav.toc .brand{font-weight:700;color:var(--ink);font-size:18px;letter-spacing:.02em}
+  nav.toc .brand span{color:var(--acc)}
+  main{padding:40px 56px;min-width:0}
+  h1{font-size:34px;line-height:1.2;margin:0 0 6px}
+  h1 .sub{display:block;font-size:16px;color:var(--mut);font-weight:400;margin-top:10px}
+  h2.sec{font-size:25px;margin:52px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
+  h3{font-size:19px;margin:30px 0 6px;color:#cdd9e5}
+  p{margin:12px 0}
+  code{font-family:var(--mono);background:var(--pill);padding:1px 6px;border-radius:5px;font-size:.9em;color:#cfe7ff}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow:auto;font-family:var(--mono);font-size:13.5px;line-height:1.55}
+  pre code{background:none;padding:0;color:#d7e2ee}
+  .k{color:#ff7b72}.s{color:#a5d6ff}.c{color:#8b949e;font-style:italic}.n{color:#79c0ff}.f{color:#d2a8ff}.b{color:#7ee787}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#cdd9e5}
+  tr:nth-child(even) td{background:#12181f}
+  .lead{font-size:18px;color:#cdd9e5}
+  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--line);background:var(--panel2)}
+  .callout .lbl{font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:4px}
+  .callout.key{border-left:4px solid var(--acc)} .callout.key .lbl{color:var(--acc)}
+  .callout.warn{border-left:4px solid var(--warn)} .callout.warn .lbl{color:var(--warn)}
+  .callout.good{border-left:4px solid var(--acc2)} .callout.good .lbl{color:var(--acc2)}
+  .callout.bad{border-left:4px solid var(--bad)} .callout.bad .lbl{color:var(--bad)}
+  .eq{background:#0b0f14;border:1px solid var(--line);border-radius:10px;padding:14px 20px;margin:16px 0;font-family:var(--mono);font-size:15px;color:#e9f1f8;overflow:auto}
+  .eq .vlabel{color:var(--mut)}
+  .eq b{color:var(--acc2);font-weight:600}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+  .pill{display:inline-block;background:var(--pill);color:#cfe7ff;border-radius:999px;padding:2px 11px;font-size:12.5px;font-family:var(--mono);margin:2px 4px 2px 0}
+  figure{margin:22px 0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  figcaption{color:var(--mut);font-size:13.5px;margin-top:10px;text-align:center}
+  .vec{display:inline-grid;grid-auto-flow:row;border-left:2px solid var(--mut);border-right:2px solid var(--mut);padding:2px 8px;margin:0 3px;vertical-align:middle;font-size:13px;text-align:center;line-height:1.35}
+  hr{border:none;border-top:1px solid var(--line);margin:40px 0}
+  .foot{color:var(--mut);font-size:13.5px;margin-top:40px}
+  .mini{font-size:13.5px;color:var(--mut)}
+  ul.tight li,ol.tight li{margin:5px 0}
+  .tag{font-family:var(--mono);font-size:12px;color:var(--acc2)}
+  svg text{font-family:var(--sans)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc">
+  <div class="brand">Eye<span>Robot</span> · State Estimation</div>
+  <h2>Contents</h2>
+  <a href="#why">1 · Why fuse at all</a>
+  <a href="#kf">2 · The Kalman filter</a>
+  <a href="#multirate">3 · Different frequencies</a>
+  <a href="#ekf">4 · KF vs EKF vs UKF</a>
+  <a href="#what">5 · What each sensor gives</a>
+  <a href="#rl">6 · robot_localization</a>
+  <a href="#eyerobot">7 · Wiring it into EyeRobot</a>
+  <a href="#nav2">8 · Nav2 integration</a>
+  <a href="#checklist">9 · Checklist & gotchas</a>
+  <h2>Sources in repo</h2>
+  <a href="docs.nav2.org/setup_guides/odom/setup_robot_localization.rst">nav2 · robot_localization</a>
+  <a href="../ManualController/manual_controller/state_estimator_node.py">state_estimator_node.py</a>
+</nav>
+
+<main>
+  <h1>Fusing an IMU and Wheel Encoders
+    <span class="sub">A practical, math-grounded guide to multi-rate sensor fusion with a Kalman filter, and how to drop it into ROS&nbsp;2 / Nav2 on EyeRobot.</span>
+  </h1>
+
+  <p class="lead">EyeRobot already produces wheel odometry: <code>state_estimator_node.py</code> integrates the firmware's encoder tick counts into a <code>nav_msgs/Odometry</code> message on <code>/odom</code>. This guide shows how to add an IMU and let a Kalman filter blend the two — even though they arrive at <em>different rates</em> — into one smooth, drift-reduced pose, and how that plugs into Nav2.</p>
+
+  <div class="callout key">
+    <span class="lbl">TL;DR</span>
+    Run an <b>Extended</b> Kalman Filter (<code>robot_localization/ekf_node</code>). Feed it the encoder <b>body velocities</b> (v<sub>x</sub>, ω<sub>z</sub>) from <code>/odom</code> and the IMU <b>yaw rate + orientation</b>. The filter's <b>predict</b> step runs at a fixed high rate; each sensor triggers an <b>update</b> whenever <em>its</em> message lands, so mismatched frequencies are handled natively — no resampling needed. Let the EKF own the <code>odom→base_link</code> TF and set <code>publish_tf:=false</code> in our estimator.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 class="sec" id="why">1 · Why fuse at all</h2>
+  <p>No single sensor gives you a good pose. They fail in <em>complementary</em> ways, which is exactly what makes fusing them worthwhile:</p>
+  <table>
+    <tr><th>Source</th><th>Good at</th><th>Bad at</th></tr>
+    <tr><td>Wheel encoders</td><td>Linear velocity v<sub>x</sub>, short-term distance. Quiet, high-resolution.</td><td>Heading drift that <em>accumulates forever</em> (wheel slip, unequal radii, the 0.150&nbsp;m track-width error all integrate into yaw).</td></tr>
+    <tr><td>IMU gyro (ω<sub>z</sub>)</td><td>Fast, clean angular rate; catches slip the wheels can't see.</td><td>Bias drift → integrating raw gyro into an <em>absolute</em> angle also drifts (slower than wheels, but still).</td></tr>
+    <tr><td>IMU accel</td><td>Detects real motion / bumps.</td><td>Double-integrating to position is hopeless on a ground robot — noise & gravity leakage dominate. Rarely fused for x/y.</td></tr>
+  </table>
+  <p>The encoder yaw and the gyro yaw drift <em>independently</em>. A filter that weighs each by its trustworthiness produces a heading better than either alone — and a velocity estimate that survives a wheel slipping. That weighing, done optimally and recursively, <strong>is</strong> the Kalman filter.</p>
+
+  <!-- ============================================================ -->
+  <h2 class="sec" id="kf">2 · The Kalman filter, concretely</h2>
+  <p>The filter tracks a <em>belief</em> about the state: a mean vector <code>x</code> and a covariance matrix <code>P</code> (how uncertain we are, and how the uncertainties correlate). For a planar robot a typical state is:</p>
+  <div class="eq">
+    x =
+    <span class="vec">x<br>y<br>θ<br>v<sub>x</sub><br>ω<sub>z</sub></span>
+    &nbsp; <span class="vlabel">position (m), heading (rad), body-frame forward speed (m/s), yaw rate (rad/s)</span>
+  </div>
+  <p>It runs a two-phase loop. <b>Predict</b> rolls the state forward with a motion model. <b>Update</b> pulls the state toward whatever a sensor just measured, by an amount set by the relative uncertainties.</p>
+
+  <h3>Predict (time update)</h3>
+  <div class="eq">
+    x̂<sub>k</sub><sup>−</sup> = <b>f</b>(x̂<sub>k−1</sub>, u<sub>k</sub>) &nbsp;&nbsp;<span class="vlabel">push the mean through the motion model</span><br>
+    P<sub>k</sub><sup>−</sup> = F P<sub>k−1</sub> Fᵀ + Q &nbsp;&nbsp;&nbsp;&nbsp;<span class="vlabel">grow the uncertainty (F = ∂f/∂x; Q = process noise)</span>
+  </div>
+  <p>Uncertainty always <em>grows</em> during predict — that's the model admitting it isn't perfect. <code>Q</code> encodes "how much do I trust my motion model per second."</p>
+
+  <h3>Update (measurement update)</h3>
+  <p>When a sensor delivers a measurement <code>z</code>, with a function <code>h(x)</code> that says what that sensor <em>should</em> read given the state:</p>
+  <div class="eq">
+    y<sub>k</sub> = z<sub>k</sub> − <b>h</b>(x̂<sub>k</sub><sup>−</sup>) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="vlabel">innovation: measured − expected</span><br>
+    S<sub>k</sub> = H P<sub>k</sub><sup>−</sup> Hᵀ + R &nbsp;&nbsp;&nbsp;<span class="vlabel">innovation covariance (R = sensor noise)</span><br>
+    K<sub>k</sub> = P<sub>k</sub><sup>−</sup> Hᵀ S<sub>k</sub><sup>−1</sup> &nbsp;&nbsp;&nbsp;&nbsp;<span class="vlabel">Kalman gain</span><br>
+    x̂<sub>k</sub> = x̂<sub>k</sub><sup>−</sup> + K<sub>k</sub> y<sub>k</sub> &nbsp;&nbsp;&nbsp;<span class="vlabel">correct the mean</span><br>
+    P<sub>k</sub> = (I − K<sub>k</sub> H) P<sub>k</sub><sup>−</sup> &nbsp;&nbsp;<span class="vlabel">shrink the uncertainty</span>
+  </div>
+  <p>The gain <code>K</code> is the whole story. Read it as a ratio:</p>
+  <div class="callout key">
+    <span class="lbl">Intuition for the gain</span>
+    K ≈ <span style="font-family:var(--mono)">P / (P + R)</span>. If the <b>filter</b> is uncertain (large P) and the <b>sensor</b> is precise (small R), K→1 and we jump to the measurement. If the sensor is noisy (large R), K→0 and we mostly keep our prediction. The filter <em>automatically</em> trusts each sensor in proportion to how good it is — that is why a precise gyro can correct a drifting encoder heading without you hand-tuning a blend.
+  </div>
+
+  <figure>
+  <svg viewBox="0 0 760 230" width="100%" height="230" role="img" aria-label="Predict-update loop">
+    <defs>
+      <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4cc2ff"/></marker>
+    </defs>
+    <rect x="60" y="80" width="200" height="70" rx="12" fill="#1c2330" stroke="#4cc2ff"/>
+    <text x="160" y="108" fill="#e6edf3" font-size="16" text-anchor="middle" font-weight="700">PREDICT</text>
+    <text x="160" y="130" fill="#9aa7b4" font-size="12.5" text-anchor="middle">motion model · grow P</text>
+    <rect x="500" y="80" width="200" height="70" rx="12" fill="#1c2330" stroke="#7ee787"/>
+    <text x="600" y="108" fill="#e6edf3" font-size="16" text-anchor="middle" font-weight="700">UPDATE</text>
+    <text x="600" y="130" fill="#9aa7b4" font-size="12.5" text-anchor="middle">sensor in · shrink P</text>
+    <path d="M260,100 C360,60 400,60 500,100" fill="none" stroke="#4cc2ff" stroke-width="2" marker-end="url(#ar)"/>
+    <path d="M500,130 C400,170 360,170 260,130" fill="none" stroke="#4cc2ff" stroke-width="2" marker-end="url(#ar)"/>
+    <text x="380" y="58" fill="#9aa7b4" font-size="12.5" text-anchor="middle">x̂⁻, P⁻</text>
+    <text x="380" y="185" fill="#9aa7b4" font-size="12.5" text-anchor="middle">corrected x̂, P</text>
+    <text x="160" y="200" fill="#9aa7b4" font-size="12.5" text-anchor="middle">runs every tick (e.g. 30 Hz)</text>
+    <text x="600" y="200" fill="#9aa7b4" font-size="12.5" text-anchor="middle">runs once per arriving measurement</text>
+    <line x1="40" y1="40" x2="40" y2="200" stroke="#2a3340"/>
+  </svg>
+  <figcaption>The recursive loop. Predict and update are decoupled — which is the key to multi-rate fusion.</figcaption>
+  </figure>
+
+  <!-- ============================================================ -->
+  <h2 class="sec" id="multirate">3 · Why different frequencies "just work"</h2>
+  <p>This is the part that confuses people, so here it is plainly: <strong>predict and update are separate steps that do not have to run at the same rate, and updates from different sensors are independent of one another.</strong></p>
+  <ul class="tight">
+    <li>The <b>predict</b> step advances the state by Δt using the motion model. Δt can be <em>anything</em> — the model is continuous, so you predict forward to the exact timestamp of whatever happens next.</li>
+    <li>Each <b>update</b> is triggered by a message arriving. The IMU at 100&nbsp;Hz fires its update 100×/s; the encoders at, say, 20–30&nbsp;Hz fire theirs whenever a new tick count lands. Each uses its own <code>h</code>, <code>H</code> and <code>R</code>.</li>
+    <li>Because every measurement carries a <b>timestamp</b>, the filter predicts to that stamp, applies that one sensor's update, and moves on. A slow sensor simply contributes fewer corrections; it is never "waiting" for the fast one.</li>
+  </ul>
+
+  <figure>
+  <svg viewBox="0 0 760 210" width="100%" height="210" role="img" aria-label="Multi-rate timeline">
+    <line x1="40" y1="40" x2="740" y2="40" stroke="#2a3340"/>
+    <line x1="40" y1="100" x2="740" y2="100" stroke="#2a3340"/>
+    <line x1="40" y1="170" x2="740" y2="170" stroke="#2a3340"/>
+    <text x="36" y="32" fill="#7ee787" font-size="13" text-anchor="end">IMU ~100Hz</text>
+    <text x="36" y="92" fill="#4cc2ff" font-size="13" text-anchor="end">Encoders ~25Hz</text>
+    <text x="36" y="162" fill="#ffb454" font-size="13" text-anchor="end">EKF out 30Hz</text>
+    <!-- IMU: dense -->
+    <g stroke="#7ee787" stroke-width="2">
+      <line x1="70" y1="30" x2="70" y2="50"/><line x1="110" y1="30" x2="110" y2="50"/><line x1="150" y1="30" x2="150" y2="50"/><line x1="190" y1="30" x2="190" y2="50"/><line x1="230" y1="30" x2="230" y2="50"/><line x1="270" y1="30" x2="270" y2="50"/><line x1="310" y1="30" x2="310" y2="50"/><line x1="350" y1="30" x2="350" y2="50"/><line x1="390" y1="30" x2="390" y2="50"/><line x1="430" y1="30" x2="430" y2="50"/><line x1="470" y1="30" x2="470" y2="50"/><line x1="510" y1="30" x2="510" y2="50"/><line x1="550" y1="30" x2="550" y2="50"/><line x1="590" y1="30" x2="590" y2="50"/><line x1="630" y1="30" x2="630" y2="50"/><line x1="670" y1="30" x2="670" y2="50"/><line x1="710" y1="30" x2="710" y2="50"/>
+    </g>
+    <!-- encoders: sparse -->
+    <g stroke="#4cc2ff" stroke-width="2.5">
+      <line x1="90" y1="90" x2="90" y2="110"/><line x1="230" y1="90" x2="230" y2="110"/><line x1="370" y1="90" x2="370" y2="110"/><line x1="510" y1="90" x2="510" y2="110"/><line x1="650" y1="90" x2="650" y2="110"/>
+    </g>
+    <!-- ekf out: regular -->
+    <g stroke="#ffb454" stroke-width="2.5">
+      <line x1="80" y1="160" x2="80" y2="180"/><line x1="190" y1="160" x2="190" y2="180"/><line x1="300" y1="160" x2="300" y2="180"/><line x1="410" y1="160" x2="410" y2="180"/><line x1="520" y1="160" x2="520" y2="180"/><line x1="630" y1="160" x2="630" y2="180"/><line x1="710" y1="160" x2="710" y2="180"/>
+    </g>
+    <text x="390" y="202" fill="#9aa7b4" font-size="12.5" text-anchor="middle">Each mark = one update. The filter predicts between marks and outputs a steady 30 Hz pose regardless of input cadence.</text>
+  </svg>
+  <figcaption>Asynchronous updates on a shared timeline. Fast IMU, slow encoders, steady filtered output.</figcaption>
+  </figure>
+
+  <div class="callout warn">
+    <span class="lbl">The real requirement</span>
+    It isn't matched <em>rates</em> — it's trustworthy <b>timestamps</b> and a common <b>clock</b>. Every <code>header.stamp</code> must be the true sampling time, and all nodes must share one time source (real time, or <code>use_sim_time</code> everywhere). Out-of-order or mis-stamped messages are what actually break multi-rate fusion, not the frequency gap.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 class="sec" id="ekf">4 · Plain KF, EKF, or UKF?</h2>
+  <p>The vanilla Kalman filter is <em>provably optimal</em> — but only when the motion and measurement models are <strong>linear</strong> (<code>f</code> and <code>h</code> are matrices) and the noise is Gaussian. Check our motion model:</p>
+  <div class="eq">
+    x<sub>k+1</sub> = x<sub>k</sub> + v<sub>x</sub> cos(<b>θ</b>) Δt<br>
+    y<sub>k+1</sub> = y<sub>k</sub> + v<sub>x</sub> sin(<b>θ</b>) Δt<br>
+    θ<sub>k+1</sub> = θ<sub>k</sub> + ω<sub>z</sub> Δt
+  </div>
+  <p>Those <code>sin θ</code> / <code>cos θ</code> terms are <strong>nonlinear</strong> in the state. A plain KF cannot represent them. So for <em>any</em> ground robot that estimates heading, the plain KF is off the table.</p>
+
+  <table>
+    <tr><th>Filter</th><th>Handles nonlinearity by…</th><th>Use it when</th></tr>
+    <tr><td><b>KF</b></td><td>nothing — models must be linear matrices</td><td>State is linear (e.g. fusing two pure <em>velocity</em> sources with no heading in the state). Rare for mobile bases.</td></tr>
+    <tr><td><b>EKF</b> ✅</td><td>linearizing <code>f</code>,<code>h</code> each step via their Jacobians (F = ∂f/∂x, H = ∂h/∂x)</td><td><b>Default for wheeled robots.</b> Cheap, well-understood, and what <code>robot_localization</code> ships. Accurate when the per-step motion is small (true at 30–100 Hz).</td></tr>
+    <tr><td><b>UKF</b></td><td>propagating sample ("sigma") points through the true nonlinear <code>f</code>,<code>h</code></td><td>Strong nonlinearity / large steps where the EKF's linear approximation degrades. ~2–3× the cost. Also in <code>robot_localization</code> (<code>ukf_node</code>).</td></tr>
+  </table>
+
+  <div class="callout good">
+    <span class="lbl">Recommendation for EyeRobot</span>
+    Use the <b>EKF</b> (<code>ekf_node</code>). The differential-drive model is mildly nonlinear and the loop runs fast, so the linearization error per step is tiny — the EKF is accurate, cheap, and the documented Nav2 path. Reach for the UKF only if you later see heading estimates degrade during hard, fast turns.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 class="sec" id="what">5 · What to actually feed the filter</h2>
+  <p>A golden rule with <code>robot_localization</code>: <strong>fuse velocities, not absolute pose, from dead-reckoning sources.</strong> Encoder <em>x/y/θ</em> is just an integral of the wheel velocities — it always drifts, and feeding an ever-drifting absolute position to the filter poisons it. Feed the <em>rates</em> instead and let the filter do the integration once, consistently.</p>
+  <div class="grid2">
+    <div class="callout key"><span class="lbl">From the encoders (/odom)</span>
+      Fuse <b>v<sub>x</sub></b> (twist.linear.x) and <b>ω<sub>z</sub></b> (twist.angular.z). Ignore the absolute x/y/θ in the pose part for fusion.</div>
+    <div class="callout key"><span class="lbl">From the IMU</span>
+      Fuse <b>ω<sub>z</sub></b> (angular_velocity.z) always. Optionally fuse absolute <b>yaw</b> (from orientation) if the IMU has a magnetometer/decent fusion; otherwise leave orientation out and rely on the gyro rate.</div>
+  </div>
+  <p>Both sources supply ω<sub>z</sub> — that's deliberate. The filter blends the two yaw-rate estimates by their covariances, and the cleaner gyro pulls heading away from encoder slip. v<sub>x</sub> comes only from the wheels (the IMU can't observe forward speed well on the flat).</p>
+  <p class="mini">REP-103/105: all of this lives in <code>base_link</code> (x forward, y left, z up; yaw CCW-positive). Make sure the IMU is mounted/configured to that convention or correct it in the driver.</p>
+
+  <!-- ============================================================ -->
+  <h2 class="sec" id="rl">6 · The robot_localization config</h2>
+  <p>The fusion is configured, not coded. Each sensor gets a 15-element boolean vector telling the EKF <em>which</em> of its fields to ingest, in this fixed order:</p>
+  <div class="eq" style="font-size:13.5px">
+    [ x, y, z, &nbsp; roll, pitch, yaw, &nbsp; v<sub>x</sub>, v<sub>y</sub>, v<sub>z</sub>, &nbsp; v<sub>roll</sub>, v<sub>pitch</sub>, v<sub>yaw</sub>, &nbsp; a<sub>x</sub>, a<sub>y</sub>, a<sub>z</sub> ]
+  </div>
+  <p>An <code>ekf.yaml</code> for EyeRobot (one encoder odom + one IMU, planar):</p>
+  <pre><code><span class="c">### config/ekf.yaml — EyeRobot encoder + IMU fusion ###</span>
+<span class="n">ekf_filter_node</span>:
+  <span class="n">ros__parameters</span>:
+    <span class="n">frequency</span>: <span class="s">30.0</span>            <span class="c"># filter output / predict rate (Hz)</span>
+    <span class="n">two_d_mode</span>: <span class="k">true</span>           <span class="c"># planar robot: zero out z, roll, pitch</span>
+    <span class="n">publish_tf</span>: <span class="k">true</span>           <span class="c"># EKF owns odom -> base_link</span>
+    <span class="n">publish_acceleration</span>: <span class="k">false</span>
+
+    <span class="n">map_frame</span>: <span class="s">map</span>
+    <span class="n">odom_frame</span>: <span class="s">odom</span>
+    <span class="n">base_link_frame</span>: <span class="s">base_link</span>
+    <span class="n">world_frame</span>: <span class="s">odom</span>        <span class="c"># fusing continuous data -> world = odom</span>
+
+    <span class="c"># ---- Source 0: wheel-encoder odometry (fuse BODY VELOCITIES only) ----</span>
+    <span class="n">odom0</span>: <span class="s">/odom</span>
+    <span class="n">odom0_config</span>: [<span class="k">false</span>, <span class="k">false</span>, <span class="k">false</span>,
+                  <span class="k">false</span>, <span class="k">false</span>, <span class="k">false</span>,
+                  <span class="k">true</span>,  <span class="k">false</span>, <span class="k">false</span>,   <span class="c"># vx</span>
+                  <span class="k">false</span>, <span class="k">false</span>, <span class="k">true</span>,    <span class="c"># vyaw</span>
+                  <span class="k">false</span>, <span class="k">false</span>, <span class="k">false</span>]
+    <span class="n">odom0_differential</span>: <span class="k">false</span>
+    <span class="n">odom0_queue_size</span>: <span class="s">10</span>
+
+    <span class="c"># ---- Source 1: IMU (fuse yaw + yaw rate) ----</span>
+    <span class="n">imu0</span>: <span class="s">/imu/data</span>
+    <span class="n">imu0_config</span>: [<span class="k">false</span>, <span class="k">false</span>, <span class="k">false</span>,
+                 <span class="k">false</span>, <span class="k">false</span>, <span class="k">true</span>,    <span class="c"># yaw (drop if no magnetometer)</span>
+                 <span class="k">false</span>, <span class="k">false</span>, <span class="k">false</span>,
+                 <span class="k">false</span>, <span class="k">false</span>, <span class="k">true</span>,    <span class="c"># vyaw (gyro) — always fuse this</span>
+                 <span class="k">false</span>, <span class="k">false</span>, <span class="k">false</span>]
+    <span class="n">imu0_differential</span>: <span class="k">false</span>
+    <span class="n">imu0_remove_gravitational_acceleration</span>: <span class="k">true</span>
+    <span class="n">imu0_queue_size</span>: <span class="s">20</span></code></pre>
+
+  <div class="callout warn">
+    <span class="lbl">Two nodes must not fight over a TF</span>
+    Exactly one node may broadcast <code>odom→base_link</code>. Once the EKF does it (<code>publish_tf: true</code> above), our wheel estimator must stop: launch <code>state_estimator</code> with <code>publish_tf:=false</code> (the node already exposes that parameter for precisely this hand-off — see its docstring). It keeps publishing <code>/odom</code> as a fusion <em>input</em>; the EKF publishes the transform.
+  </div>
+
+  <h3>Picking the covariances (this is the tuning)</h3>
+  <p>The filter only weighs sensors correctly if their reported covariances are honest. They live on the messages, not in the EKF:</p>
+  <ul class="tight">
+    <li><b>Encoder twist covariance</b> — already set in <code>state_estimator_node.py</code> (<code>twist_x_cov</code>, <code>twist_yaw_cov</code>). Make <code>twist_yaw_cov</code> deliberately <em>larger</em> than the IMU's gyro variance so the filter prefers the gyro for heading rate.</li>
+    <li><b>IMU covariance</b> — set <code>angular_velocity_covariance</code> and <code>orientation_covariance</code> in the IMU driver from the datasheet / a stationary Allan-variance measurement.</li>
+    <li>Rule of thumb: relative magnitudes matter more than absolute. If heading lags slip, lower the IMU yaw-rate variance (or raise the encoder's).</li>
+  </ul>
+
+  <!-- ============================================================ -->
+  <h2 class="sec" id="eyerobot">7 · Wiring it into EyeRobot</h2>
+  <ol class="tight">
+    <li><b>Get an IMU publishing <code>sensor_msgs/Imu</code></b> on <code>/imu/data</code>, stamped in <code>base_link</code> (or a fixed <code>imu_link</code> with a static transform). Options:
+      <ul class="tight">
+        <li><span class="tag">micro-ROS</span> Add an IMU publisher to the ESP32 firmware. Note the entity budget (see <code>DOCS.md</code>): we publish 10 topics today and <code>RMW_UXRCE_MAX_PUBLISHERS=12</code>, so one IMU publisher fits — but it's the 11th, so mind the headroom and the shared-UART bandwidth at 100 Hz.</li>
+        <li><span class="tag">host</span> Or hang the IMU off the host (USB/I²C) with a dedicated ROS 2 driver node. Keeps it off the micro-ROS link entirely and is usually simpler to time-stamp well.</li>
+      </ul>
+    </li>
+    <li><b>Confirm the encoder <code>/odom</code> twist is populated</b> — it is: the estimator fills <code>twist.linear.x</code> and <code>twist.angular.z</code> with windowed averages and sets their covariances. That's already an EKF-ready input.</li>
+    <li><b>Add <code>ekf.yaml</code></b> (above) under <code>ManualController/config/</code> and install the directory in <code>CMakeLists.txt</code> / <code>setup.py</code>.</li>
+    <li><b>Hand off the TF:</b> launch <code>state_estimator</code> with <code>publish_tf:=false</code>; launch the EKF with <code>publish_tf:=true</code>.</li>
+    <li><b>Add the EKF node</b> to the launch file:</li>
+  </ol>
+  <pre><code><span class="k">from</span> launch_ros.actions <span class="k">import</span> Node
+
+ekf = Node(
+    package=<span class="s">'robot_localization'</span>,
+    executable=<span class="s">'ekf_node'</span>,
+    name=<span class="s">'ekf_filter_node'</span>,
+    output=<span class="s">'screen'</span>,
+    parameters=[os.path.join(pkg_share, <span class="s">'config'</span>, <span class="s">'ekf.yaml'</span>)],
+)
+<span class="c"># and pass right_/left_… as before; just add `ekf` to the LaunchDescription list,</span>
+<span class="c"># and set the state_estimator node's publish_tf parameter to False.</span></code></pre>
+  <p class="mini">Install once: <code>sudo apt install ros-$ROS_DISTRO-robot-localization</code>, and add <code>&lt;exec_depend&gt;robot_localization&lt;/exec_depend&gt;</code> to <code>package.xml</code>.</p>
+
+  <h3>Resulting TF tree</h3>
+  <figure>
+  <svg viewBox="0 0 760 170" width="100%" height="170" role="img" aria-label="TF tree">
+    <defs><marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9aa7b4"/></marker></defs>
+    <g font-size="14" text-anchor="middle">
+      <rect x="40" y="60" width="120" height="46" rx="9" fill="#1c2330" stroke="#ff7b72"/><text x="100" y="88" fill="#e6edf3">map</text>
+      <rect x="320" y="60" width="120" height="46" rx="9" fill="#1c2330" stroke="#ffb454"/><text x="380" y="88" fill="#e6edf3">odom</text>
+      <rect x="600" y="60" width="120" height="46" rx="9" fill="#1c2330" stroke="#7ee787"/><text x="660" y="88" fill="#e6edf3">base_link</text>
+      <line x1="160" y1="83" x2="318" y2="83" stroke="#9aa7b4" stroke-width="2" marker-end="url(#ar2)"/>
+      <line x1="440" y1="83" x2="598" y2="83" stroke="#9aa7b4" stroke-width="2" marker-end="url(#ar2)"/>
+    </g>
+    <g font-size="12" fill="#9aa7b4" text-anchor="middle">
+      <text x="240" y="40">AMCL / SLAM</text><text x="240" y="125">(global, discrete)</text>
+      <text x="520" y="40">EKF (ekf_node)</text><text x="520" y="125">(continuous, smooth)</text>
+    </g>
+  </svg>
+  <figcaption>The EKF supplies the continuous <code>odom→base_link</code>. A global localizer (AMCL/SLAM) later adds <code>map→odom</code>. This split is REP-105.</figcaption>
+  </figure>
+
+  <!-- ============================================================ -->
+  <h2 class="sec" id="nav2">8 · How this slots into Nav2</h2>
+  <p>Nav2 doesn't fuse sensors itself — it <em>consumes</em> the result. Two things it needs, both delivered by the EKF:</p>
+  <table>
+    <tr><th>Nav2 needs</th><th>Provided by</th><th>Used for</th></tr>
+    <tr><td>A continuous, smooth <code>odom→base_link</code> TF</td><td>EKF <code>publish_tf</code></td><td>Local costmap rolling window; the controller server (DWB/MPPI/RPP) tracking the robot frame-to-frame. Must be <em>smooth & continuous</em> — no jumps — which is exactly what fusing the IMU buys you.</td></tr>
+    <tr><td>An odometry topic (<code>nav_msgs/Odometry</code>)</td><td>EKF <code>/odometry/filtered</code></td><td>The controller's velocity feedback / collision-checking. Point the controller and costmaps at <code>/odometry/filtered</code> rather than the raw <code>/odom</code>.</td></tr>
+  </table>
+  <p>The global side is separate: <b>SLAM</b> (slam_toolbox) or <b>AMCL</b> provides <code>map→odom</code>, correcting the slow odom drift against a map. So the full chain Nav2 sees is:</p>
+  <div class="eq" style="font-size:14px">
+    <b>map</b> <span class="vlabel">(AMCL/SLAM, discrete jumps)</span> → <b>odom</b> <span class="vlabel">(EKF: encoder+IMU, smooth)</span> → <b>base_link</b> → sensors
+  </div>
+  <div class="callout key">
+    <span class="lbl">Why the two-layer split matters to Nav2</span>
+    Nav2's controllers assume <code>odom→base_link</code> never jumps (they differentiate it for velocity). Global fixes (loop closures, AMCL corrections) are <em>discrete</em> jumps, so they go on <code>map→odom</code> instead. The EKF fusing IMU+encoders is what keeps the odom layer jump-free — that is its job in the stack.
+  </div>
+  <p class="mini">A second EKF instance (fusing GPS, <code>world_frame: map</code>) is how <code>robot_localization</code> handles the global layer outdoors — see <code>Docs/docs.nav2.org/tutorials/docs/navigation2_with_gps.rst</code>. Indoors, AMCL/SLAM fills that role.</p>
+
+  <!-- ============================================================ -->
+  <h2 class="sec" id="checklist">9 · Checklist & common failure modes</h2>
+  <table>
+    <tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+    <tr><td>"Transform timeout" / TF warnings</td><td>two nodes publishing <code>odom→base_link</code>, or mismatched clocks</td><td>set <code>state_estimator publish_tf:=false</code>; one clock everywhere (<code>use_sim_time</code> consistent)</td></tr>
+    <tr><td>Filter diverges / jumps</td><td>fusing absolute encoder <b>pose</b> (drifting) instead of velocities</td><td>fuse only <code>vx</code>,<code>vyaw</code> from odom (config above)</td></tr>
+    <tr><td>Heading still drifts with slip</td><td>encoder yaw-rate trusted too much</td><td>raise <code>twist_yaw_cov</code> on /odom and/or lower IMU gyro covariance</td></tr>
+    <tr><td>Estimate ignores the IMU</td><td>IMU covariance set to all-zeros or huge; wrong frame</td><td>set real covariances; IMU stamped in <code>base_link</code>, REP-103 axes</td></tr>
+    <tr><td>z / pitch wander</td><td><code>two_d_mode</code> off on a planar robot</td><td><code>two_d_mode: true</code></td></tr>
+    <tr><td>Nav2 controller velocity noisy</td><td>pointing at raw <code>/odom</code></td><td>point costmaps/controller at <code>/odometry/filtered</code></td></tr>
+  </table>
+  <p>Verify, in order:</p>
+  <pre><code>ros2 topic echo /imu/data --qos-reliability best_effort   <span class="c"># IMU alive, sane covariance</span>
+ros2 topic echo /odom                                      <span class="c"># twist.linear.x / angular.z populated</span>
+ros2 node info /ekf_filter_node                            <span class="c"># subscribed to /odom AND /imu/data</span>
+ros2 topic hz /odometry/filtered                           <span class="c"># ~30 Hz steady</span>
+ros2 run tf2_ros tf2_echo odom base_link                   <span class="c"># smooth, no jumps</span></code></pre>
+
+  <div class="callout good">
+    <span class="lbl">One-paragraph summary</span>
+    A Kalman filter keeps a mean + covariance, <b>predicts</b> with the motion model at a fixed rate, and <b>updates</b> per measurement — so a fast IMU and slow encoders fuse natively via timestamps, no resampling. The robot's heading makes the model nonlinear, so use the <b>EKF</b>. Feed it encoder <code>vx</code>+<code>vyaw</code> and IMU <code>vyaw</code>(+yaw); the gyro corrects encoder slip via the Kalman gain. In ROS 2 this is <code>robot_localization/ekf_node</code> + an <code>ekf.yaml</code>; it owns <code>odom→base_link</code> and emits <code>/odometry/filtered</code>, which is exactly the smooth, continuous odom layer Nav2 needs underneath a global <code>map→odom</code> from AMCL/SLAM.
+  </div>
+
+  <hr>
+  <p class="foot">EyeRobot · sensor-fusion guide. Grounded in <code>ManualController/manual_controller/state_estimator_node.py</code> and <code>Docs/docs.nav2.org/setup_guides/odom/setup_robot_localization.rst</code>. Math: standard linear/extended Kalman filter. Conventions: REP-103 (frames/units), REP-105 (map→odom→base_link).</p>
+</main>
+</div>
+</body>
+</html>

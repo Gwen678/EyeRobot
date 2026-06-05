@@ -25,11 +25,11 @@ DEBUG_ENCODERS="${DEBUG_ENCODERS:-false}"
 # Repo root = this script's directory (so install/setup.bash resolves).
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROS_SETUP="/opt/ros/humble/setup.bash"
-WS_SETUP="$REPO/install/setup.bash"
+WS_SETUP="$REPO/ros2_ws/install/setup.bash"
 
 if [ ! -f "$WS_SETUP" ]; then
   echo "ERROR: $WS_SETUP not found. Build the workspace first:" >&2
-  echo "  cd $REPO && source $ROS_SETUP && colcon build && source install/setup.bash" >&2
+  echo "  cd $REPO/ros2_ws && source $ROS_SETUP && colcon build && source install/setup.bash" >&2
   exit 1
 fi
 

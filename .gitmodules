@@ -1,11 +1,18 @@
-[submodule "EyeRobot_MotorControl/components/micro_ros_espidf_component"]
-	path = EyeRobot_MotorControl/components/micro_ros_espidf_component
-	url = https://github.com/micro-ROS/micro_ros_espidf_component.git
-[submodule "MicroRosAgent"]
-	path = MicroRosAgent
-	url = https://github.com/micro-ROS/micro-ROS-Agent.git
+[submodule "ros2_ws/src/depthai-ros"]
+	path = ros2_ws/src/depthai-ros
+	url = https://github.com/luxonis/depthai-ros.git
 	branch = humble
-[submodule "MicroRosMsgs"]
-	path = MicroRosMsgs
-	url = https://github.com/micro-ROS/micro_ros_msgs.git
+[submodule "ros2_ws/src/slam_toolbox"]
+	path = ros2_ws/src/slam_toolbox
+	url = https://github.com/SteveMacenski/slam_toolbox.git
+	branch = humble
+[submodule "third_party/depthai-model-zoo"]
+	path = third_party/depthai-model-zoo
+	url = https://github.com/luxonis/depthai-model-zoo.git
+[submodule "third_party/yolov5"]
+	path = third_party/yolov5
+	url = https://github.com/ultralytics/yolov5.git
+[submodule "firmware/components/micro_ros_espidf_component"]
+	path = firmware/components/micro_ros_espidf_component
+	url = https://github.com/micro-ROS/micro_ros_espidf_component.git
 	branch = humble

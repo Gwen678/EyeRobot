@@ -1,7 +1,0 @@
-{
-  "package_name": "rosbridge_msgs",
-  "non_idl_tuples": [
-    "/ros2_ws/src/rosbridge_msgs:msg/ConnectedClient.msg",
-    "/ros2_ws/src/rosbridge_msgs:msg/ConnectedClients.msg"
-  ]
-}

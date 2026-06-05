@@ -1,23 +1,56 @@
-# --- Dossiers liés à l'environnement Python (NE PAS COMMITTER) ---
-yolo_env/          # Ton environnement virtuel complet
-__pycache__/       # Fichiers compilés temporaires de Python
+# ─────────────────────────────────────────────────────────────────────────────
+# EyeRobot .gitignore
+# ─────────────────────────────────────────────────────────────────────────────
 
-# --- Modèles d'IA (souvent >100MB) ---
-*.pt               # Les modèles YOLO (yolov8n.pt, etc.)
+# ── ROS 2 / colcon build artifacts ──────────────────────────────────────────
+build/
+install/
+log/
+**/COLCON_IGNORE
+**/.colcon_install_layout
+
+# ── ESP32 / PlatformIO firmware build ────────────────────────────────────────
+firmware/.pio/
+.pio/
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+# Virtual environments
+yolo_env/
+.venv/
+venv/
+env/
+
+# ── ML training: datasets, runs, stock weights (regenerable / huge) ──────────
+# Trained product models the app needs (perception/best.pt, best.blob) stay
+# tracked via the negations below.
+runs/
+datasets/
+dataset/
+lego_dataset/
 *.onnx
+*.engine
+yolov8n.pt
+yolov8*.pt
+!perception/best.pt
+!perception/best.blob
+!**/perception/best.pt
+!**/perception/best.blob
 
-# --- Datasets et Logs (souvent >100MB) ---
-runs/              # Dossier où YOLO enregistre les logs
-datasets/          # Si tu crées un dossier global pour tes datasets
-
-# --- BIBLIOTHÈQUES NVIDIA CUDA VOLUMINEUSES ---
-# Détectées comme >100MB dans l'image 6
-# (yolo_env/lib/.../libcublasLt.so.13)
+# ── Large NVIDIA CUDA libs (if a venv ever leaks in) ─────────────────────────
 *libcublasLt.so.13*
 *libcudnn.so.9*
 *libcusparse.so.12*
 *libnvrtc.so.13*
 
-# --- Local configuration ---
-.DS_Store
+# ── Editor / OS ──────────────────────────────────────────────────────────────
 .vscode/
+.idea/
+.DS_Store
+
+# ── Local-only docs mirror (nav2/ros2 doc copies, scratch) ───────────────────
+docs/
+Docs/
