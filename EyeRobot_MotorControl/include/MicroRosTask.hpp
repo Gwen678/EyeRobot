@@ -23,6 +23,12 @@ private:
     static rcl_publisher_t        _publishers[MOTOR_COUNT];
     static std_msgs__msg__Int32   _pub_msgs[MOTOR_COUNT];
 
+    // Measured wheel speed (rad/s) telemetry — meaningful for the encoder
+    // wheels, 0 for the encoder-less belt/fans. For verifying the encoder speed
+    // estimate ahead of a closed-loop PI velocity controller.
+    static rcl_publisher_t        _speed_publishers[MOTOR_COUNT];
+    static std_msgs__msg__Float32 _speed_msgs[MOTOR_COUNT];
+
     static rcl_subscription_t     _subscribers[MOTOR_COUNT];
     static std_msgs__msg__Float32 _sub_msgs[MOTOR_COUNT];
 

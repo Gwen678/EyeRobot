@@ -21,6 +21,9 @@
 rcl_publisher_t            MicroRosTask::_publishers[MOTOR_COUNT];
 std_msgs__msg__Int32       MicroRosTask::_pub_msgs[MOTOR_COUNT];
 
+rcl_publisher_t            MicroRosTask::_speed_publishers[MOTOR_COUNT];
+std_msgs__msg__Float32     MicroRosTask::_speed_msgs[MOTOR_COUNT];
+
 rcl_subscription_t         MicroRosTask::_subscribers[MOTOR_COUNT];
 std_msgs__msg__Float32     MicroRosTask::_sub_msgs[MOTOR_COUNT];
 
@@ -48,9 +51,13 @@ void MicroRosTask::timerCallback(rcl_timer_t* timer, int64_t)
             // fans/belt). The host-side odometry node integrates these counts
             // into wheel distance; counts give exact position without the drift
             // of integrating a speed estimate.
-            _pub_msgs[i].data = fb.ticks;
+            _pub_msgs[i].data   = fb.ticks;
+            // Measured speed in rad/s (0 for the encoder-less fans/belt) — for
+            // checking the encoder speed estimate before closing a PI loop.
+            _speed_msgs[i].data = fb.speed_rads;
         }
         if (rcl_publish(&_publishers[i], &_pub_msgs[i], NULL)) {}
+        if (rcl_publish(&_speed_publishers[i], &_speed_msgs[i], NULL)) {}
     }
 }
 
@@ -105,6 +112,25 @@ bool MicroRosTask::try_connect_and_setup(rclc_support_t&  support,
         _pub_msgs[i].data = 0;
     }
 
+    // Speed publishers – one per motor, measured speed in rad/s (Float32).
+    // Only the encoder wheels carry a real value; belt/fans publish 0. Same
+    // best-effort rationale as the tick publishers.
+    for (size_t i = 0; i < MOTOR_COUNT; ++i) {
+        if (rclc_publisher_init_best_effort(
+                &_speed_publishers[i], &node,
+                ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
+                kMotorConfigs[i].speed_topic) != RCL_RET_OK) {
+            for (size_t j = 0; j < i; ++j)
+                RCL_CLEANUP(rcl_publisher_fini(&_speed_publishers[j], &node));
+            for (size_t j = 0; j < MOTOR_COUNT; ++j)
+                RCL_CLEANUP(rcl_publisher_fini(&_publishers[j], &node));
+            RCL_CLEANUP(rcl_node_fini(&node));
+            rclc_support_fini(&support);
+            return false;
+        }
+        _speed_msgs[i].data = 0.0f;
+    }
+
     // Subscribers – one per motor (command). Best-effort to match the teleop
     // publisher: the latest command is re-sent at 20 Hz, so a dropped sample is
     // superseded almost immediately and the 500 ms command timeout is the
@@ -117,8 +143,10 @@ bool MicroRosTask::try_connect_and_setup(rclc_support_t&  support,
                 kMotorConfigs[i].cmd_topic) != RCL_RET_OK) {
             for (size_t j = 0; j < i; ++j)
                 RCL_CLEANUP(rcl_subscription_fini(&_subscribers[j], &node));
-            for (size_t j = 0; j < MOTOR_COUNT; ++j)
+            for (size_t j = 0; j < MOTOR_COUNT; ++j) {
+                RCL_CLEANUP(rcl_publisher_fini(&_speed_publishers[j], &node));
                 RCL_CLEANUP(rcl_publisher_fini(&_publishers[j], &node));
+            }
             RCL_CLEANUP(rcl_node_fini(&node));
             rclc_support_fini(&support);
             return false;
@@ -130,6 +158,7 @@ bool MicroRosTask::try_connect_and_setup(rclc_support_t&  support,
             RCL_MS_TO_NS(100), timerCallback, true) != RCL_RET_OK) {
         for (size_t i = 0; i < MOTOR_COUNT; ++i) {
             RCL_CLEANUP(rcl_subscription_fini(&_subscribers[i], &node));
+            RCL_CLEANUP(rcl_publisher_fini(&_speed_publishers[i], &node));
             RCL_CLEANUP(rcl_publisher_fini(&_publishers[i], &node));
         }
         RCL_CLEANUP(rcl_node_fini(&node));
@@ -144,6 +173,7 @@ bool MicroRosTask::try_connect_and_setup(rclc_support_t&  support,
         RCL_CLEANUP(rcl_timer_fini(&timer));
         for (size_t i = 0; i < MOTOR_COUNT; ++i) {
             RCL_CLEANUP(rcl_subscription_fini(&_subscribers[i], &node));
+            RCL_CLEANUP(rcl_publisher_fini(&_speed_publishers[i], &node));
             RCL_CLEANUP(rcl_publisher_fini(&_publishers[i], &node));
         }
         RCL_CLEANUP(rcl_node_fini(&node));
@@ -160,6 +190,7 @@ bool MicroRosTask::try_connect_and_setup(rclc_support_t&  support,
             RCL_CLEANUP(rcl_timer_fini(&timer));
             for (size_t j = 0; j < MOTOR_COUNT; ++j) {
                 RCL_CLEANUP(rcl_subscription_fini(&_subscribers[j], &node));
+                RCL_CLEANUP(rcl_publisher_fini(&_speed_publishers[j], &node));
                 RCL_CLEANUP(rcl_publisher_fini(&_publishers[j], &node));
             }
             RCL_CLEANUP(rcl_node_fini(&node));
@@ -181,6 +212,7 @@ void MicroRosTask::destroy_entities(rclc_support_t&  support,
     RCL_CLEANUP(rcl_timer_fini(&timer));
     for (size_t i = 0; i < MOTOR_COUNT; ++i) {
         RCL_CLEANUP(rcl_subscription_fini(&_subscribers[i], &node));
+        RCL_CLEANUP(rcl_publisher_fini(&_speed_publishers[i], &node));
         RCL_CLEANUP(rcl_publisher_fini(&_publishers[i], &node));
     }
     RCL_CLEANUP(rcl_node_fini(&node));
@@ -207,6 +239,9 @@ void MicroRosTask::run()
     uint32_t spin_count = 0;
     uint32_t ping_failures = 0;
 
+    // Motors stay gated to 0 until the first successful connection.
+    _bus.link_up.store(false);
+
     while (true) {
         if (!connected) {
             // Block here until agent is reachable, then set up entities.
@@ -221,6 +256,8 @@ void MicroRosTask::run()
             connected = true;
             spin_count = 0;
             ping_failures = 0;
+            // Link is fully up: motors may now act on received commands.
+            _bus.link_up.store(true);
         }
 
         rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
@@ -244,6 +281,9 @@ void MicroRosTask::run()
             // pool pressure that came with it).
             if (rmw_uros_ping_agent(100, 3) != RMW_RET_OK) {
                 if (++ping_failures >= 2) {
+                    // Confirmed disconnect: gate motors to 0 before tearing down,
+                    // then drop back to the (non-blocking-to-the-robot) retry.
+                    _bus.link_up.store(false);
                     destroy_entities(support, node, timer, executor);
                     connected = false;
                     ping_failures = 0;

@@ -4,11 +4,23 @@ This repository contains:
 
 - `EyeRobot_MotorControl`: ESP32 firmware for five motors over micro-ROS.
 - `ManualController`: ROS 2 Python package for keyboard driving and RViz odometry.
+- `URDF` (`robot_description`): xacro + meshes for the RViz robot model.
 
-The current control split is:
+## Control Mode
 
-- Belt, right wheel, left wheel: encoder speed PI control.
-- Right fan, left fan: open-loop sign control.
+| Motor | Mode |
+|---|---|
+| Right wheel | Encoder PI speed (closed-loop) |
+| Left wheel | Encoder PI speed (closed-loop) |
+| Belt | Open-loop sign, full duty |
+| Right fan | Open-loop sign, full duty |
+| Left fan | Open-loop sign, full duty |
+
+Each command is a `Float32` in rad/s. For the **wheels**, that value is a real
+speed setpoint the PI controller tracks from the encoder feedback (currently
+P-only, `kKi = 0`, so expect some steady-state droop). For the **belt and fans**
+(no encoder) only the **sign** matters: any magnitude past the `0.5 rad/s`
+deadband runs them at full duty in that direction.
 
 ## Safety First
 
@@ -16,16 +28,18 @@ Before testing with motor power connected:
 
 1. Put the robot on blocks so the wheels and belt can spin freely.
 2. Keep a physical motor-power switch reachable.
-3. Start with low `command_speed_rad_s`.
-4. Send stop commands before and after flashing:
+3. Send stop commands before and after flashing:
 
 ```bash
 ros2 topic pub --once /motor_rwheel_cmd std_msgs/msg/Float32 "{data: 0.0}"
 ros2 topic pub --once /motor_lwheel_cmd std_msgs/msg/Float32 "{data: 0.0}"
-ros2 topic pub --once /motor_belt_cmd std_msgs/msg/Float32 "{data: 0.0}"
-ros2 topic pub --once /motor_rfan_cmd std_msgs/msg/Float32 "{data: 0.0}"
-ros2 topic pub --once /motor_lfan_cmd std_msgs/msg/Float32 "{data: 0.0}"
+ros2 topic pub --once /motor_belt_cmd  std_msgs/msg/Float32 "{data: 0.0}"
+ros2 topic pub --once /motor_rfan_cmd  std_msgs/msg/Float32 "{data: 0.0}"
+ros2 topic pub --once /motor_lfan_cmd  std_msgs/msg/Float32 "{data: 0.0}"
 ```
+
+Note: open-loop motors run at full power for any out-of-deadband command, so
+keep clear of the wheels, belt, and fans while testing.
 
 ## 1. Flash The ESP32
 
@@ -50,40 +64,36 @@ colcon build
 source install/setup.bash
 ```
 
-This builds the local `micro_ros_msgs`, local `micro_ros_agent`, and `manual_controller` packages.
+This builds the local `micro_ros_msgs`, local `micro_ros_agent`,
+`robot_description`, and `manual_controller` packages.
 
 Do this again after editing ROS-side code.
 
 ## 3. One-Command Run
 
-With the ESP32 flashed and connected over USB:
+With the ESP32 flashed and connected over USB, from the repository root:
 
 ```bash
-ros2 launch manual_controller manual_controller.launch.py
+./run_eyerobot.sh
 ```
 
-That starts:
+That opens **three terminal windows**, each running one part of the stack:
 
-- the micro-ROS serial agent
-- the WASD keyboard controller
-- RViz with the EyeRobot config
+1. the micro-ROS serial agent (`/dev/ttyUSB0` @ 115200)
+2. the keyboard teleop (click this window and drive)
+3. the odometry + URDF + RViz window (`state_estimator` +
+   `robot_state_publisher` + `joint_state_publisher` + RViz together)
 
-If your ESP32 is not on `/dev/ttyUSB0`, pass the serial device:
+If your ESP32 is on another port, pass it:
 
 ```bash
-ros2 launch manual_controller manual_controller.launch.py serial_dev:=/dev/ttyACM0
+./run_eyerobot.sh /dev/ttyACM0
 ```
 
-If you want no RViz:
+To log raw encoder deltas in the odometry window (for diagnosing odometry):
 
 ```bash
-ros2 launch manual_controller manual_controller.launch.py rviz:=false
-```
-
-If the micro-ROS agent is already running in another terminal:
-
-```bash
-ros2 launch manual_controller manual_controller.launch.py micro_ros_agent:=false
+DEBUG_ENCODERS=true ./run_eyerobot.sh
 ```
 
 Useful checks:
@@ -94,100 +104,131 @@ ros2 topic list
 ros2 topic echo /motor_rwheel_fb
 ```
 
-You should see the firmware node as `eyerobot_node` once the agent is connected.
+You should see the firmware node as `eyerobot_node` once the agent connects.
 
-## 4. Drive With WASD And RViz
+## 4. Drive With The Keyboard
 
-Main command:
-
-```bash
-ros2 launch manual_controller manual_controller.launch.py
-```
-
-If keyboard input is not captured through `ros2 launch`, run the controller directly in the focused terminal:
+Run the teleop node in a focused terminal (it reads raw keypresses):
 
 ```bash
 ros2 run manual_controller manual_controller
 ```
 
-Then start RViz separately:
+Keyboard controls:
+
+| Key | Action | Behaviour |
+|---|---|---|
+| Hold `w` | Forward | Momentary (held to run) |
+| Hold `s` | Backward | Momentary |
+| Hold `a` | Pivot left | Momentary |
+| Hold `d` | Pivot right | Momentary |
+| Tap `q` | Fans on `>` | Latched (tap again to stop) |
+| Tap `e` | Fans reverse `<` | Latched |
+| Tap `r` | Belt forward `+` | Latched |
+| Tap `t` | Belt reverse `-` | Latched |
+| `space` or `x` | Stop all | — |
+| `ctrl-c` | Quit | — |
+
+Wheels are **momentary**: they stop ~`release_timeout_s` (default 0.2 s) after
+the key stops auto-repeating. Fans and belt are **latched**: they keep running
+until you tap their key again or hit stop. The fans are mechanically coupled to
+spin opposite each other, so a single `q`/`e` tap drives both.
+
+If you want the visualization without the launch script, start RViz separately:
 
 ```bash
 rviz2 -d install/manual_controller/share/manual_controller/rviz/eyerobot.rviz
 ```
 
-Keyboard controls:
-
-| Key | Action |
-|---|---|
-| Hold `w` | Forward |
-| Hold `s` | Backward |
-| Hold `a` | Pivot left |
-| Hold `d` | Pivot right |
-| `space` or `x` | Stop |
-| `r` | Reset RViz odometry/path |
-| `q` | Quit controller |
-
-The controller is hold-to-run. If no key repeat arrives for `keyboard_timeout_s`, it publishes zero wheel commands.
-
 ## 5. Tune Runtime Parameters
 
-Common launch parameters:
+Common teleop / odometry parameters:
 
 ```bash
-ros2 launch manual_controller manual_controller.launch.py \
-  command_speed_rad_s:=4.0 \
-  turn_speed_rad_s:=3.0 \
-  wheel_radius_m:=0.035 \
-  wheel_separation_m:=0.150
+ros2 run manual_controller manual_controller --ros-args \
+  -p command_speed_rad_s:=8.0 \
+  -p turn_speed_rad_s:=5.0 \
+  -p fan_command_rad_s:=8.0 \
+  -p belt_command_rad_s:=8.0
+
+ros2 run manual_controller state_estimator --ros-args \
+  -p wheel_radius_m:=0.06 \
+  -p wheel_separation_m:=0.150 \
+  -p counts_per_output_rev:=5756.0
 ```
+
+Because control is open-loop sign, the `*_speed_rad_s` values only need to clear
+the `0.5 rad/s` deadband to command full duty; their magnitude does not set the
+actual speed.
 
 If a motor or encoder sign is inverted, fix it without changing firmware:
 
 ```bash
-ros2 launch manual_controller manual_controller.launch.py \
-  right_command_sign:=-1.0 \
-  left_command_sign:=1.0 \
-  right_feedback_sign:=-1.0 \
-  left_feedback_sign:=1.0
+ros2 run manual_controller manual_controller --ros-args \
+  -p right_command_sign:=-1.0 -p left_command_sign:=1.0
+
+ros2 run manual_controller state_estimator --ros-args \
+  -p right_feedback_sign:=-1.0 -p left_feedback_sign:=1.0
 ```
 
 Important parameters:
 
-| Parameter | Default | Meaning |
-|---|---:|---|
-| `command_speed_rad_s` | `8.0` | Wheel speed setpoint for forward/backward |
-| `turn_speed_rad_s` | `5.0` | Wheel speed setpoint for pivot turns |
-| `keyboard_timeout_s` | `0.7` | Stop if no key repeat arrives |
-| `feedback_timeout_s` | `0.5` | Treat stale wheel feedback as zero for odometry |
-| `wheel_radius_m` | `0.035` | Used to convert wheel rad/s to linear speed |
-| `wheel_separation_m` | `0.150` | Used to compute yaw rate |
-| `right_command_sign` | `1.0` | Invert right motor command with `-1.0` |
-| `left_command_sign` | `1.0` | Invert left motor command with `-1.0` |
-| `right_feedback_sign` | `1.0` | Invert right encoder feedback with `-1.0` |
-| `left_feedback_sign` | `1.0` | Invert left encoder feedback with `-1.0` |
+| Parameter | Node | Default | Meaning |
+|---|---|---:|---|
+| `command_speed_rad_s` | teleop | `8.0` | Forward/backward command magnitude |
+| `turn_speed_rad_s` | teleop | `5.0` | Pivot-turn command magnitude |
+| `fan_command_rad_s` | teleop | `8.0` | Fan command magnitude (`q`/`e`) |
+| `belt_command_rad_s` | teleop | `8.0` | Belt command magnitude (`r`/`t`) |
+| `command_rate_hz` | teleop | `20.0` | Fixed command publish rate |
+| `release_timeout_s` | teleop | `0.2` | Stop wheels if no key repeat arrives |
+| `right_command_sign` | teleop | `-1.0` | Invert right wheel command polarity |
+| `left_command_sign` | teleop | `1.0` | Invert left wheel command polarity |
+| `wheel_radius_m` | estimator | `0.06` | Wheel radius for odometry |
+| `wheel_separation_m` | estimator | `0.150` | Track width for yaw rate |
+| `counts_per_output_rev` | estimator | `5756.0` | Encoder counts per wheel revolution |
+| `right_feedback_sign` | estimator | `1.0` | Invert right encoder feedback |
+| `left_feedback_sign` | estimator | `1.0` | Invert left encoder feedback |
+
+Encoder polarity is corrected in firmware (`MotorConfig::invert_encoder`), so
+the feedback signs normally stay `+1.0`; flip one only for ad-hoc host testing.
 
 ## 6. Topics
 
-Firmware command topics, host to ESP32:
+Firmware command topics, host to ESP32 (`std_msgs/msg/Float32`, sign-only):
 
-| Topic | Type | Meaning |
-|---|---|---|
-| `/motor_belt_cmd` | `std_msgs/msg/Float32` | Belt speed setpoint in rad/s |
-| `/motor_rwheel_cmd` | `std_msgs/msg/Float32` | Right wheel speed setpoint in rad/s |
-| `/motor_lwheel_cmd` | `std_msgs/msg/Float32` | Left wheel speed setpoint in rad/s |
-| `/motor_rfan_cmd` | `std_msgs/msg/Float32` | Right fan sign command |
-| `/motor_lfan_cmd` | `std_msgs/msg/Float32` | Left fan sign command |
+| Topic | Meaning |
+|---|---|
+| `/motor_belt_cmd` | Belt direction |
+| `/motor_rwheel_cmd` | Right wheel direction |
+| `/motor_lwheel_cmd` | Left wheel direction |
+| `/motor_rfan_cmd` | Right fan direction |
+| `/motor_lfan_cmd` | Left fan direction |
 
-Firmware feedback topics, ESP32 to host:
+Firmware tick feedback topics, ESP32 to host (`std_msgs/msg/Int32`):
 
-| Topic | Type | Meaning |
-|---|---|---|
-| `/motor_belt_fb` | `std_msgs/msg/Int32` | Belt speed in mrad/s |
-| `/motor_rwheel_fb` | `std_msgs/msg/Int32` | Right wheel speed in mrad/s |
-| `/motor_lwheel_fb` | `std_msgs/msg/Int32` | Left wheel speed in mrad/s |
-| `/motor_rfan_fb` | `std_msgs/msg/Int32` | Always zero, open-loop fan |
-| `/motor_lfan_fb` | `std_msgs/msg/Int32` | Always zero, open-loop fan |
+| Topic | Meaning |
+|---|---|
+| `/motor_rwheel_fb` | Right wheel accumulated encoder ticks |
+| `/motor_lwheel_fb` | Left wheel accumulated encoder ticks |
+| `/motor_belt_fb` | Always 0 (no encoder) |
+| `/motor_rfan_fb` | Always 0 (no encoder) |
+| `/motor_lfan_fb` | Always 0 (no encoder) |
+
+Firmware speed feedback topics, ESP32 to host (`std_msgs/msg/Float32`, rad/s):
+
+| Topic | Meaning |
+|---|---|
+| `/motor_rwheel_speed` | Right wheel measured speed (rad/s) |
+| `/motor_lwheel_speed` | Left wheel measured speed (rad/s) |
+| `/motor_belt_speed` | Always 0 (no encoder) |
+| `/motor_rfan_speed` | Always 0 (no encoder) |
+| `/motor_lfan_speed` | Always 0 (no encoder) |
+
+The state estimator integrates the **raw accumulated wheel tick counts** into
+distance (exact position, no speed-integration drift). The `*_speed` topics
+expose the firmware's encoder speed estimate in rad/s — handy for checking the
+wheel speed a future closed-loop PI controller would use
+(`ros2 topic echo /motor_rwheel_speed`).
 
 PC visualization topics:
 
@@ -197,7 +238,15 @@ PC visualization topics:
 | `/path` | `nav_msgs/msg/Path` | RViz trail |
 | TF `odom -> base_link` | `tf2` | Robot pose for RViz |
 
-## 7. Troubleshooting
+## 7. Cleanup
+
+If `ros2 launch`/RViz/teleop orphan processes survive a crash:
+
+```bash
+./kill_eyerobot.sh
+```
+
+## 8. Troubleshooting
 
 If nothing appears in ROS:
 
@@ -206,28 +255,23 @@ ros2 node list
 ros2 topic list
 ```
 
-Check that the micro-ROS agent is running on the same serial port used by the ESP32.
+Check that the micro-ROS agent is running on the same serial port as the ESP32.
 
 If the robot moves but RViz goes backward:
 
-- Try `right_feedback_sign:=-1.0` or `left_feedback_sign:=-1.0`.
-- Press `r` in the controller terminal to reset odometry after changing signs.
+- Try `right_feedback_sign:=-1.0` or `left_feedback_sign:=-1.0` on the estimator.
+- Call the reset service after changing signs:
+  `ros2 service call /reset_odometry std_srvs/srv/Empty`.
 
 If a wheel command moves the wrong wheel direction:
 
-- Try `right_command_sign:=-1.0` or `left_command_sign:=-1.0`.
+- Try `right_command_sign:=-1.0` or `left_command_sign:=-1.0` on the teleop.
 
 If a motor keeps moving after you release keys:
 
-- Confirm the controller is still running and publishing zeros:
-
-```bash
-ros2 topic echo /motor_rwheel_cmd
-ros2 topic echo /motor_lwheel_cmd
-```
-
-- The firmware also has a command watchdog; stale commands should time out after 500 ms.
-- If the pin is low at the ESP32 but the motor still drives, inspect the motor driver input semantics and wiring.
+- Confirm the teleop is still running and publishing zeros:
+  `ros2 topic echo /motor_rwheel_cmd`.
+- The firmware has a 500 ms command watchdog; stale commands time out and stop.
 
 ## More Details
 

@@ -9,15 +9,28 @@
 static constexpr uint32_t kPeriodMs = 10;
 static constexpr float    kDt       = kPeriodMs / 1000.0f;
 
-static constexpr float kKp     =  0.1f;
-static constexpr float kKi     =  0.5f;
+// Error is in ticks/s (thousands), output is duty % in [-100, 100]. The plant
+// does ~9600 tps at 100% duty, so its inverse gain is ~0.0104 %/tps; kKp=0.1 was
+// ~10x that → the loop saturated for any error past ~1 rad/s and bang-banged
+// (overshoot to full speed, then full-reverse braking → the 10↔0 oscillation).
+// Backed off to ~3x plant: stable, but P alone leaves steady-state droop (settles
+// below setpoint). A small kKi integrates that residual error away so the wheel
+// reaches the commanded speed. PiController has anti-windup: it clamps the
+// integrator so kKi*integral alone stays within ±100% duty. Start kKi tiny and
+// raise it if it settles too slowly (or lower it if it overshoots/hunts).
+// Error is ticks/s (thousands), output is duty % [-100,100]. Plant ~9600 tps at
+// 100% duty → inverse gain ~0.0104 %/tps. 0.05 hunts, 0.02 is rock-stable, so
+// 0.03 (~3x plant) sits just under the limit for a bit of snap. Drop to 0.02 if
+// it still hunts while holding a steady command.
+static constexpr float kKp     =  0.03f;
+static constexpr float kKi     =  0.005f;  // integral; raise carefully for faster settle
 static constexpr float kOutMin = -100.0f;
 static constexpr float kOutMax =  100.0f;
 static constexpr float kStopSetpointEpsilonTps = 1.0f;
 
-// Open-loop sign control turns ANY nonzero command into full duty, so a single
-// corrupted/duplicated best-effort sample would become a full-power twitch.
-// Ignore sub-threshold magnitudes — well below real commands (~5-8 rad/s).
+// Open-loop sign control (fans/belt) turns ANY nonzero command into full duty,
+// so a single corrupted/duplicated best-effort sample would become a full-power
+// twitch. Ignore sub-threshold magnitudes — well below real commands (~5-8 rad/s).
 static constexpr float kOpenLoopDeadbandRads = 0.5f;
 
 static float clamp_abs(float value, float max_abs)
@@ -90,6 +103,7 @@ void MotorTask::run()
     const TickType_t command_timeout_ticks = pdMS_TO_TICKS(_cfg.command_timeout_ms);
 
     int32_t prev_ticks = 0;
+    float   prev_setpoint_tps = 0.0f;
 
     while (true) {
         vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(kPeriodMs));
@@ -109,6 +123,15 @@ void MotorTask::run()
             _command_rads = 0.0f;
         }
 
+        // Hard safety gate: while the micro-ROS link is down (boot before the
+        // first agent connection, or any reconnect) force the held command to 0
+        // so the motor stays stopped regardless of the last received command.
+        // This decouples motor safety from the (blocking) reconnect loop — the
+        // robot stays still at 0 the whole time the agent is unreachable.
+        if (!_bus.link_up.load(std::memory_order_relaxed)) {
+            _command_rads = 0.0f;
+        }
+
         MotorFeedback fb;
         fb.ticks      = 0;
         fb.speed_rads = 0.0f;
@@ -123,23 +146,44 @@ void MotorTask::run()
             fb.speed_rads = measured_tps / encoder_cfg::kTicksPerRad;
         }
 
+        // Compute the desired duty in the COMMAND frame (+ = forward), then apply
+        // the per-wheel motor-polarity correction so +duty physically drives this
+        // wheel forward. Keeping invert_motor out of the PI means the loop sees a
+        // coherent +command/+measured frame (negative feedback) and only the
+        // final actuator step accounts for wiring polarity.
+        float duty   = 0.0f;
+        bool  stop   = false;
         if (closed_loop) {
             const float setpoint_tps = _command_rads * encoder_cfg::kTicksPerRad;
-            if (is_stop_setpoint(setpoint_tps)) {
+            // Commanded direction flipped: drop integral built up for the old
+            // direction so the reversal isn't sluggish unwinding it.
+            if (setpoint_tps * prev_setpoint_tps < 0.0f) {
                 _pi.reset();
-                _motor.stop();
+            }
+            prev_setpoint_tps = setpoint_tps;
+
+            if (is_stop_setpoint(setpoint_tps)) {
+                // Commanded stop → hard stop (motor coasts). No active braking:
+                // regulating to 0 turned brief command dropouts into a fast
+                // spin/brake oscillation. The wheel coasting to rest is fine.
+                _pi.reset();
+                stop = true;
             } else {
-                const float duty = _pi.update(setpoint_tps, measured_tps, kDt);
-                _motor.setSpeed(duty);
+                duty = _pi.update(setpoint_tps, measured_tps, kDt);
             }
         } else {
-            const float duty =
-                open_loop_duty_from_command(_command_rads, _cfg.open_loop_duty_percent);
-            if (duty == 0.0f) {
-                _motor.stop();
-            } else {
-                _motor.setSpeed(duty);
-            }
+            duty = open_loop_duty_from_command(_command_rads, _cfg.open_loop_duty_percent);
+            stop = (duty == 0.0f);
+        }
+
+        if (_cfg.invert_motor) {
+            duty = -duty;
+        }
+
+        if (stop) {
+            _motor.stop();
+        } else {
+            _motor.setSpeed(duty);
         }
 
         _bus.from_motor[idx].sendLatest(fb);

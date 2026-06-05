@@ -53,8 +53,9 @@ def generate_launch_description():
         _arg('belt_command_rad_s', '8.0', 'Belt command magnitude (r/t)'),
         _arg('command_rate_hz', '20.0', 'Motor command publish rate'),
         _arg('release_timeout_s', '0.2', 'Stop wheels if no key repeat arrives within this time'),
-        _arg('right_command_sign', '-1.0', 'Set to -1.0 if right wheel command polarity is inverted'),
-        _arg('left_command_sign', '1.0', 'Set to -1.0 if left wheel command polarity is inverted'),
+        # Direction is handled on the MCU (invert_motor/invert_encoder); host sends +forward.
+        _arg('right_command_sign', '1.0', 'Host command polarity; keep +1, fix direction on the MCU'),
+        _arg('left_command_sign', '1.0', 'Host command polarity; keep +1, fix direction on the MCU'),
 
         # ── State estimator (odometry) node ───────────────────────────────────
         _arg('counts_per_output_rev', '5756.0', 'Encoder counts per wheel (output) revolution'),

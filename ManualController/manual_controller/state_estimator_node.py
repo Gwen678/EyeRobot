@@ -82,6 +82,9 @@ class StateEstimatorNode(Node):
         self.declare_parameter('right_feedback_sign', 1.0)
         self.declare_parameter('left_feedback_sign', 1.0)
         self.declare_parameter('publish_tf', True)
+        # When true, log raw encoder counts and per-wheel/centre deltas each step
+        # so a forward-vs-backward odometry asymmetry can be diagnosed live.
+        self.declare_parameter('debug_encoders', False)
         self.declare_parameter('odom_frame', 'odom')
         self.declare_parameter('base_frame', 'base_link')
         self.declare_parameter('right_fb_topic', 'motor_rwheel_fb')
@@ -123,6 +126,7 @@ class StateEstimatorNode(Node):
             self.get_parameter('left_feedback_sign').value, 1.0
         )
         self._publish_tf = bool(self.get_parameter('publish_tf').value)
+        self._debug_encoders = bool(self.get_parameter('debug_encoders').value)
         self._odom_frame = str(self.get_parameter('odom_frame').value)
         self._base_frame = str(self.get_parameter('base_frame').value)
         right_fb_topic = str(self.get_parameter('right_fb_topic').value)
@@ -221,6 +225,10 @@ class StateEstimatorNode(Node):
             self._prev_left = self._left_count
             return
 
+        # Raw (pre-clamp, pre-sign) count deltas, kept for diagnostics.
+        raw_dr = self._right_count - self._prev_right
+        raw_dl = self._left_count - self._prev_left
+
         d_right = self._wheel_delta_m(
             self._right_count, self._prev_right, self._right_feedback_sign
         )
@@ -231,6 +239,13 @@ class StateEstimatorNode(Node):
         self._prev_left = self._left_count
 
         if d_right is None or d_left is None:
+            if self._debug_encoders:
+                self.get_logger().warn(
+                    f'[enc] step rejected by plausibility clamp: raw dR={raw_dr:+d} '
+                    f'dL={raw_dl:+d} (limit {self._max_counts_per_step:.0f} counts) '
+                    f'— re-baselined, no pose update',
+                    throttle_duration_sec=0.5,
+                )
             return  # re-baselined above; resume next cycle
 
         d_center = 0.5 * (d_right + d_left)
@@ -242,6 +257,22 @@ class StateEstimatorNode(Node):
         self._pose.x += d_center * math.cos(mid_yaw)
         self._pose.y += d_center * math.sin(mid_yaw)
         self._pose.yaw = normalize_angle(self._pose.yaw + d_yaw)
+
+        # Diagnostic trace: raw counts, signed wheel deltas, and the resulting
+        # centre/yaw deltas + pose. If forward motion leaves pose.x/y unchanged,
+        # this shows whether the two wheel deltas are cancelling (d_center≈0,
+        # i.e. forward is being integrated as a pure rotation) or whether a wheel
+        # delta is being dropped.
+        if self._debug_encoders and (raw_dr != 0 or raw_dl != 0):
+            self.get_logger().info(
+                f'[enc] R={self._right_count} L={self._left_count} '
+                f'rawdR={raw_dr:+d} rawdL={raw_dl:+d} '
+                f'dR={d_right:+.4f}m dL={d_left:+.4f}m '
+                f'dC={d_center:+.4f}m dYaw={math.degrees(d_yaw):+.2f}deg '
+                f'pose=({self._pose.x:+.3f},{self._pose.y:+.3f},'
+                f'{math.degrees(self._pose.yaw):+.1f}deg)',
+                throttle_duration_sec=0.3,
+            )
 
         # Twist for downstream fusion (robot_localization fuses Vx/Vyaw, not the
         # pose): average distance/yaw over the time between *actual* count

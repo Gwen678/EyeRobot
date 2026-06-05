@@ -64,7 +64,10 @@ class ManualControllerNode(Node):
         self.declare_parameter('belt_command_rad_s', 8.0)
         self.declare_parameter('command_rate_hz', 20.0)
         self.declare_parameter('release_timeout_s', 0.2)
-        self.declare_parameter('right_command_sign', -1.0)
+        # Direction/polarity is handled entirely on the MCU (per-wheel
+        # invert_motor/invert_encoder), so the host sends a clean speed where
+        # +forward/-backward for both wheels. Leave these at +1.
+        self.declare_parameter('right_command_sign', 1.0)
         self.declare_parameter('left_command_sign', 1.0)
         self.declare_parameter('rfan_command_sign', 1.0)
         self.declare_parameter('lfan_command_sign', 1.0)
