@@ -3,8 +3,8 @@
 #
 #   1. micro-ROS agent        — bridges the ESP32 serial link to ROS 2
 #   2. keyboard teleop        — drive the robot (w/a/s/d, q/e fans, r/t belt)
-#   3. odometry + URDF + RViz — state_estimator + robot_state_publisher
-#                               + joint_state_publisher + RViz (one window)
+#   3. odometry + URDF        — state_estimator + robot_state_publisher
+#                               + joint_state_publisher (+ RViz only if RVIZ=true)
 #
 # The teleop window gets its own real TTY (it reads raw keypresses); just click
 # it and start driving.
@@ -12,15 +12,21 @@
 # Usage:
 #     ./run_eyerobot.sh [SERIAL_DEV]
 #     ./run_eyerobot.sh /dev/ttyACM0
+#     RVIZ=true ./run_eyerobot.sh             # also open RViz (off by default)
 #     DEBUG_ENCODERS=true ./run_eyerobot.sh   # log raw encoder deltas in window 3
 #
-# Defaults to /dev/ttyUSB0. Closing a window stops that part of the stack.
+# Defaults to /dev/ttyUSB0. RViz is OFF by default (run it on your dev PC for
+# Jetson Nano deployments). Closing a window stops that part of the stack.
 
 set -u
 
 SERIAL_DEV="${1:-/dev/ttyUSB0}"
 BAUD=115200
 DEBUG_ENCODERS="${DEBUG_ENCODERS:-false}"
+# RViz is OFF by default — on the Jetson Nano run RViz on your dev PC instead
+# (subscribe to the robot's topics over the network). Set RVIZ=true to start it
+# locally (fine on a dev PC).
+RVIZ="${RVIZ:-false}"
 
 # Repo root = this script's directory (so install/setup.bash resolves).
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -93,8 +99,16 @@ open_term "drive (teleop)" \
 # ── 3. State estimator + URDF + RViz (one window) ─────────────────────────────
 # robot_state_publisher needs the expanded URDF; xacro is run inside the window
 # after ROS is sourced. The estimator and the two publishers run in the
-# background (their logs print here); rviz runs in the foreground so closing it
-# (kill 0 trap) tears the whole group down with it.
+# background (their logs print here). The foreground process keeps the window
+# (and the kill-0 trap) alive: rviz2 when RVIZ=true, otherwise a plain `wait` so
+# the nodes keep running until you Ctrl-C.
+if [ "$RVIZ" = "true" ]; then
+  VIZ_FG="rviz2 -d \"\$RVIZ_CFG\""
+  VIZ_TITLE="odometry + URDF + RViz"
+else
+  VIZ_FG="echo '[RViz off — set RVIZ=true to enable, or run rviz2 on your dev PC]'; echo '[Ctrl-C here to stop odometry + URDF]'; wait"
+  VIZ_TITLE="odometry + URDF (RViz off)"
+fi
 VIZ_CMD="
 XACRO_FILE=\"\$(ros2 pkg prefix robot_description)/share/robot_description/urdf/Robot.xacro\"
 RVIZ_CFG=\"\$(ros2 pkg prefix manual_controller)/share/manual_controller/rviz/eyerobot.rviz\"
@@ -103,10 +117,11 @@ ros2 run manual_controller state_estimator --ros-args -p debug_encoders:=$DEBUG_
 ros2 run robot_state_publisher robot_state_publisher \
   --ros-args -p robot_description:=\"\$(xacro \"\$XACRO_FILE\")\" &
 ros2 run joint_state_publisher joint_state_publisher &
-rviz2 -d \"\$RVIZ_CFG\"
+$VIZ_FG
 "
-open_term "odometry + URDF + RViz" "$VIZ_CMD" close
+open_term "$VIZ_TITLE" "$VIZ_CMD" close
 
-echo "Launched 3 windows: micro-ROS agent ($SERIAL_DEV @ $BAUD), teleop, odometry+URDF+RViz."
+echo "Launched 3 windows: micro-ROS agent ($SERIAL_DEV @ $BAUD), teleop, $VIZ_TITLE."
 echo "Click the 'drive (teleop)' window and use w/a/s/d (q/e fans, r/t belt) to drive."
+[ "$RVIZ" = "true" ] || echo "RViz is OFF (RVIZ=true to enable; or run rviz2 on your dev PC)."
 [ "$DEBUG_ENCODERS" = "true" ] && echo "Encoder debug logging is ON in the odometry window."

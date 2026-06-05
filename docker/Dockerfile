@@ -1,22 +1,30 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# EyeRobot dev container — ROS 2 Humble + Nav2 + slam_toolbox + Oak-D + RPLidar
-# + YOLO perception. Multi-arch: runs on the Jetson Orin Nano (arm64) and on an
-# x86 dev machine.
+# EyeRobot dev container — Ubuntu 22.04 / ROS 2 Humble + Nav2 + slam_toolbox +
+# Oak-D + RPLidar + micro-ROS agent + YOLO perception.
 #
 # This is a DEV container: the repo is mounted at runtime (see docker/run.sh) and
 # you build the workspace inside it with docker/build_ws.sh. Code edits on the
 # host show up live; the colcon build/ install/ land in the mounted tree.
 #
-# NOTE: CPU build of depthai/ultralytics. For CUDA-accelerated YOLO on the Jetson,
-# switch the base image to an NVIDIA L4T ROS image (dustynv/ros:humble-*). See
-# the README "GPU on Jetson" note.
+# BASE_IMAGE selects the platform:
+#   • Default `ros:humble-ros-base` — Ubuntu 22.04, builds anywhere (x86 or as a
+#     container on any Jetson). All ROS packages come from apt. Perception runs on
+#     CPU torch unless the base provides a GPU torch.
+#   • GPU on the Jetson requires JetPack 6 (L4T r36 = Ubuntu 22.04). Point
+#     BASE_IMAGE at a matching Dusty-NV 22.04 image to get a Jetson-built CUDA
+#     PyTorch, while still apt-installing the ROS packages below:
+#       cat /etc/nv_tegra_release    # "R36 ... REVISION: x.y" -> r36.x.y
+#       ./docker/build.sh --build-arg BASE_IMAGE=dustynv/ros:humble-desktop-l4t-r36.2.0
+#     (JetPack 5 / L4T r35 is Ubuntu 20.04 and canNOT do 22.04 + apt-ROS + GPU
+#      together — upgrade to JetPack 6 for the GPU-on-Jetson path.)
 # ─────────────────────────────────────────────────────────────────────────────
-FROM ros:humble-ros-base
+ARG BASE_IMAGE=ros:humble-ros-base
+FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-# ── Build tooling + ROS deps ─────────────────────────────────────────────────
+# ── Build tooling + ROS deps (apt works natively on Ubuntu 22.04) ────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git wget curl nano \
       python3-pip python3-colcon-common-extensions python3-rosdep python3-vcstool \
@@ -32,16 +40,38 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ros-humble-robot-state-publisher ros-humble-joint-state-publisher ros-humble-joint-state-publisher-gui \
       ros-humble-xacro \
       ros-humble-cv-bridge ros-humble-image-transport ros-humble-vision-opencv \
-      # ex-submodule deps now from apt
       ros-humble-vision-msgs ros-humble-angles \
  && rm -rf /var/lib/apt/lists/*
 
 # ── Python deps not available via rosdep ─────────────────────────────────────
+# Core deps for the camera/IMU + lidar + web viewers. These are light.
 RUN pip3 install --no-cache-dir \
       "numpy==1.26.4" pillow flask \
       "depthai==2.25.1.0" "blobconverter==1.4.3" \
-      ultralytics \
       rplidar-roboticia
+
+# Perception (YOLO). ON by default. Adaptive torch:
+#   • Target = Jetson Nano (aarch64): plain `pip install torch` gives a CPU-only
+#     wheel from PyPI. The multi-GB nvidia-cuda-* wheels that previously hung the
+#     build are x86_64-only, so they are never pulled here — CPU inference only
+#     (the Nano's GPU is unreachable from a 22.04 container on JetPack 4).
+#   • If the base image already ships torch (e.g. a GPU dustynv base), keep it;
+#     ultralytics is installed with --no-deps so pip never replaces it.
+# Disable with: WITH_PERCEPTION=0 in docker/build.sh.
+ARG WITH_PERCEPTION=1
+RUN if [ "${WITH_PERCEPTION}" = "1" ]; then \
+      if ! python3 -c "import torch" 2>/dev/null; then \
+        echo "No torch in base — installing CPU torch (aarch64 wheels from PyPI)." ; \
+        pip3 install --no-cache-dir torch torchvision ; \
+      else \
+        echo "Using torch from base image: $(python3 -c 'import torch; print(torch.__version__, "cuda", torch.cuda.is_available())')" ; \
+      fi ; \
+      pip3 install --no-cache-dir --no-deps ultralytics ultralytics-thop \
+      && pip3 install --no-cache-dir \
+           pyyaml tqdm psutil py-cpuinfo pandas seaborn requests matplotlib scipy ; \
+    else \
+      echo "Skipping perception (torch/ultralytics). Set WITH_PERCEPTION=1 to include it." ; \
+    fi
 
 # rosdep is already initialized in the base image; just update the cache.
 RUN rosdep update --rosdistro humble || true
