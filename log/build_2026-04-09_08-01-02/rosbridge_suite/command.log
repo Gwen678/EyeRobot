@@ -1,2 +1,0 @@
-Invoking command in '/ros2_ws/build/rosbridge_suite': /usr/local/bin/cmake /ros2_ws/src -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/rosbridge_suite
-Invoked command in '/ros2_ws/build/rosbridge_suite' returned '1': /usr/local/bin/cmake /ros2_ws/src -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/rosbridge_suite

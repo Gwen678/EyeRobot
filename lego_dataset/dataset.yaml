@@ -1,0 +1,7 @@
+path: /EyeRobot/lego_dataset
+
+train: images/train
+val: images/train
+
+names:
+  0: lego
