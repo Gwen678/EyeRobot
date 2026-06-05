@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE="${IMAGE:-eyerobot:humble}"
+IMAGE="${IMAGE:-eyerobot:ekf}"
 
 echo "Building ${IMAGE} from ${REPO}/docker/Dockerfile ..."
 docker build -t "${IMAGE}" -f "${REPO}/docker/Dockerfile" "${REPO}/docker" "$@"

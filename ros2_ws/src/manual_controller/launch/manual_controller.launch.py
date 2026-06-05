@@ -68,6 +68,11 @@ def generate_launch_description():
         _arg('odom_frame', 'odom', 'Odometry fixed frame'),
         _arg('base_frame', 'base_link', 'Robot base frame'),
 
+        # ── Dual odometry comparison (encoder-only vs encoder+IMU-yaw) ─────────
+        _arg('dual_odometry', 'true', 'Run the dual-odometry comparison node (two RViz paths)'),
+        _arg('imu_topic', '/oak/imu/data_raw', 'IMU topic feeding the encoder+IMU-yaw estimate'),
+        _arg('imu_yaw_sign', '1.0', 'Flip to -1.0 if the IMU yaw turns opposite the robot'),
+
         # ros2 launch does not give a node an interactive stdin, so the raw
         # keyboard reader can't run in-process. Spawn it in its own xterm, which
         # provides a real TTY. Set teleop:=false to run it yourself instead
@@ -105,6 +110,28 @@ def generate_launch_description():
                 'left_feedback_sign': _f('left_feedback_sign'),
                 'odom_frame': LaunchConfiguration('odom_frame'),
                 'base_frame': LaunchConfiguration('base_frame'),
+            }],
+        ),
+        # Encoder-only vs encoder+IMU-yaw comparison. Same wheel geometry as the
+        # state_estimator so the only difference between its two paths is the yaw
+        # source. Publishes no TF, so it never fights odom->base_link.
+        Node(
+            package='manual_controller',
+            executable='dual_odometry',
+            name='dual_odometry',
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('dual_odometry')),
+            parameters=[{
+                'counts_per_output_rev': _f('counts_per_output_rev'),
+                'wheel_radius_m': _f('wheel_radius_m'),
+                'wheel_separation_m': _f('wheel_separation_m'),
+                'odom_rate_hz': _f('odom_rate_hz'),
+                'right_feedback_sign': _f('right_feedback_sign'),
+                'left_feedback_sign': _f('left_feedback_sign'),
+                'odom_frame': LaunchConfiguration('odom_frame'),
+                'base_frame': LaunchConfiguration('base_frame'),
+                'imu_topic': LaunchConfiguration('imu_topic'),
+                'imu_yaw_sign': _f('imu_yaw_sign'),
             }],
         ),
         # Publishes the URDF on /robot_description and the link TFs (base_link ->

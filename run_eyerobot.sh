@@ -26,6 +26,9 @@ DEBUG_ENCODERS="${DEBUG_ENCODERS:-false}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROS_SETUP="/opt/ros/humble/setup.bash"
 WS_SETUP="$REPO/ros2_ws/install/setup.bash"
+# Self-contained micro-ROS agent overlay bundled in this repo (microros_agent/),
+# so the serial bridge needs no external workspace.
+AGENT_SETUP="$REPO/microros_agent/setup.bash"
 
 if [ ! -f "$WS_SETUP" ]; then
   echo "ERROR: $WS_SETUP not found. Build the workspace first:" >&2
@@ -33,8 +36,16 @@ if [ ! -f "$WS_SETUP" ]; then
   exit 1
 fi
 
-# Sourced at the top of every spawned terminal.
-PREAMBLE="source '$ROS_SETUP' && source '$WS_SETUP'"
+# Sourced at the top of every spawned terminal. Prefer the bundled agent overlay
+# (bare-host path); if it's absent — e.g. inside the Docker container, where the
+# agent is the apt `ros-humble-micro-ros-agent` already on the ROS path — just
+# fall back to whatever `micro_ros_agent` the environment provides.
+if [ -f "$AGENT_SETUP" ]; then
+  PREAMBLE="source '$ROS_SETUP' && source '$AGENT_SETUP' && source '$WS_SETUP'"
+else
+  echo "Note: bundled microros_agent overlay not found — using the agent from the ROS environment (e.g. apt package in Docker)." >&2
+  PREAMBLE="source '$ROS_SETUP' && source '$WS_SETUP'"
+fi
 
 # Pick a terminal emulator: prefer the GNOME one, fall back to whatever exists.
 if command -v gnome-terminal >/dev/null 2>&1; then
