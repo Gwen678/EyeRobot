@@ -1,0 +1,33 @@
+[0.087s] Invoking command in '/ros2_ws/build/depthai_filters': AMENT_PREFIX_PATH=/ros2_ws/install/vision_msgs:/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/ros2_ws/install/vision_msgs:/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:/opt/ros/humble LD_LIBRARY_PATH=/ros2_ws/install/vision_msgs/lib:/ros2_ws/install/sensor_msgs/lib:/ros2_ws/install/geometry_msgs/lib:/ros2_ws/install/std_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/ros2_ws/install/vision_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/sensor_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/geometry_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/std_msgs/local/lib/python3.10/dist-packages:${PYTHONPATH} /usr/bin/cmake /ros2_ws/src/depthai-ros/depthai_filters -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/depthai_filters
+[0.329s] -- The CXX compiler identification is GNU 11.4.0
+[0.525s] -- The C compiler identification is GNU 11.4.0
+[0.550s] -- Detecting CXX compiler ABI info
+[0.868s] -- Detecting CXX compiler ABI info - done
+[0.909s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.910s] -- Detecting CXX compile features
+[0.912s] -- Detecting CXX compile features - done
+[0.924s] -- Detecting C compiler ABI info
+[1.206s] -- Detecting C compiler ABI info - done
+[1.239s] -- Check for working C compiler: /usr/bin/cc - skipped
+[1.240s] -- Detecting C compile features
+[1.242s] -- Detecting C compile features - done
+[1.304s] -- ----------------Did not find OpenCV 4, trying OpenCV 3--------------
+[1.362s] [31mCMake Error at CMakeLists.txt:12 (find_package):
+[1.363s]   By not providing "FindOpenCV.cmake" in CMAKE_MODULE_PATH this project has
+[1.363s]   asked CMake to find a package configuration file provided by "OpenCV", but
+[1.364s]   CMake did not find one.
+[1.364s] 
+[1.365s]   Could not find a package configuration file provided by "OpenCV" (requested
+[1.365s]   version 3) with any of the following names:
+[1.366s] 
+[1.366s]     OpenCVConfig.cmake
+[1.367s]     opencv-config.cmake
+[1.367s] 
+[1.368s]   Add the installation prefix of "OpenCV" to CMAKE_PREFIX_PATH or set
+[1.369s]   "OpenCV_DIR" to a directory containing one of the above files.  If "OpenCV"
+[1.369s]   provides a separate development package or SDK, be sure it has been
+[1.373s]   installed.
+[1.373s] 
+[1.374s] [0m
+[1.374s] -- Configuring incomplete, errors occurred!
+[1.375s] See also "/ros2_ws/build/depthai_filters/CMakeFiles/CMakeOutput.log".

@@ -1,7 +1,8 @@
-FROM ros:humble-ros-base
+
+FROM ros:humble-base
 
 # =========================
-# SYSTEM DEPENDENCIES (Mis à jour avec Boost)
+# SYSTEM DEPENDENCIES (Blindé Ceres + SLAM)
 # =========================
 RUN apt-get update && apt-get install -y \
     python3-pip \
@@ -11,8 +12,15 @@ RUN apt-get update && apt-get install -y \
     libusb-1.0-0 \
     usbutils \
     build-essential \
-    # --- AJOUT DES BIBLIOTHÈQUES C++ BOOST ---
+    # --- BIBLIOTHÈQUES POUR CERES SOLVER & MATHS ---
+    libceres-dev \
+    libgoogle-glog-dev \
+    libblas-dev \
+    liblapack-dev \
+    libsuitesparse-dev \
+    # --- BIBLIOTHÈQUES DE CALCUL MULTI-THREAD ---
     libboost-all-dev \
+    libtbb-dev \
     # --- Dépendances Nav2 et SLAM ---
     ros-humble-nav2-map-server \
     ros-humble-nav2-common \
@@ -20,6 +28,11 @@ RUN apt-get update && apt-get install -y \
     # --- Dépendances RViz (Slam_toolbox) ---
     ros-humble-rviz-common \
     ros-humble-rviz-default-plugins \
+    ros-humble-micro-ros-agent \
+    ros-humble-rviz2 \
+    ros-humble-rviz-default-plugins \
+    ros-humble-robot-state-publisher \
+    ros-humble-joint-state-publisher \
     && rm -rf /var/lib/apt/lists/*
 
 # =========================
@@ -33,22 +46,7 @@ RUN pip3 install --no-cache-dir \
     blobconverter==1.4.3 \
     ultralytics
 
-# =========================
-# WORKSPACE
-# =========================
 WORKDIR /ros2_ws
 
-# Copier le workspace propre
-COPY ros2_ws /ros2_ws
-
-# =========================
-# BUILD ROS2 WORKSPACE
-# =========================
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build"
-
-# =========================
-# ENTRYPOINT
-# =========================
 SHELL ["/bin/bash", "-c"]
-
 CMD ["bash"]

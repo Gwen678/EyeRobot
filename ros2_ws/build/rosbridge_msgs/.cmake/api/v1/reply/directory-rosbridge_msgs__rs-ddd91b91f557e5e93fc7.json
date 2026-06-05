@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "rosbridge_msgs__rs",
+		"source" : "/ros2_ws/build/rosbridge_msgs/rosbridge_msgs__rs"
+	}
+}

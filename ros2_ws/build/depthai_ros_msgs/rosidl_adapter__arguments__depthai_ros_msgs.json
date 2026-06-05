@@ -1,0 +1,14 @@
+{
+  "package_name": "depthai_ros_msgs",
+  "non_idl_tuples": [
+    "/ros2_ws/src/depthai-ros/depthai_ros_msgs:msg/AutoFocusCtrl.msg",
+    "/ros2_ws/src/depthai-ros/depthai_ros_msgs:msg/HandLandmark.msg",
+    "/ros2_ws/src/depthai-ros/depthai_ros_msgs:msg/HandLandmarkArray.msg",
+    "/ros2_ws/src/depthai-ros/depthai_ros_msgs:msg/SpatialDetection.msg",
+    "/ros2_ws/src/depthai-ros/depthai_ros_msgs:msg/SpatialDetectionArray.msg",
+    "/ros2_ws/src/depthai-ros/depthai_ros_msgs:msg/TrackDetection2D.msg",
+    "/ros2_ws/src/depthai-ros/depthai_ros_msgs:msg/TrackDetection2DArray.msg",
+    "/ros2_ws/src/depthai-ros/depthai_ros_msgs:srv/TriggerNamed.srv",
+    "/ros2_ws/src/depthai-ros/depthai_ros_msgs:srv/NormalizedImageCrop.srv"
+  ]
+}

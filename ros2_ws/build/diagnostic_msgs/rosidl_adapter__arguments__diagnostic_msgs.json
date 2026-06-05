@@ -1,0 +1,10 @@
+{
+  "package_name": "diagnostic_msgs",
+  "non_idl_tuples": [
+    "/ros2_ws/src/common_interfaces/diagnostic_msgs:msg/DiagnosticArray.msg",
+    "/ros2_ws/src/common_interfaces/diagnostic_msgs:msg/DiagnosticStatus.msg",
+    "/ros2_ws/src/common_interfaces/diagnostic_msgs:msg/KeyValue.msg",
+    "/ros2_ws/src/common_interfaces/diagnostic_msgs:srv/AddDiagnostics.srv",
+    "/ros2_ws/src/common_interfaces/diagnostic_msgs:srv/SelfTest.srv"
+  ]
+}

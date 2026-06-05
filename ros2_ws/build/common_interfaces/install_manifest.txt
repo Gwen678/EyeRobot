@@ -1,0 +1,15 @@
+/ros2_ws/install/common_interfaces/share/ament_index/resource_index/package_run_dependencies/common_interfaces
+/ros2_ws/install/common_interfaces/share/ament_index/resource_index/parent_prefix_path/common_interfaces
+/ros2_ws/install/common_interfaces/share/common_interfaces/environment/ament_prefix_path.sh
+/ros2_ws/install/common_interfaces/share/common_interfaces/environment/ament_prefix_path.dsv
+/ros2_ws/install/common_interfaces/share/common_interfaces/environment/path.sh
+/ros2_ws/install/common_interfaces/share/common_interfaces/environment/path.dsv
+/ros2_ws/install/common_interfaces/share/common_interfaces/local_setup.bash
+/ros2_ws/install/common_interfaces/share/common_interfaces/local_setup.sh
+/ros2_ws/install/common_interfaces/share/common_interfaces/local_setup.zsh
+/ros2_ws/install/common_interfaces/share/common_interfaces/local_setup.dsv
+/ros2_ws/install/common_interfaces/share/common_interfaces/package.dsv
+/ros2_ws/install/common_interfaces/share/ament_index/resource_index/packages/common_interfaces
+/ros2_ws/install/common_interfaces/share/common_interfaces/cmake/common_interfacesConfig.cmake
+/ros2_ws/install/common_interfaces/share/common_interfaces/cmake/common_interfacesConfig-version.cmake
+/ros2_ws/install/common_interfaces/share/common_interfaces/package.xml

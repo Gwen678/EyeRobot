@@ -1,0 +1,38 @@
+[2.913s] Invoking command in '/ros2_ws/src/common_interfaces/sensor_msgs_py': AMENT_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs LD_LIBRARY_PATH=/ros2_ws/install/sensor_msgs/lib:/ros2_ws/install/geometry_msgs/lib:/ros2_ws/install/std_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/ros2_ws/build/sensor_msgs_py/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros2_ws/install/sensor_msgs_py/lib/python3.10/site-packages:/ros2_ws/install/sensor_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/geometry_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/std_msgs/local/lib/python3.10/dist-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../../build/sensor_msgs_py build --build-base /ros2_ws/build/sensor_msgs_py/build install --record /ros2_ws/build/sensor_msgs_py/install.log --install-scripts $base/lib/sensor_msgs_py --single-version-externally-managed install_data
+[3.927s] /usr/lib/python3/dist-packages/setuptools/dist.py:723: UserWarning: Usage of dash-separated 'script-dir' will not be supported in future versions. Please use the underscore name 'script_dir' instead
+[3.928s]   warnings.warn(
+[3.971s] running egg_info
+[3.975s] creating ../../../build/sensor_msgs_py/sensor_msgs_py.egg-info
+[3.976s] writing ../../../build/sensor_msgs_py/sensor_msgs_py.egg-info/PKG-INFO
+[3.978s] writing dependency_links to ../../../build/sensor_msgs_py/sensor_msgs_py.egg-info/dependency_links.txt
+[3.979s] writing requirements to ../../../build/sensor_msgs_py/sensor_msgs_py.egg-info/requires.txt
+[3.980s] writing top-level names to ../../../build/sensor_msgs_py/sensor_msgs_py.egg-info/top_level.txt
+[3.982s] writing manifest file '../../../build/sensor_msgs_py/sensor_msgs_py.egg-info/SOURCES.txt'
+[3.990s] reading manifest file '../../../build/sensor_msgs_py/sensor_msgs_py.egg-info/SOURCES.txt'
+[3.991s] adding license file 'LICENSE'
+[3.995s] writing manifest file '../../../build/sensor_msgs_py/sensor_msgs_py.egg-info/SOURCES.txt'
+[3.996s] running build
+[3.997s] running build_py
+[3.998s] creating /ros2_ws/build/sensor_msgs_py/build
+[3.999s] creating /ros2_ws/build/sensor_msgs_py/build/lib
+[4.000s] creating /ros2_ws/build/sensor_msgs_py/build/lib/sensor_msgs_py
+[4.001s] copying sensor_msgs_py/__init__.py -> /ros2_ws/build/sensor_msgs_py/build/lib/sensor_msgs_py
+[4.002s] copying sensor_msgs_py/point_cloud2.py -> /ros2_ws/build/sensor_msgs_py/build/lib/sensor_msgs_py
+[4.004s] running install
+[4.006s] running install_lib
+[4.011s] creating /ros2_ws/install/sensor_msgs_py/lib/python3.10/site-packages/sensor_msgs_py
+[4.012s] copying /ros2_ws/build/sensor_msgs_py/build/lib/sensor_msgs_py/__init__.py -> /ros2_ws/install/sensor_msgs_py/lib/python3.10/site-packages/sensor_msgs_py
+[4.012s] copying /ros2_ws/build/sensor_msgs_py/build/lib/sensor_msgs_py/point_cloud2.py -> /ros2_ws/install/sensor_msgs_py/lib/python3.10/site-packages/sensor_msgs_py
+[4.014s] byte-compiling /ros2_ws/install/sensor_msgs_py/lib/python3.10/site-packages/sensor_msgs_py/__init__.py to __init__.cpython-310.pyc
+[4.015s] byte-compiling /ros2_ws/install/sensor_msgs_py/lib/python3.10/site-packages/sensor_msgs_py/point_cloud2.py to point_cloud2.cpython-310.pyc
+[4.020s] running install_data
+[4.020s] creating /ros2_ws/install/sensor_msgs_py/share/ament_index
+[4.021s] creating /ros2_ws/install/sensor_msgs_py/share/ament_index/resource_index
+[4.022s] creating /ros2_ws/install/sensor_msgs_py/share/ament_index/resource_index/packages
+[4.022s] copying resource/sensor_msgs_py -> /ros2_ws/install/sensor_msgs_py/share/ament_index/resource_index/packages
+[4.023s] copying package.xml -> /ros2_ws/install/sensor_msgs_py/share/sensor_msgs_py
+[4.023s] running install_egg_info
+[4.032s] Copying ../../../build/sensor_msgs_py/sensor_msgs_py.egg-info to /ros2_ws/install/sensor_msgs_py/lib/python3.10/site-packages/sensor_msgs_py-2.0.5-py3.10.egg-info
+[4.037s] running install_scripts
+[4.135s] writing list of installed files to '/ros2_ws/build/sensor_msgs_py/install.log'
+[4.268s] Invoked command in '/ros2_ws/src/common_interfaces/sensor_msgs_py' returned '0': AMENT_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs LD_LIBRARY_PATH=/ros2_ws/install/sensor_msgs/lib:/ros2_ws/install/geometry_msgs/lib:/ros2_ws/install/std_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/ros2_ws/build/sensor_msgs_py/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros2_ws/install/sensor_msgs_py/lib/python3.10/site-packages:/ros2_ws/install/sensor_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/geometry_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/std_msgs/local/lib/python3.10/dist-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../../build/sensor_msgs_py build --build-base /ros2_ws/build/sensor_msgs_py/build install --record /ros2_ws/build/sensor_msgs_py/install.log --install-scripts $base/lib/sensor_msgs_py --single-version-externally-managed install_data

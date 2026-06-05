@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "nav_msgs__rs",
+		"source" : "/ros2_ws/build/nav_msgs/nav_msgs__rs"
+	}
+}

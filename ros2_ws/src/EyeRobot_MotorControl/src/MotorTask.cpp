@@ -1,0 +1,179 @@
+#include "MotorTask.hpp"
+
+#include <cmath>
+
+#include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+static constexpr uint32_t kPeriodMs = 10;
+static constexpr float    kDt       = kPeriodMs / 1000.0f;
+
+
+static constexpr float kKp     =  0.1f;
+static constexpr float kKi     =  0.02f;  // integral; raise carefully for faster settle
+static constexpr float kOutMin = -100.0f;
+static constexpr float kOutMax =  100.0f;
+static constexpr float kStopSetpointEpsilonTps = 1.0f;
+
+// Open-loop sign control (fans/belt) turns ANY nonzero command into full duty,
+// so a single corrupted/duplicated best-effort sample would become a full-power
+// twitch. Ignore sub-threshold magnitudes — well below real commands (~5-8 rad/s).
+static constexpr float kOpenLoopDeadbandRads = 0.5f;
+
+static float clamp_abs(float value, float max_abs)
+{
+    if (max_abs <= 0.0f) {
+        return value;
+    }
+    if (value > max_abs) {
+        return max_abs;
+    }
+    if (value < -max_abs) {
+        return -max_abs;
+    }
+    return value;
+}
+
+static float sanitize_command(float speed_rads, float max_abs_rads)
+{
+    if (!std::isfinite(speed_rads)) {
+        return 0.0f;
+    }
+    return clamp_abs(speed_rads, max_abs_rads);
+}
+
+static bool is_stop_setpoint(float setpoint_tps)
+{
+    return setpoint_tps > -kStopSetpointEpsilonTps &&
+           setpoint_tps <  kStopSetpointEpsilonTps;
+}
+
+static float open_loop_duty_from_command(float speed_rads, float duty_percent)
+{
+    if (speed_rads >  kOpenLoopDeadbandRads) {
+        return duty_percent;
+    }
+    if (speed_rads < -kOpenLoopDeadbandRads) {
+        return -duty_percent;
+    }
+    return 0.0f;
+}
+
+MotorTask::MotorTask(MotorID id, AppBus& bus)
+    : Thread(kMotorConfigs[static_cast<size_t>(id)].fb_topic, 4096, 5),
+      _cfg(kMotorConfigs[static_cast<size_t>(id)]),
+      _motor(_cfg.pwm_pin, _cfg.dir_pin, _cfg.ledc_channel),
+      _encoder(_cfg.enc_a, _cfg.enc_b),
+      _pi(kKp, kKi, kOutMin, kOutMax),
+      _bus(bus)
+{
+    start();
+}
+
+void MotorTask::run()
+{
+    const size_t idx = static_cast<size_t>(_cfg.id);
+    const bool closed_loop = (_cfg.mode == MotorControlMode::ClosedLoopSpeed);
+    // Read the encoder for telemetry whenever the motor has one wired, even in
+    // open-loop mode — otherwise the wheel feedback topics always report 0.
+    // enc pins of 0 are the "no encoder" sentinel used for the fans/belt.
+    const bool has_encoder = (_cfg.enc_a > 0 || _cfg.enc_b > 0);
+
+    ESP_ERROR_CHECK(_motor.init());
+    if (has_encoder) {
+        ESP_ERROR_CHECK(_encoder.init());
+        ESP_ERROR_CHECK(_encoder.start());
+    }
+
+    TickType_t wake_time = xTaskGetTickCount();
+    TickType_t last_command_tick = wake_time;
+    const TickType_t command_timeout_ticks = pdMS_TO_TICKS(_cfg.command_timeout_ms);
+
+    int32_t prev_ticks = 0;
+    float   prev_setpoint_tps = 0.0f;
+
+    while (true) {
+        vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(kPeriodMs));
+        const TickType_t now = xTaskGetTickCount();
+
+        MotorCmd cmd;
+        if (_bus.to_motor[idx].receiveLatest(cmd, 0)) {
+            last_command_tick = now;
+            _command_rads = sanitize_command(cmd.speed_rads, _cfg.max_cmd_rads);
+        }
+
+        // Safety net only: zero the held command if the stream stops (comms
+        // loss). During normal operation the teleop node republishes at a fixed
+        // rate, so the command persists and a key for one motor never clears
+        // another.
+        if ((now - last_command_tick) > command_timeout_ticks) {
+            _command_rads = 0.0f;
+        }
+
+        // Hard safety gate: while the micro-ROS link is down (boot before the
+        // first agent connection, or any reconnect) force the held command to 0
+        // so the motor stays stopped regardless of the last received command.
+        // This decouples motor safety from the (blocking) reconnect loop — the
+        // robot stays still at 0 the whole time the agent is unreachable.
+        if (!_bus.link_up.load(std::memory_order_relaxed)) {
+            _command_rads = 0.0f;
+        }
+
+        MotorFeedback fb;
+        fb.ticks      = 0;
+        fb.speed_rads = 0.0f;
+
+        float measured_tps = 0.0f;
+        if (has_encoder) {
+            const int32_t raw   = _encoder.getCount();
+            const int32_t ticks = _cfg.invert_encoder ? -raw : raw;
+            measured_tps = (ticks - prev_ticks) / kDt;
+            prev_ticks   = ticks;
+            fb.ticks      = ticks;
+            fb.speed_rads = measured_tps / encoder_cfg::kTicksPerRad;
+        }
+
+        // Compute the desired duty in the COMMAND frame (+ = forward), then apply
+        // the per-wheel motor-polarity correction so +duty physically drives this
+        // wheel forward. Keeping invert_motor out of the PI means the loop sees a
+        // coherent +command/+measured frame (negative feedback) and only the
+        // final actuator step accounts for wiring polarity.
+        float duty   = 0.0f;
+        bool  stop   = false;
+        if (closed_loop) {
+            const float setpoint_tps = _command_rads * encoder_cfg::kTicksPerRad;
+            // Commanded direction flipped: drop integral built up for the old
+            // direction so the reversal isn't sluggish unwinding it.
+            if (setpoint_tps * prev_setpoint_tps < 0.0f) {
+                _pi.reset();
+            }
+            prev_setpoint_tps = setpoint_tps;
+
+            if (is_stop_setpoint(setpoint_tps)) {
+                // Commanded stop → hard stop (motor coasts). No active braking:
+                // regulating to 0 turned brief command dropouts into a fast
+                // spin/brake oscillation. The wheel coasting to rest is fine.
+                _pi.reset();
+                stop = true;
+            } else {
+                duty = _pi.update(setpoint_tps, measured_tps, kDt);
+            }
+        } else {
+            duty = open_loop_duty_from_command(_command_rads, _cfg.open_loop_duty_percent);
+            stop = (duty == 0.0f);
+        }
+
+        if (_cfg.invert_motor) {
+            duty = -duty;
+        }
+
+        if (stop) {
+            _motor.stop();
+        } else {
+            _motor.setSpeed(duty);
+        }
+
+        _bus.from_motor[idx].sendLatest(fb);
+    }
+}

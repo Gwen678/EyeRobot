@@ -1,0 +1,77 @@
+-- The C compiler identification is GNU 11.4.0
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+-- Found ament_cmake_gtest: 1.3.14 (/opt/ros/humble/share/ament_cmake_gtest/cmake)
+-- Found gtest sources under '/opt/ros/humble/src/gtest_vendor': C++ tests using 'Google Test' will be built
+-- Looking for pthread.h
+-- Looking for pthread.h - found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Found ament_cmake_pytest: 1.3.14 (/opt/ros/humble/share/ament_cmake_pytest/cmake)
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /ros2_ws/build/angles
+[ 16%] [32mBuilding CXX object gtest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o[0m
+[ 33%] [32m[1mLinking CXX static library libgtest_main.a[0m
+[ 33%] Built target gtest_main
+[ 33%] Built target ament_cmake_python_copy_angles
+[ 50%] [32mBuilding CXX object gtest/CMakeFiles/gtest.dir/src/gtest-all.cc.o[0m
+[ 66%] [32m[1mLinking CXX static library libgtest.a[0m
+[ 66%] Built target gtest
+running egg_info
+creating angles.egg-info
+writing angles.egg-info/PKG-INFO
+writing dependency_links to angles.egg-info/dependency_links.txt
+writing top-level names to angles.egg-info/top_level.txt
+writing manifest file 'angles.egg-info/SOURCES.txt'
+reading manifest file 'angles.egg-info/SOURCES.txt'
+writing manifest file 'angles.egg-info/SOURCES.txt'
+[ 66%] Built target ament_cmake_python_build_angles_egg
+[ 83%] [32mBuilding CXX object CMakeFiles/angles_utest.dir/test/utest.cpp.o[0m
+[100%] [32m[1mLinking CXX executable angles_utest[0m
+[100%] Built target angles_utest
+-- Install configuration: ""
+-- Installing: /ros2_ws/install/angles/include/angles
+-- Installing: /ros2_ws/install/angles/include/angles/angles
+-- Installing: /ros2_ws/install/angles/include/angles/angles/angles.h
+-- Installing: /ros2_ws/install/angles/share/angles/environment/pythonpath.sh
+-- Installing: /ros2_ws/install/angles/share/angles/environment/pythonpath.dsv
+-- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info
+-- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info/SOURCES.txt
+-- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info/dependency_links.txt
+-- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info/top_level.txt
+-- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info/PKG-INFO
+-- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles
+-- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles/__init__.py
+Listing '/ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles'...
+Compiling '/ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles/__init__.py'...
+-- Installing: /ros2_ws/install/angles/share/ament_index/resource_index/package_run_dependencies/angles
+-- Installing: /ros2_ws/install/angles/share/ament_index/resource_index/parent_prefix_path/angles
+-- Installing: /ros2_ws/install/angles/share/angles/environment/ament_prefix_path.sh
+-- Installing: /ros2_ws/install/angles/share/angles/environment/ament_prefix_path.dsv
+-- Installing: /ros2_ws/install/angles/share/angles/environment/path.sh
+-- Installing: /ros2_ws/install/angles/share/angles/environment/path.dsv
+-- Installing: /ros2_ws/install/angles/share/angles/local_setup.bash
+-- Installing: /ros2_ws/install/angles/share/angles/local_setup.sh
+-- Installing: /ros2_ws/install/angles/share/angles/local_setup.zsh
+-- Installing: /ros2_ws/install/angles/share/angles/local_setup.dsv
+-- Installing: /ros2_ws/install/angles/share/angles/package.dsv
+-- Installing: /ros2_ws/install/angles/share/ament_index/resource_index/packages/angles
+-- Installing: /ros2_ws/install/angles/share/angles/cmake/export_anglesExport.cmake
+-- Installing: /ros2_ws/install/angles/share/angles/cmake/ament_cmake_export_include_directories-extras.cmake
+-- Installing: /ros2_ws/install/angles/share/angles/cmake/ament_cmake_export_targets-extras.cmake
+-- Installing: /ros2_ws/install/angles/share/angles/cmake/anglesConfig.cmake
+-- Installing: /ros2_ws/install/angles/share/angles/cmake/anglesConfig-version.cmake
+-- Installing: /ros2_ws/install/angles/share/angles/package.xml

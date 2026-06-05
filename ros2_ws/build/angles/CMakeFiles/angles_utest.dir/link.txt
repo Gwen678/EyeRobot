@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wextra -Wpedantic CMakeFiles/angles_utest.dir/test/utest.cpp.o -o angles_utest  gtest/libgtest_main.a gtest/libgtest.a -pthread 
