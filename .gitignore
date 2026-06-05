@@ -10,6 +10,11 @@ __pycache__/       # Fichiers compilés temporaires de Python
 runs/              # Dossier où YOLO enregistre les logs
 datasets/          # Si tu crées un dossier global pour tes datasets
 
+
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
 # --- BIBLIOTHÈQUES NVIDIA CUDA VOLUMINEUSES ---
 # Détectées comme >100MB dans l'image 6
 # (yolo_env/lib/.../libcublasLt.so.13)
