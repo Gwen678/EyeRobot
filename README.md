@@ -121,4 +121,3 @@ Connect Foxglove to `ws://JETSON_IP:9090`.
 ## More docs
 
 - `firmware/DOCS.md`: firmware and motor control.
-- `docs/sensor_fusion_imu_encoders.html`: fusing IMU and encoders with an EKF.
