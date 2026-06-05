@@ -57,6 +57,40 @@ Visualization Manager:
         Value: /path
       Value: true
     - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 60; 60
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.05
+      Name: Path encoder-only
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 60; 60
+      Pose Style: None
+      Topic:
+        Value: /path_encoder
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 0; 255; 0
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.05
+      Name: Path encoder+IMU yaw
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 0; 255; 0
+      Pose Style: None
+      Topic:
+        Value: /path_imu
+      Value: true
+    - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Description Source: Topic
       Description Topic:

@@ -14,8 +14,8 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE="${IMAGE:-eyerobot:humble}"
-NAME="${NAME:-eyerobot}"
+IMAGE="${IMAGE:-eyerobot:ekf}"
+NAME="${NAME:-eyerobot-ekf}"
 
 # Already running? Just open another shell.
 if [ "$(docker ps -q -f name="^${NAME}$")" ]; then
