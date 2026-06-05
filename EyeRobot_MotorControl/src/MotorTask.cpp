@@ -9,21 +9,9 @@
 static constexpr uint32_t kPeriodMs = 10;
 static constexpr float    kDt       = kPeriodMs / 1000.0f;
 
-// Error is in ticks/s (thousands), output is duty % in [-100, 100]. The plant
-// does ~9600 tps at 100% duty, so its inverse gain is ~0.0104 %/tps; kKp=0.1 was
-// ~10x that → the loop saturated for any error past ~1 rad/s and bang-banged
-// (overshoot to full speed, then full-reverse braking → the 10↔0 oscillation).
-// Backed off to ~3x plant: stable, but P alone leaves steady-state droop (settles
-// below setpoint). A small kKi integrates that residual error away so the wheel
-// reaches the commanded speed. PiController has anti-windup: it clamps the
-// integrator so kKi*integral alone stays within ±100% duty. Start kKi tiny and
-// raise it if it settles too slowly (or lower it if it overshoots/hunts).
-// Error is ticks/s (thousands), output is duty % [-100,100]. Plant ~9600 tps at
-// 100% duty → inverse gain ~0.0104 %/tps. 0.05 hunts, 0.02 is rock-stable, so
-// 0.03 (~3x plant) sits just under the limit for a bit of snap. Drop to 0.02 if
-// it still hunts while holding a steady command.
-static constexpr float kKp     =  0.03f;
-static constexpr float kKi     =  0.005f;  // integral; raise carefully for faster settle
+
+static constexpr float kKp     =  0.1f;
+static constexpr float kKi     =  0.02f;  // integral; raise carefully for faster settle
 static constexpr float kOutMin = -100.0f;
 static constexpr float kOutMax =  100.0f;
 static constexpr float kStopSetpointEpsilonTps = 1.0f;
