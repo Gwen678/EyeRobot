@@ -17,10 +17,11 @@ This repository contains:
 | Left fan | Open-loop sign, full duty |
 
 Each command is a `Float32` in rad/s. For the **wheels**, that value is a real
-speed setpoint the PI controller tracks from the encoder feedback (currently
-P-only, `kKi = 0`, so expect some steady-state droop). For the **belt and fans**
-(no encoder) only the **sign** matters: any magnitude past the `0.5 rad/s`
-deadband runs them at full duty in that direction.
+speed setpoint the closed-loop PI controller tracks from the encoder feedback
+(`kKp = 0.03`, `kKi = 0.005` with anti-windup, in `MotorTask.cpp`); the wheels
+top out around `10.7 rad/s`. For the **belt and fans** (no encoder) only the
+**sign** matters: any magnitude past the `0.5 rad/s` deadband runs them at full
+duty in that direction.
 
 ## Safety First
 
@@ -146,7 +147,7 @@ Common teleop / odometry parameters:
 
 ```bash
 ros2 run manual_controller manual_controller --ros-args \
-  -p command_speed_rad_s:=8.0 \
+  -p command_speed_rad_s:=10.0 \
   -p turn_speed_rad_s:=5.0 \
   -p fan_command_rad_s:=8.0 \
   -p belt_command_rad_s:=8.0
@@ -157,9 +158,10 @@ ros2 run manual_controller state_estimator --ros-args \
   -p counts_per_output_rev:=5756.0
 ```
 
-Because control is open-loop sign, the `*_speed_rad_s` values only need to clear
-the `0.5 rad/s` deadband to command full duty; their magnitude does not set the
-actual speed.
+For the **wheels** (closed-loop PI) the `command_speed_rad_s` / `turn_speed_rad_s`
+magnitude is the real speed setpoint in rad/s (cap ~`10.7`). For the **belt and
+fans** (open-loop sign) the `*_command_rad_s` magnitude only needs to clear the
+`0.5 rad/s` deadband — sign picks direction, magnitude does not set speed.
 
 If a motor or encoder sign is inverted, fix it without changing firmware:
 
@@ -175,14 +177,14 @@ Important parameters:
 
 | Parameter | Node | Default | Meaning |
 |---|---|---:|---|
-| `command_speed_rad_s` | teleop | `8.0` | Forward/backward command magnitude |
+| `command_speed_rad_s` | teleop | `10.0` | Forward/backward wheel speed setpoint (rad/s) |
 | `turn_speed_rad_s` | teleop | `5.0` | Pivot-turn command magnitude |
 | `fan_command_rad_s` | teleop | `8.0` | Fan command magnitude (`q`/`e`) |
 | `belt_command_rad_s` | teleop | `8.0` | Belt command magnitude (`r`/`t`) |
 | `command_rate_hz` | teleop | `20.0` | Fixed command publish rate |
 | `release_timeout_s` | teleop | `0.2` | Stop wheels if no key repeat arrives |
-| `right_command_sign` | teleop | `-1.0` | Invert right wheel command polarity |
-| `left_command_sign` | teleop | `1.0` | Invert left wheel command polarity |
+| `right_command_sign` | teleop | `1.0` | Host command polarity (signs fixed on the MCU; keep +1) |
+| `left_command_sign` | teleop | `1.0` | Host command polarity (signs fixed on the MCU; keep +1) |
 | `wheel_radius_m` | estimator | `0.06` | Wheel radius for odometry |
 | `wheel_separation_m` | estimator | `0.150` | Track width for yaw rate |
 | `counts_per_output_rev` | estimator | `5756.0` | Encoder counts per wheel revolution |
@@ -194,15 +196,15 @@ the feedback signs normally stay `+1.0`; flip one only for ad-hoc host testing.
 
 ## 6. Topics
 
-Firmware command topics, host to ESP32 (`std_msgs/msg/Float32`, sign-only):
+Firmware command topics, host to ESP32 (`std_msgs/msg/Float32`):
 
 | Topic | Meaning |
 |---|---|
-| `/motor_belt_cmd` | Belt direction |
-| `/motor_rwheel_cmd` | Right wheel direction |
-| `/motor_lwheel_cmd` | Left wheel direction |
-| `/motor_rfan_cmd` | Right fan direction |
-| `/motor_lfan_cmd` | Left fan direction |
+| `/motor_belt_cmd` | Belt direction (sign-only) |
+| `/motor_rwheel_cmd` | Right wheel speed setpoint, rad/s (closed-loop PI) |
+| `/motor_lwheel_cmd` | Left wheel speed setpoint, rad/s (closed-loop PI) |
+| `/motor_rfan_cmd` | Right fan direction (sign-only) |
+| `/motor_lfan_cmd` | Left fan direction (sign-only) |
 
 Firmware tick feedback topics, ESP32 to host (`std_msgs/msg/Int32`):
 
@@ -226,9 +228,9 @@ Firmware speed feedback topics, ESP32 to host (`std_msgs/msg/Float32`, rad/s):
 
 The state estimator integrates the **raw accumulated wheel tick counts** into
 distance (exact position, no speed-integration drift). The `*_speed` topics
-expose the firmware's encoder speed estimate in rad/s — handy for checking the
-wheel speed a future closed-loop PI controller would use
-(`ros2 topic echo /motor_rwheel_speed`).
+expose the firmware's encoder speed estimate in rad/s — the same measurement the
+wheel PI regulates, handy for confirming the loop tracks the commanded setpoint
+(`ros2 topic echo /motor_rwheel_speed --qos-reliability best_effort`).
 
 PC visualization topics:
 

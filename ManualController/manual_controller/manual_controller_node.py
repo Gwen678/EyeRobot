@@ -58,7 +58,7 @@ class ManualControllerNode(Node):
     def __init__(self) -> None:
         super().__init__('manual_controller')
 
-        self.declare_parameter('command_speed_rad_s', 8.0)
+        self.declare_parameter('command_speed_rad_s', 10.0)
         self.declare_parameter('turn_speed_rad_s', 5.0)
         self.declare_parameter('fan_command_rad_s', 8.0)
         self.declare_parameter('belt_command_rad_s', 8.0)
@@ -79,7 +79,7 @@ class ManualControllerNode(Node):
         self.declare_parameter('belt_cmd_topic', 'motor_belt_cmd')
 
         self._command_speed = positive_float(
-            self.get_parameter('command_speed_rad_s').value, 8.0
+            self.get_parameter('command_speed_rad_s').value, 10.0
         )
         self._turn_speed = positive_float(
             self.get_parameter('turn_speed_rad_s').value, 5.0
@@ -88,7 +88,7 @@ class ManualControllerNode(Node):
             self.get_parameter('fan_command_rad_s').value, 8.0
         )
         self._belt_speed = positive_float(
-            self.get_parameter('belt_command_rad_s').value, 8.0
+            self.get_parameter('belt_command_rad_s').value, 10.0
         )
         self._command_rate = positive_float(
             self.get_parameter('command_rate_hz').value, 20.0
@@ -141,8 +141,8 @@ class ManualControllerNode(Node):
         self._bindings: dict[str, KeyBinding] = {
             'w': KeyBinding('wheels', (cs, cs), 'FORWARD'),
             's': KeyBinding('wheels', (-cs, -cs), 'BACKWARD'),
-            'a': KeyBinding('wheels', (-ts, ts), 'TURN LEFT'),
-            'd': KeyBinding('wheels', (ts, -ts), 'TURN RIGHT'),
+            'a': KeyBinding('wheels', (ts, -ts), 'TURN LEFT'),
+            'd': KeyBinding('wheels', (-ts, ts), 'TURN RIGHT'),
             ' ': KeyBinding('stop', (), 'STOP'),
             'x': KeyBinding('stop', (), 'STOP'),
             # Fans are mechanically coupled to spin opposite each other.

@@ -47,7 +47,7 @@ def generate_launch_description():
         _arg('teleop', 'false', 'Spawn keyboard teleop in an xterm (off by default; run it in its own terminal instead)'),
 
         # ── Teleop (control) node ─────────────────────────────────────────────
-        _arg('command_speed_rad_s', '8.0', 'Wheel command for forward/backward keys'),
+        _arg('command_speed_rad_s', '10.0', 'Wheel command for forward/backward keys'),
         _arg('turn_speed_rad_s', '5.0', 'Wheel command for pivot turn keys'),
         _arg('fan_command_rad_s', '8.0', 'Fan command magnitude (q/e)'),
         _arg('belt_command_rad_s', '8.0', 'Belt command magnitude (r/t)'),

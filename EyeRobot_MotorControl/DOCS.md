@@ -14,10 +14,10 @@ ESP32 firmware for the EyeRobot motor board. It drives five brushed DC motors an
 
 The **wheels run closed-loop PI** on the encoder speed: the commanded rad/s is a
 real setpoint the controller tracks using the measured wheel speed
-(`measured_tps`). The PI is currently **P-only** (`kKp = 0.1`, `kKi = 0` in
-`MotorTask.cpp`), so expect some steady-state droop below the setpoint until an
-integral term is added. Mode is selected per motor via `MotorConfig::mode` in
-`AppBus.hpp` (`ClosedLoopSpeed` for the wheels).
+(`measured_tps`). Gains are `kKp = 0.03`, `kKi = 0.005` with integrator
+anti-windup (`MotorTask.cpp` / `PiController.cpp`); the wheels top out near
+`10.7 rad/s`. Mode is selected per motor via `MotorConfig::mode` in `AppBus.hpp`
+(`ClosedLoopSpeed` for the wheels, `OpenLoopSign` for the belt and fans).
 
 The **belt and fans run open-loop sign control** at full duty: they have no
 encoder, so a command's sign picks the direction and any magnitude past the
@@ -32,10 +32,12 @@ app_main
 ├── force_motor_outputs_low()   // pull all 10 PWM/DIR lines low before anything else
 ├── MotorTask x 5
 │   ├── owns MotorController
-│   └── owns Encoder (wheels only; read for telemetry, not control)
+│   ├── owns Encoder (wheels only; PI feedback + telemetry)
+│   └── owns PiController (wheels only; closed-loop speed)
 ├── MicroRosTask
-│   ├── subscribes to motor_*_cmd   (Float32)
-│   └── publishes  motor_*_fb        (Int32, accumulated ticks)
+│   ├── subscribes to motor_*_cmd   (Float32, wheel setpoint / belt+fan sign)
+│   ├── publishes  motor_*_fb        (Int32, accumulated ticks)
+│   └── publishes  motor_*_speed     (Float32, measured rad/s)
 └── AppBus
     ├── to_motor[id]    latest MotorCmd
     ├── from_motor[id]  latest MotorFeedback
@@ -44,7 +46,8 @@ app_main
 
 Key design points:
 
-- Control mode is explicit in `MotorConfig::mode` (all `OpenLoopSign` today).
+- Control mode is explicit in `MotorConfig::mode` (`ClosedLoopSpeed` for the two
+  wheels, `OpenLoopSign` for the belt and fans).
 - Commands use latest-value semantics, not FIFO backlog. A stop command cannot
   sit behind older movement commands.
 - Every motor has a 500 ms command watchdog. If commands go stale, the motor stops.
@@ -67,7 +70,7 @@ include/
   Channel.hpp           FreeRTOS queue wrapper with latest-value helpers
   MotorController.hpp   PWM + direction motor driver
   Encoder.hpp           ESP-IDF PCNT quadrature encoder
-  PiController.hpp      PI controller with anti-windup (currently unused)
+  PiController.hpp      PI controller with anti-windup (drives the wheels)
   MotorTask.hpp         Per-motor control task
   MicroRosTask.hpp      micro-ROS task
   Thread.hpp            FreeRTOS task base class
@@ -91,17 +94,23 @@ All pin definitions live in `include/pins.hpp`. LEDC channels are assigned in
 | Motor | PWM GPIO | DIR GPIO | ENC A GPIO | ENC B GPIO | LEDC ch |
 |---|---:|---:|---:|---:|---:|
 | Belt        | 5  | 18 | -  | -  | 2 |
-| Right wheel | 19 | 21 | 32 | 4  | 0 |
-| Left wheel  | 22 | 23 | 33 | 25 | 1 |
+| Right wheel | 22 | 23 | 32 | 4  | 0 |
+| Left wheel  | 19 | 21 | 33 | 25 | 1 |
 | Right fan   | 14 | 13 | -  | -  | 3 |
 | Left fan    | 26 | 27 | -  | -  | 4 |
 
 PWM uses LEDC at 20 kHz with 10-bit duty resolution.
 
-DIR polarity is inverted relative to the wiring: a positive (forward) command
-drives the DIR line **low**. The right wheel additionally sets
-`invert_encoder = true` (mirror-mounted: its encoder counts down on forward
-motion) so the published ticks read positive when driving forward.
+The two wheel **motor** harnesses were cross-wired left↔right, so `pins.hpp`
+swaps the wheels' PWM/DIR pins (right motor on 22/23, left on 19/21) while the
+**encoder** pins stay on their original wheels (right 32/4, left 33/25).
+
+Per-wheel polarity is then corrected in `kMotorConfigs`: the **left wheel** sets
+`invert_motor = true` (otherwise its motor drives backward for a positive
+command); both wheels keep `invert_encoder = false` (each encoder already counts
+up on forward motion). `invert_motor` is applied *after* the PI, so the loop runs
+in a clean `+command = forward`, `+measured = forward` frame (negative feedback)
+and only the final actuator step accounts for wiring polarity.
 
 ## Motor Configuration
 
@@ -109,15 +118,16 @@ motion) so the published ticks read positive when driving forward.
 
 ```cpp
 enum class MotorControlMode : uint8_t {
-    ClosedLoopSpeed,   // currently unused
-    OpenLoopSign,      // all five motors
+    ClosedLoopSpeed,   // the two wheels (encoder PI)
+    OpenLoopSign,      // belt + two fans
 };
 
 struct MotorConfig {
     MotorID        id;
     MotorControlMode mode;
-    const char*    fb_topic;
-    const char*    cmd_topic;
+    const char*    fb_topic;       // Int32 accumulated ticks
+    const char*    speed_topic;    // Float32 measured rad/s
+    const char*    cmd_topic;      // Float32 command
     gpio_num_t     pwm_pin;
     gpio_num_t     dir_pin;
     ledc_channel_t ledc_channel;
@@ -126,13 +136,14 @@ struct MotorConfig {
     float          max_cmd_rads;
     float          open_loop_duty_percent;
     uint32_t       command_timeout_ms;
-    bool           invert_encoder;
+    bool           invert_encoder;  // negate encoder count (forward reads +)
+    bool           invert_motor;    // negate duty after PI (+command = forward)
 };
 ```
 
 Encoder-less motors (belt, fans) use `enc_a = 0`, `enc_b = 0` as the
-"no encoder" sentinel. The wheels keep encoder pins so their feedback topics
-report real tick counts even though control is open-loop.
+"no encoder" sentinel. The wheels read their encoders both for the PI feedback
+and for the tick/speed feedback topics.
 
 ## Command And Feedback Bus
 
@@ -152,23 +163,30 @@ Runs every 10 ms.
 ```text
 receiveLatest command
 sanitize command (reject NaN/Inf, clamp to max_cmd_rads)
-if command timed out (500 ms): held command = 0
+if command timed out (500 ms) or micro-ROS link down: held command = 0
 
 if has encoder (wheels):
     read PCNT count (negate if invert_encoder)
-    fb.ticks = count        // raw accumulated count for host odometry
+    measured_tps = (ticks - prev_ticks) / dt
+    fb.ticks = ticks; fb.speed_rads = measured_tps / kTicksPerRad
 
-open-loop sign control (all motors today):
+closed-loop wheels (ClosedLoopSpeed):
+    setpoint_tps = command_rads * kTicksPerRad
+    near-zero setpoint -> hard stop (coast) + reset integrator
+    else duty = pi.update(setpoint_tps, measured_tps, dt)
+
+open-loop belt/fans (OpenLoopSign):
     cmd >  +0.5 rad/s -> +100% duty
     cmd <  -0.5 rad/s -> -100% duty
     otherwise         -> stop
 
+if invert_motor: duty = -duty
+setSpeed(duty) or stop
 sendLatest feedback
 ```
 
-When `ClosedLoopSpeed` mode is selected for a motor, the same task instead runs
-the PI branch: convert the setpoint rad/s to ticks/s, treat a near-zero setpoint
-as a hard stop, otherwise drive `motor.setSpeed(pi.update(...))`.
+The PI runs in the command frame (`+command`/`+measured`), and `invert_motor` is
+applied only to the final duty — so wiring polarity never leaks into the loop.
 
 ## MotorController
 
@@ -199,13 +217,14 @@ Constants in `include/Encoder.hpp`:
 | `kCprMotor` | 16 | Encoder pulses per motor-shaft revolution |
 | `kGearRatio` | 90 | Gearbox reduction |
 | `kCprOutput` | 1440 | Pulses per output revolution |
-| `kTicksPerRev` | 5760 | 4x quadrature ticks per output revolution |
-| `kTicksPerRad` | ≈917 | Ticks per output radian |
+| `kTicksPerRev` | 5756 | Calibrated 4x-quadrature ticks per output revolution |
+| `kTicksPerRad` | ≈916 | Ticks per output radian |
 
-The host state estimator's `counts_per_output_rev` (default `5756`) is the
-calibrated value to use for odometry. The firmware's `kTicksPerRev` (5760, from
-16 × 90 × 4) is only used for the unused `speed_rads` telemetry, so the small
-difference is harmless — the host integrates the raw tick counts, not rad/s.
+Both the firmware (`kTicksPerRev`) and the host estimator
+(`counts_per_output_rev`, default `5756`) use the same calibrated value — the
+nominal 16 × 90 × 4 = 5760 reads a few counts high. The firmware uses it to turn
+encoder ticks into the `measured_tps` / `speed_rads` the wheel PI regulates; the
+host integrates the raw tick counts for odometry.
 
 If odometry direction is wrong in RViz, prefer the host-side feedback-sign
 parameters before changing encoder code:
@@ -222,15 +241,15 @@ Node name:
 eyerobot_node
 ```
 
-Command topics, host to ESP32 (`std_msgs/msg/Float32`, sign-only):
+Command topics, host to ESP32 (`std_msgs/msg/Float32`):
 
 | Topic | Meaning |
 |---|---|
-| `/motor_belt_cmd` | Belt direction |
-| `/motor_rwheel_cmd` | Right wheel direction |
-| `/motor_lwheel_cmd` | Left wheel direction |
-| `/motor_rfan_cmd` | Right fan direction |
-| `/motor_lfan_cmd` | Left fan direction |
+| `/motor_belt_cmd` | Belt direction (sign-only) |
+| `/motor_rwheel_cmd` | Right wheel speed setpoint, rad/s (closed-loop PI) |
+| `/motor_lwheel_cmd` | Left wheel speed setpoint, rad/s (closed-loop PI) |
+| `/motor_rfan_cmd` | Right fan direction (sign-only) |
+| `/motor_lfan_cmd` | Left fan direction (sign-only) |
 
 Tick feedback topics, ESP32 to host (`std_msgs/msg/Int32`, accumulated ticks):
 
@@ -253,9 +272,10 @@ Speed feedback topics, ESP32 to host (`std_msgs/msg/Float32`, rad/s):
 | `/motor_lfan_speed` | Always 0 (no encoder) |
 
 The speed topics carry the firmware's encoder speed estimate
-(`fb.speed_rads = measured_tps / kTicksPerRad`). They exist so the wheel speed a
-future closed-loop PI controller would regulate can be sanity-checked live
-(`ros2 topic echo /motor_rwheel_speed`) before the loop is closed.
+(`fb.speed_rads = measured_tps / kTicksPerRad`) — the same measurement the wheel
+PI regulates. Echo one (best-effort QoS) to confirm the loop tracks the
+commanded setpoint:
+`ros2 topic echo /motor_rwheel_speed --qos-reliability best_effort`.
 
 All publishers and subscribers use **best-effort** QoS: a single shared UART
 carries both the high-rate telemetry and the command stream, and reliable QoS
