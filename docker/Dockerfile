@@ -85,12 +85,13 @@ RUN mkdir -p /uros_ws/src \
       /uros_ws/src/micro_ros_setup \
  && source /opt/ros/${ROS_DISTRO}/setup.bash \
  && cd /uros_ws \
- && rosdep install --from-paths src --ignore-src -y \
+ && apt-get update \
+ && rosdep install --from-paths src --ignore-src -y --skip-keys "clang-tidy" \
  && colcon build \
  && source install/local_setup.bash \
  && ros2 run micro_ros_setup create_agent_ws.sh \
  && ros2 run micro_ros_setup build_agent.sh \
- && rm -rf /uros_ws/build /uros_ws/log
+ && rm -rf /uros_ws/build /uros_ws/log /var/lib/apt/lists/*
 
 # Workspace is mounted here at runtime (docker/run.sh -v REPO:/eyerobot).
 ENV EYEROBOT_WS=/eyerobot/ros2_ws
