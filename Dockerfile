@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y \
     ros-humble-rviz-default-plugins \
     ros-humble-robot-state-publisher \
     ros-humble-joint-state-publisher \
+    ros-humble-micro-ros-agent \
     && rm -rf /var/lib/apt/lists/*
 
 # =========================

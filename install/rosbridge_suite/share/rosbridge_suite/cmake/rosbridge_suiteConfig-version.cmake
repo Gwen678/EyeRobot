@@ -1,1 +1,0 @@
-/ros2_ws/build/rosbridge_suite/ament_cmake_core/rosbridge_suiteConfig-version.cmake

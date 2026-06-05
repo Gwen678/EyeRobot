@@ -1,1 +1,0 @@
-/ros2_ws/build/rosapi_msgs/rosidl_generator_c/rosapi_msgs/srv/detail/topics_and_raw_types__functions.h

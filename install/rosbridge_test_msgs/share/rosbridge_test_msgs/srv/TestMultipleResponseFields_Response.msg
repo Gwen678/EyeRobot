@@ -1,1 +1,0 @@
-/ros2_ws/build/rosbridge_test_msgs/rosidl_cmake/srv/TestMultipleResponseFields_Response.msg

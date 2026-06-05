@@ -1,1 +1,0 @@
-ament_cmake_symlink_install_targets("TARGET_FILES" "/ros2_ws/build/rosapi_msgs/rosidl_generator_py/rosapi_msgs/rosapi_msgs_s__rosidl_typesupport_c.cpython-36m-aarch64-linux-gnu.so" "TARGETS" "rosapi_msgs__rosidl_typesupport_c__pyext" "DESTINATION" "lib/python3.6/site-packages/rosapi_msgs")
