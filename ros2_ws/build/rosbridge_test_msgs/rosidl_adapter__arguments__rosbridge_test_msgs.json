@@ -1,0 +1,26 @@
+{
+  "package_name": "rosbridge_test_msgs",
+  "non_idl_tuples": [
+    "/ros2_ws/rosbridge_test_msgs:msg/Num.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestChar.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestDurationArray.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestHeaderArray.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestHeader.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestHeaderTwo.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestTimeArray.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestUInt8.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestUInt8FixedSizeArray16.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestFloat32Array.msg",
+    "/ros2_ws/rosbridge_test_msgs:msg/TestFloat32BoundedArray.msg",
+    "/ros2_ws/rosbridge_test_msgs:srv/AddTwoInts.srv",
+    "/ros2_ws/rosbridge_test_msgs:srv/SendBytes.srv",
+    "/ros2_ws/rosbridge_test_msgs:srv/TestArrayRequest.srv",
+    "/ros2_ws/rosbridge_test_msgs:srv/TestEmpty.srv",
+    "/ros2_ws/rosbridge_test_msgs:srv/TestMultipleRequestFields.srv",
+    "/ros2_ws/rosbridge_test_msgs:srv/TestMultipleResponseFields.srv",
+    "/ros2_ws/rosbridge_test_msgs:srv/TestNestedService.srv",
+    "/ros2_ws/rosbridge_test_msgs:srv/TestRequestAndResponse.srv",
+    "/ros2_ws/rosbridge_test_msgs:srv/TestRequestOnly.srv",
+    "/ros2_ws/rosbridge_test_msgs:srv/TestResponseOnly.srv"
+  ]
+}

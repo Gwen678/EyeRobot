@@ -1,0 +1,266 @@
+[0.027s] Invoking command in '/ros2_ws/build/rosbridge_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /ros2_ws/rosbridge_msgs -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/rosbridge_msgs
+[0.257s] -- The C compiler identification is GNU 11.4.0
+[0.470s] -- The CXX compiler identification is GNU 11.4.0
+[0.496s] -- Detecting C compiler ABI info
+[0.771s] -- Detecting C compiler ABI info - done
+[0.809s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.810s] -- Detecting C compile features
+[0.812s] -- Detecting C compile features - done
+[0.824s] -- Detecting CXX compiler ABI info
+[1.113s] -- Detecting CXX compiler ABI info - done
+[1.152s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[1.154s] -- Detecting CXX compile features
+[1.157s] -- Detecting CXX compile features - done
+[1.172s] -- Found ament_cmake_ros: 0.10.0 (/opt/ros/humble/share/ament_cmake_ros/cmake)
+[1.816s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[2.272s] -- Found builtin_interfaces: 1.2.2 (/opt/ros/humble/share/builtin_interfaces/cmake)
+[2.424s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[2.449s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[2.493s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[2.554s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[2.636s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[2.714s] -- Found rosidl_default_generators: 1.2.1 (/opt/ros/humble/share/rosidl_default_generators/cmake)
+[7.002s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[8.247s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[8.448s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.10.12", minimum required is "3.6") 
+[8.459s] -- Found python_cmake_module: 0.10.0 (/opt/ros/humble/share/python_cmake_module/cmake)
+[8.681s] -- Found PythonLibs: /usr/lib/aarch64-linux-gnu/libpython3.10.so (found suitable version "3.10.12", minimum required is "3.5") 
+[8.682s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[8.684s] -- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.10
+[8.685s] -- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.10.so
+[8.864s] -- Found PythonExtra: .so  
+[9.777s] -- Configuring done
+[10.185s] -- Generating done
+[10.329s] -- Build files have been written to: /ros2_ws/build/rosbridge_msgs
+[10.393s] Invoked command in '/ros2_ws/build/rosbridge_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /ros2_ws/rosbridge_msgs -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/rosbridge_msgs
+[10.394s] Invoking command in '/ros2_ws/build/rosbridge_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/build/rosbridge_msgs -- -j4 -l4
+[10.902s] [  2%] [34m[1mGenerating C code for ROS interfaces[0m
+[11.036s] [  5%] [34m[1mGenerating Rust code for ROS interfaces[0m
+[11.060s] [  7%] [34m[1mGenerating C++ code for ROS interfaces[0m
+[11.194s] [  7%] Built target ament_cmake_python_copy_rosbridge_msgs
+[14.776s] running egg_info
+[14.803s] creating rosbridge_msgs.egg-info
+[14.804s] writing rosbridge_msgs.egg-info/PKG-INFO
+[14.804s] writing dependency_links to rosbridge_msgs.egg-info/dependency_links.txt
+[14.805s] writing top-level names to rosbridge_msgs.egg-info/top_level.txt
+[14.806s] writing manifest file 'rosbridge_msgs.egg-info/SOURCES.txt'
+[14.863s] reading manifest file 'rosbridge_msgs.egg-info/SOURCES.txt'
+[14.866s] writing manifest file 'rosbridge_msgs.egg-info/SOURCES.txt'
+[15.392s] [  7%] Built target ament_cmake_python_build_rosbridge_msgs_egg
+[15.613s] [  7%] Built target rosbridge_msgs__rs
+[16.559s] [  7%] Built target rosbridge_msgs__cpp
+[16.797s] [ 10%] [32mBuilding C object CMakeFiles/rosbridge_msgs__rosidl_generator_c.dir/rosidl_generator_c/rosbridge_msgs/msg/detail/connected_client__functions.c.o[0m
+[17.385s] [ 12%] [32mBuilding C object CMakeFiles/rosbridge_msgs__rosidl_generator_c.dir/rosidl_generator_c/rosbridge_msgs/msg/detail/connected_clients__functions.c.o[0m
+[17.867s] [ 15%] [32m[1mLinking C shared library librosbridge_msgs__rosidl_generator_c.so[0m
+[18.170s] [ 15%] Built target rosbridge_msgs__rosidl_generator_c
+[18.273s] [ 17%] [34m[1mGenerating C++ type support dispatch for ROS interfaces[0m
+[21.294s] [ 20%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/rosbridge_msgs/msg/connected_client__type_support.cpp.o[0m
+[23.754s] [ 22%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/rosbridge_msgs/msg/connected_clients__type_support.cpp.o[0m
+[26.050s] [ 25%] [32m[1mLinking CXX shared library librosbridge_msgs__rosidl_typesupport_cpp.so[0m
+[26.303s] [ 25%] Built target rosbridge_msgs__rosidl_typesupport_cpp
+[26.378s] [ 27%] [34m[1mGenerating C type support for eProsima Fast-RTPS[0m
+[29.371s] [ 30%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/rosbridge_msgs/msg/detail/connected_client__type_support_c.cpp.o[0m
+[31.705s] [ 32%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/rosbridge_msgs/msg/detail/connected_clients__type_support_c.cpp.o[0m
+[33.687s] [ 35%] [32m[1mLinking CXX shared library librosbridge_msgs__rosidl_typesupport_fastrtps_c.so[0m
+[33.999s] [ 35%] Built target rosbridge_msgs__rosidl_typesupport_fastrtps_c
+[34.057s] [ 37%] [34m[1mGenerating C introspection for ROS interfaces[0m
+[35.778s] [ 40%] [32mBuilding C object CMakeFiles/rosbridge_msgs__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/rosbridge_msgs/msg/detail/connected_client__type_support.c.o[0m
+[35.997s] [ 42%] [32mBuilding C object CMakeFiles/rosbridge_msgs__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/rosbridge_msgs/msg/detail/connected_clients__type_support.c.o[0m
+[36.179s] [ 45%] [32m[1mLinking C shared library librosbridge_msgs__rosidl_typesupport_introspection_c.so[0m
+[36.332s] [ 45%] Built target rosbridge_msgs__rosidl_typesupport_introspection_c
+[36.396s] [ 47%] [34m[1mGenerating C type support dispatch for ROS interfaces[0m
+[37.792s] [ 50%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_c.dir/rosidl_typesupport_c/rosbridge_msgs/msg/connected_client__type_support.cpp.o[0m
+[37.949s] [ 52%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_c.dir/rosidl_typesupport_c/rosbridge_msgs/msg/connected_clients__type_support.cpp.o[0m
+[38.118s] [ 55%] [32m[1mLinking CXX shared library librosbridge_msgs__rosidl_typesupport_c.so[0m
+[38.321s] [ 55%] Built target rosbridge_msgs__rosidl_typesupport_c
+[38.361s] [ 57%] [34m[1mGenerating C++ introspection for ROS interfaces[0m
+[39.790s] [ 60%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/rosbridge_msgs/msg/detail/connected_client__type_support.cpp.o[0m
+[41.692s] [ 62%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/rosbridge_msgs/msg/detail/connected_clients__type_support.cpp.o[0m
+[43.753s] [ 65%] [32m[1mLinking CXX shared library librosbridge_msgs__rosidl_typesupport_introspection_cpp.so[0m
+[44.037s] [ 65%] Built target rosbridge_msgs__rosidl_typesupport_introspection_cpp
+[44.079s] [ 67%] [34m[1mGenerating C++ type support for eProsima Fast-RTPS[0m
+[45.577s] [ 70%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/rosbridge_msgs/msg/detail/dds_fastrtps/connected_client__type_support.cpp.o[0m
+[47.239s] [ 72%] [32mBuilding CXX object CMakeFiles/rosbridge_msgs__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/rosbridge_msgs/msg/detail/dds_fastrtps/connected_clients__type_support.cpp.o[0m
+[49.231s] [ 75%] [32m[1mLinking CXX shared library librosbridge_msgs__rosidl_typesupport_fastrtps_cpp.so[0m
+[49.492s] [ 75%] Built target rosbridge_msgs__rosidl_typesupport_fastrtps_cpp
+[49.551s] [ 75%] Built target rosbridge_msgs
+[49.615s] [ 77%] [34m[1mGenerating Python code for ROS interfaces[0m
+[51.766s] [ 77%] Built target rosbridge_msgs__py
+[51.830s] [ 80%] [32mBuilding C object CMakeFiles/rosbridge_msgs__rosidl_generator_py.dir/rosidl_generator_py/rosbridge_msgs/msg/_connected_client_s.c.o[0m
+[52.301s] [ 82%] [32mBuilding C object CMakeFiles/rosbridge_msgs__rosidl_generator_py.dir/rosidl_generator_py/rosbridge_msgs/msg/_connected_clients_s.c.o[0m
+[52.803s] [ 85%] [32m[1mLinking C shared library rosidl_generator_py/rosbridge_msgs/librosbridge_msgs__rosidl_generator_py.so[0m
+[52.975s] [ 85%] Built target rosbridge_msgs__rosidl_generator_py
+[53.062s] [ 87%] [32mBuilding C object CMakeFiles/rosbridge_msgs__rosidl_typesupport_fastrtps_c__pyext.dir/rosidl_generator_py/rosbridge_msgs/_rosbridge_msgs_s.ep.rosidl_typesupport_fastrtps_c.c.o[0m
+[53.551s] [ 90%] [32m[1mLinking C shared library rosidl_generator_py/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so[0m
+[53.732s] [ 90%] Built target rosbridge_msgs__rosidl_typesupport_fastrtps_c__pyext
+[53.838s] [ 92%] [32mBuilding C object CMakeFiles/rosbridge_msgs__rosidl_typesupport_c__pyext.dir/rosidl_generator_py/rosbridge_msgs/_rosbridge_msgs_s.ep.rosidl_typesupport_c.c.o[0m
+[54.308s] [ 95%] [32m[1mLinking C shared library rosidl_generator_py/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so[0m
+[54.445s] [ 95%] Built target rosbridge_msgs__rosidl_typesupport_c__pyext
+[54.508s] [ 97%] [32mBuilding C object CMakeFiles/rosbridge_msgs__rosidl_typesupport_introspection_c__pyext.dir/rosidl_generator_py/rosbridge_msgs/_rosbridge_msgs_s.ep.rosidl_typesupport_introspection_c.c.o[0m
+[54.985s] [100%] [32m[1mLinking C shared library rosidl_generator_py/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so[0m
+[55.128s] [100%] Built target rosbridge_msgs__rosidl_typesupport_introspection_c__pyext
+[55.172s] Invoked command in '/ros2_ws/build/rosbridge_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/build/rosbridge_msgs -- -j4 -l4
+[55.174s] Invoking command in '/ros2_ws/build/rosbridge_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/build/rosbridge_msgs
+[55.202s] -- Install configuration: ""
+[55.203s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/ament_index/resource_index/rosidl_interfaces/rosbridge_msgs
+[55.204s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs
+[55.205s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg
+[55.205s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/connected_clients.h
+[55.206s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/connected_client.h
+[55.206s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail
+[55.207s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__functions.c
+[55.207s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__type_support.h
+[55.208s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__struct.h
+[55.209s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__type_support.h
+[55.209s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__functions.h
+[55.220s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__struct.h
+[55.221s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__functions.h
+[55.221s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__functions.c
+[55.222s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/rosidl_generator_c__visibility_control.h
+[55.222s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/environment/library_path.sh
+[55.223s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/environment/library_path.dsv
+[55.223s] -- Installing: /ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_generator_c.so
+[55.224s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_generator_c.so" to ""
+[55.225s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs
+[55.225s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg
+[55.226s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/rosidl_typesupport_fastrtps_c__visibility_control.h
+[55.226s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail
+[55.227s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__rosidl_typesupport_fastrtps_c.h
+[55.228s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__rosidl_typesupport_fastrtps_c.h
+[55.229s] -- Installing: /ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_fastrtps_c.so
+[55.231s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_fastrtps_c.so" to ""
+[55.232s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs
+[55.233s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg
+[55.234s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/connected_client.hpp
+[55.239s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/rosidl_generator_cpp__visibility_control.hpp
+[55.248s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail
+[55.249s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__traits.hpp
+[55.249s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__type_support.hpp
+[55.250s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__builder.hpp
+[55.250s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__struct.hpp
+[55.251s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__type_support.hpp
+[55.252s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__struct.hpp
+[55.252s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__builder.hpp
+[55.253s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__traits.hpp
+[55.253s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/connected_clients.hpp
+[55.254s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs
+[55.254s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg
+[55.255s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
+[55.255s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail
+[55.256s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__rosidl_typesupport_fastrtps_cpp.hpp
+[55.256s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__rosidl_typesupport_fastrtps_cpp.hpp
+[55.257s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/dds_fastrtps
+[55.257s] -- Installing: /ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_fastrtps_cpp.so
+[55.264s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_fastrtps_cpp.so" to ""
+[55.265s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs
+[55.266s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg
+[55.267s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail
+[55.267s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__rosidl_typesupport_introspection_c.h
+[55.276s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__rosidl_typesupport_introspection_c.h
+[55.277s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__type_support.c
+[55.277s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__type_support.c
+[55.278s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/rosidl_typesupport_introspection_c__visibility_control.h
+[55.278s] -- Installing: /ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_introspection_c.so
+[55.278s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_introspection_c.so" to ""
+[55.279s] -- Installing: /ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_c.so
+[55.279s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_c.so" to ""
+[55.279s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs
+[55.280s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg
+[55.280s] -- Up-to-date: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail
+[55.281s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__type_support.cpp
+[55.281s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__rosidl_typesupport_introspection_cpp.hpp
+[55.282s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_clients__type_support.cpp
+[55.282s] -- Installing: /ros2_ws/install/rosbridge_msgs/include/rosbridge_msgs/rosbridge_msgs/msg/detail/connected_client__rosidl_typesupport_introspection_cpp.hpp
+[55.283s] -- Installing: /ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_introspection_cpp.so
+[55.283s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_introspection_cpp.so" to ""
+[55.284s] -- Installing: /ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_cpp.so
+[55.284s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_typesupport_cpp.so" to ""
+[55.285s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/environment/pythonpath.sh
+[55.285s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/environment/pythonpath.dsv
+[55.286s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs-1.3.1-py3.10.egg-info
+[55.286s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs-1.3.1-py3.10.egg-info/SOURCES.txt
+[55.287s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs-1.3.1-py3.10.egg-info/dependency_links.txt
+[55.287s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs-1.3.1-py3.10.egg-info/top_level.txt
+[55.287s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs-1.3.1-py3.10.egg-info/PKG-INFO
+[55.288s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs
+[55.289s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so
+[55.290s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/__init__.py
+[55.290s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/librosbridge_msgs__rosidl_generator_py.so
+[55.290s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so
+[55.291s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/_rosbridge_msgs_s.ep.rosidl_typesupport_c.c
+[55.291s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg
+[55.292s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg/_connected_clients_s.c
+[55.292s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg/__init__.py
+[55.293s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg/_connected_client.py
+[55.293s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg/_connected_clients.py
+[55.293s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg/_connected_client_s.c
+[55.294s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/_rosbridge_msgs_s.ep.rosidl_typesupport_fastrtps_c.c
+[55.294s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so
+[55.295s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/_rosbridge_msgs_s.ep.rosidl_typesupport_introspection_c.c
+[55.467s] Listing '/ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs'...
+[55.467s] Compiling '/ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/__init__.py'...
+[55.468s] Listing '/ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg'...
+[55.468s] Compiling '/ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg/__init__.py'...
+[55.469s] Compiling '/ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg/_connected_client.py'...
+[55.469s] Compiling '/ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/msg/_connected_clients.py'...
+[55.498s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so
+[55.499s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so" to ""
+[55.500s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so
+[55.501s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so" to ""
+[55.502s] -- Installing: /ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so
+[55.504s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/local/lib/python3.10/dist-packages/rosbridge_msgs/rosbridge_msgs_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so" to ""
+[55.504s] -- Installing: /ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_generator_py.so
+[55.505s] -- Set runtime path of "/ros2_ws/install/rosbridge_msgs/lib/librosbridge_msgs__rosidl_generator_py.so" to ""
+[55.506s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/ament_index/resource_index/rust_packages/rosbridge_msgs
+[55.507s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/rust
+[55.509s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/rust/src
+[55.510s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/rust/src/msg
+[55.511s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/rust/src/msg/rmw.rs
+[55.511s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/rust/src/msg.rs
+[55.512s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/rust/src/lib.rs
+[55.513s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/rust/Cargo.toml
+[55.513s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/rust/build.rs
+[55.514s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/msg/ConnectedClient.idl
+[55.514s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/msg/ConnectedClients.idl
+[55.515s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/msg/ConnectedClient.msg
+[55.516s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/msg/ConnectedClients.msg
+[55.516s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/ament_index/resource_index/package_run_dependencies/rosbridge_msgs
+[55.517s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/ament_index/resource_index/parent_prefix_path/rosbridge_msgs
+[55.528s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/environment/ament_prefix_path.sh
+[55.528s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/environment/ament_prefix_path.dsv
+[55.529s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/environment/path.sh
+[55.530s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/environment/path.dsv
+[55.533s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/local_setup.bash
+[55.535s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/local_setup.sh
+[55.536s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/local_setup.zsh
+[55.538s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/local_setup.dsv
+[55.540s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/package.dsv
+[55.542s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/ament_index/resource_index/packages/rosbridge_msgs
+[55.543s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/export_rosbridge_msgs__rosidl_generator_cExport.cmake
+[55.545s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/export_rosbridge_msgs__rosidl_generator_cExport-noconfig.cmake
+[55.547s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/export_rosbridge_msgs__rosidl_typesupport_fastrtps_cExport.cmake
+[55.549s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/export_rosbridge_msgs__rosidl_typesupport_fastrtps_cExport-noconfig.cmake
+[55.551s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/export_rosbridge_msgs__rosidl_generator_cppExport.cmake
+[55.553s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/export_rosbridge_msgs__rosidl_typesupport_fastrtps_cppExport.cmake
+[55.555s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/export_rosbridge_msgs__rosidl_typesupport_fastrtps_cppExport-noconfig.cmake
+[55.557s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgs__rosidl_typesupport_introspection_cExport.cmake
+[55.559s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgs__rosidl_typesupport_introspection_cExport-noconfig.cmake
+[55.561s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgs__rosidl_typesupport_cExport.cmake
+[55.563s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgs__rosidl_typesupport_cExport-noconfig.cmake
+[55.564s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgs__rosidl_typesupport_introspection_cppExport.cmake
+[55.565s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgs__rosidl_typesupport_introspection_cppExport-noconfig.cmake
+[55.566s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgs__rosidl_typesupport_cppExport.cmake
+[55.567s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgs__rosidl_typesupport_cppExport-noconfig.cmake
+[55.568s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/export_rosbridge_msgs__rosidl_generator_pyExport.cmake
+[55.569s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/export_rosbridge_msgs__rosidl_generator_pyExport-noconfig.cmake
+[55.570s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosidl_cmake-extras.cmake
+[55.571s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/ament_cmake_export_dependencies-extras.cmake
+[55.571s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/ament_cmake_export_include_directories-extras.cmake
+[55.572s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/ament_cmake_export_libraries-extras.cmake
+[55.573s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/ament_cmake_export_targets-extras.cmake
+[55.573s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake
+[55.574s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake
+[55.575s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgsConfig.cmake
+[55.576s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/cmake/rosbridge_msgsConfig-version.cmake
+[55.577s] -- Installing: /ros2_ws/install/rosbridge_msgs/share/rosbridge_msgs/package.xml
+[55.588s] Invoked command in '/ros2_ws/build/rosbridge_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/build/rosbridge_msgs

@@ -1,0 +1,179 @@
+[0.055s] Invoking command in '/ros2_ws/build/stereo_msgs': AMENT_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:/opt/ros/humble LD_LIBRARY_PATH=/ros2_ws/install/sensor_msgs/lib:/ros2_ws/install/geometry_msgs/lib:/ros2_ws/install/std_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/ros2_ws/install/sensor_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/geometry_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/std_msgs/local/lib/python3.10/dist-packages:${PYTHONPATH} /usr/bin/cmake --build /ros2_ws/build/stereo_msgs -- -j4 -l4
+[0.474s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_generator_c[0m
+[0.624s] [  0%] Built target ament_cmake_python_copy_stereo_msgs
+[0.626s] [  9%] Built target stereo_msgs__rosidl_generator_c
+[0.628s] [ 12%] Built target stereo_msgs__rs
+[0.674s] [ 15%] Built target stereo_msgs__cpp
+[0.754s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_typesupport_introspection_c[0m
+[0.825s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_typesupport_fastrtps_c[0m
+[0.841s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_typesupport_c[0m
+[0.977s] [ 25%] Built target stereo_msgs__rosidl_typesupport_c
+[1.012s] [ 34%] Built target stereo_msgs__rosidl_typesupport_introspection_c
+[1.035s] [ 43%] Built target stereo_msgs__rosidl_typesupport_fastrtps_c
+[1.196s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_typesupport_introspection_cpp[0m
+[1.206s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_typesupport_cpp[0m
+[1.256s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_typesupport_fastrtps_cpp[0m
+[1.391s] [ 53%] Built target stereo_msgs__rosidl_typesupport_introspection_cpp
+[1.406s] [ 62%] Built target stereo_msgs__rosidl_typesupport_cpp
+[1.460s] [ 71%] Built target stereo_msgs__rosidl_typesupport_fastrtps_cpp
+[1.766s] [ 71%] Built target stereo_msgs
+[1.985s] [ 75%] Built target stereo_msgs__py
+[2.168s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_generator_py[0m
+[2.198s] running egg_info
+[2.202s] writing stereo_msgs.egg-info/PKG-INFO
+[2.204s] writing dependency_links to stereo_msgs.egg-info/dependency_links.txt
+[2.208s] writing top-level names to stereo_msgs.egg-info/top_level.txt
+[2.218s] reading manifest file 'stereo_msgs.egg-info/SOURCES.txt'
+[2.223s] writing manifest file 'stereo_msgs.egg-info/SOURCES.txt'
+[2.440s] [ 81%] Built target stereo_msgs__rosidl_generator_py
+[2.568s] [ 81%] Built target ament_cmake_python_build_stereo_msgs_egg
+[2.573s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_typesupport_fastrtps_c__pyext[0m
+[2.590s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_typesupport_introspection_c__pyext[0m
+[2.595s] [35m[1mConsolidate compiler generated dependencies of target stereo_msgs__rosidl_typesupport_c__pyext[0m
+[2.698s] [ 87%] Built target stereo_msgs__rosidl_typesupport_introspection_c__pyext
+[2.703s] [ 93%] Built target stereo_msgs__rosidl_typesupport_c__pyext
+[2.713s] [100%] Built target stereo_msgs__rosidl_typesupport_fastrtps_c__pyext
+[2.828s] Invoked command in '/ros2_ws/build/stereo_msgs' returned '0': AMENT_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:/opt/ros/humble LD_LIBRARY_PATH=/ros2_ws/install/sensor_msgs/lib:/ros2_ws/install/geometry_msgs/lib:/ros2_ws/install/std_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/ros2_ws/install/sensor_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/geometry_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/std_msgs/local/lib/python3.10/dist-packages:${PYTHONPATH} /usr/bin/cmake --build /ros2_ws/build/stereo_msgs -- -j4 -l4
+[2.834s] Invoking command in '/ros2_ws/build/stereo_msgs': AMENT_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:/opt/ros/humble LD_LIBRARY_PATH=/ros2_ws/install/sensor_msgs/lib:/ros2_ws/install/geometry_msgs/lib:/ros2_ws/install/std_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/ros2_ws/install/sensor_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/geometry_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/std_msgs/local/lib/python3.10/dist-packages:${PYTHONPATH} /usr/bin/cmake --install /ros2_ws/build/stereo_msgs
+[2.885s] -- Install configuration: ""
+[2.886s] -- Installing: /ros2_ws/install/stereo_msgs/share/ament_index/resource_index/rosidl_interfaces/stereo_msgs
+[2.887s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs
+[2.888s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg
+[2.889s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/disparity_image.h
+[2.890s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail
+[2.890s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__type_support.h
+[2.891s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__struct.h
+[2.896s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__functions.h
+[2.904s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__functions.c
+[2.905s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/rosidl_generator_c__visibility_control.h
+[2.908s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/environment/library_path.sh
+[2.909s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/environment/library_path.dsv
+[2.911s] -- Installing: /ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_generator_c.so
+[2.914s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_generator_c.so" to ""
+[2.914s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs
+[2.917s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg
+[2.921s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/rosidl_typesupport_fastrtps_c__visibility_control.h
+[2.931s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail
+[2.931s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__rosidl_typesupport_fastrtps_c.h
+[2.931s] -- Installing: /ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_fastrtps_c.so
+[2.946s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_fastrtps_c.so" to ""
+[2.947s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs
+[2.950s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg
+[2.951s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail
+[2.961s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__rosidl_typesupport_introspection_c.h
+[2.961s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__type_support.c
+[2.968s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/rosidl_typesupport_introspection_c__visibility_control.h
+[2.969s] -- Installing: /ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_introspection_c.so
+[2.971s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_introspection_c.so" to ""
+[2.972s] -- Installing: /ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_c.so
+[2.979s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_c.so" to ""
+[2.981s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs
+[2.981s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg
+[2.993s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/disparity_image.hpp
+[3.003s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/rosidl_generator_cpp__visibility_control.hpp
+[3.006s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail
+[3.006s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__builder.hpp
+[3.011s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__struct.hpp
+[3.011s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__type_support.hpp
+[3.013s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__traits.hpp
+[3.023s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs
+[3.024s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg
+[3.024s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
+[3.024s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail
+[3.025s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__rosidl_typesupport_fastrtps_cpp.hpp
+[3.025s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/dds_fastrtps
+[3.026s] -- Installing: /ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_fastrtps_cpp.so
+[3.026s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_fastrtps_cpp.so" to ""
+[3.035s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs
+[3.036s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg
+[3.036s] -- Up-to-date: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail
+[3.037s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__type_support.cpp
+[3.040s] -- Installing: /ros2_ws/install/stereo_msgs/include/stereo_msgs/stereo_msgs/msg/detail/disparity_image__rosidl_typesupport_introspection_cpp.hpp
+[3.041s] -- Installing: /ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_introspection_cpp.so
+[3.045s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_introspection_cpp.so" to ""
+[3.046s] -- Installing: /ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_cpp.so
+[3.046s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_typesupport_cpp.so" to ""
+[3.047s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/environment/pythonpath.sh
+[3.048s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/environment/pythonpath.dsv
+[3.049s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs-2.0.5-py3.10.egg-info
+[3.049s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs-2.0.5-py3.10.egg-info/SOURCES.txt
+[3.050s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs-2.0.5-py3.10.egg-info/dependency_links.txt
+[3.051s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs-2.0.5-py3.10.egg-info/top_level.txt
+[3.051s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs-2.0.5-py3.10.egg-info/PKG-INFO
+[3.052s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs
+[3.053s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/__init__.py
+[3.053s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/stereo_msgs_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so
+[3.054s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/_stereo_msgs_s.ep.rosidl_typesupport_c.c
+[3.055s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/libstereo_msgs__rosidl_generator_py.so
+[3.055s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/stereo_msgs_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so
+[3.064s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/_stereo_msgs_s.ep.rosidl_typesupport_fastrtps_c.c
+[3.064s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/msg
+[3.065s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/msg/__init__.py
+[3.065s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/msg/_disparity_image.py
+[3.066s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/msg/_disparity_image_s.c
+[3.066s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/_stereo_msgs_s.ep.rosidl_typesupport_introspection_c.c
+[3.067s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/stereo_msgs_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so
+[3.218s] Listing '/ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs'...
+[3.218s] Compiling '/ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/__init__.py'...
+[3.219s] Listing '/ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/msg'...
+[3.220s] Compiling '/ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/msg/__init__.py'...
+[3.220s] Compiling '/ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/msg/_disparity_image.py'...
+[3.262s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/stereo_msgs_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so
+[3.263s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/stereo_msgs_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so" to ""
+[3.265s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/stereo_msgs_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so
+[3.265s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/stereo_msgs_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so" to ""
+[3.266s] -- Installing: /ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/stereo_msgs_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so
+[3.269s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/local/lib/python3.10/dist-packages/stereo_msgs/stereo_msgs_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so" to ""
+[3.270s] -- Installing: /ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_generator_py.so
+[3.273s] -- Set runtime path of "/ros2_ws/install/stereo_msgs/lib/libstereo_msgs__rosidl_generator_py.so" to ""
+[3.276s] -- Installing: /ros2_ws/install/stereo_msgs/share/ament_index/resource_index/rust_packages/stereo_msgs
+[3.280s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/rust
+[3.280s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/rust/src
+[3.292s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/rust/src/msg
+[3.292s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/rust/src/msg/rmw.rs
+[3.294s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/rust/src/msg.rs
+[3.298s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/rust/src/lib.rs
+[3.298s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/rust/Cargo.toml
+[3.300s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/rust/build.rs
+[3.301s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/msg/DisparityImage.idl
+[3.302s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/msg/DisparityImage.msg
+[3.302s] -- Installing: /ros2_ws/install/stereo_msgs/share/ament_index/resource_index/package_run_dependencies/stereo_msgs
+[3.304s] -- Installing: /ros2_ws/install/stereo_msgs/share/ament_index/resource_index/parent_prefix_path/stereo_msgs
+[3.305s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/environment/ament_prefix_path.sh
+[3.306s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/environment/ament_prefix_path.dsv
+[3.307s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/environment/path.sh
+[3.313s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/environment/path.dsv
+[3.316s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/local_setup.bash
+[3.317s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/local_setup.sh
+[3.317s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/local_setup.zsh
+[3.318s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/local_setup.dsv
+[3.318s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/package.dsv
+[3.319s] -- Installing: /ros2_ws/install/stereo_msgs/share/ament_index/resource_index/packages/stereo_msgs
+[3.319s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/export_stereo_msgs__rosidl_generator_cExport.cmake
+[3.320s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/export_stereo_msgs__rosidl_generator_cExport-noconfig.cmake
+[3.320s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/export_stereo_msgs__rosidl_typesupport_fastrtps_cExport.cmake
+[3.320s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/export_stereo_msgs__rosidl_typesupport_fastrtps_cExport-noconfig.cmake
+[3.321s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgs__rosidl_typesupport_introspection_cExport.cmake
+[3.321s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgs__rosidl_typesupport_introspection_cExport-noconfig.cmake
+[3.322s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgs__rosidl_typesupport_cExport.cmake
+[3.322s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgs__rosidl_typesupport_cExport-noconfig.cmake
+[3.323s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/export_stereo_msgs__rosidl_generator_cppExport.cmake
+[3.323s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/export_stereo_msgs__rosidl_typesupport_fastrtps_cppExport.cmake
+[3.324s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/export_stereo_msgs__rosidl_typesupport_fastrtps_cppExport-noconfig.cmake
+[3.324s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgs__rosidl_typesupport_introspection_cppExport.cmake
+[3.324s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgs__rosidl_typesupport_introspection_cppExport-noconfig.cmake
+[3.325s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgs__rosidl_typesupport_cppExport.cmake
+[3.325s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgs__rosidl_typesupport_cppExport-noconfig.cmake
+[3.326s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/export_stereo_msgs__rosidl_generator_pyExport.cmake
+[3.326s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/export_stereo_msgs__rosidl_generator_pyExport-noconfig.cmake
+[3.327s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/rosidl_cmake-extras.cmake
+[3.327s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/ament_cmake_export_dependencies-extras.cmake
+[3.328s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/ament_cmake_export_include_directories-extras.cmake
+[3.328s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/ament_cmake_export_libraries-extras.cmake
+[3.328s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/ament_cmake_export_targets-extras.cmake
+[3.329s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake
+[3.329s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake
+[3.330s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgsConfig.cmake
+[3.330s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/cmake/stereo_msgsConfig-version.cmake
+[3.331s] -- Installing: /ros2_ws/install/stereo_msgs/share/stereo_msgs/package.xml
+[4.356s] Invoked command in '/ros2_ws/build/stereo_msgs' returned '0': AMENT_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/ros2_ws/install/sensor_msgs:/ros2_ws/install/geometry_msgs:/ros2_ws/install/std_msgs:/opt/ros/humble LD_LIBRARY_PATH=/ros2_ws/install/sensor_msgs/lib:/ros2_ws/install/geometry_msgs/lib:/ros2_ws/install/std_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/ros2_ws/install/sensor_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/geometry_msgs/local/lib/python3.10/dist-packages:/ros2_ws/install/std_msgs/local/lib/python3.10/dist-packages:${PYTHONPATH} /usr/bin/cmake --install /ros2_ws/build/stereo_msgs

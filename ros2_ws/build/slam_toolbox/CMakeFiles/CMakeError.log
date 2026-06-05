@@ -1,0 +1,55 @@
+Determining if the function sgemm_ exists failed with the following output:
+Change Dir: /ros2_ws/build/slam_toolbox/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_a6bfa/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_a6bfa.dir/build.make CMakeFiles/cmTC_a6bfa.dir/build
+gmake[1]: Entering directory '/ros2_ws/build/slam_toolbox/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_a6bfa.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=sgemm_ -o CMakeFiles/cmTC_a6bfa.dir/CheckFunctionExists.c.o -c /usr/share/cmake-3.22/Modules/CheckFunctionExists.c
+Linking C executable cmTC_a6bfa
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a6bfa.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=sgemm_ CMakeFiles/cmTC_a6bfa.dir/CheckFunctionExists.c.o -o cmTC_a6bfa 
+/usr/bin/ld: CMakeFiles/cmTC_a6bfa.dir/CheckFunctionExists.c.o: in function `main':
+CheckFunctionExists.c:(.text+0x10): undefined reference to `sgemm_'
+collect2: error: ld returned 1 exit status
+gmake[1]: *** [CMakeFiles/cmTC_a6bfa.dir/build.make:99: cmTC_a6bfa] Error 1
+gmake[1]: Leaving directory '/ros2_ws/build/slam_toolbox/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:127: cmTC_a6bfa/fast] Error 2
+
+
+
+Determining if the function cheev_ exists failed with the following output:
+Change Dir: /ros2_ws/build/slam_toolbox/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_a7568/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_a7568.dir/build.make CMakeFiles/cmTC_a7568.dir/build
+gmake[1]: Entering directory '/ros2_ws/build/slam_toolbox/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_a7568.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=cheev_ -o CMakeFiles/cmTC_a7568.dir/CheckFunctionExists.c.o -c /usr/share/cmake-3.22/Modules/CheckFunctionExists.c
+Linking C executable cmTC_a7568
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a7568.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=cheev_ CMakeFiles/cmTC_a7568.dir/CheckFunctionExists.c.o -o cmTC_a7568  /usr/lib/aarch64-linux-gnu/libblas.so -lm -ldl 
+/usr/bin/ld: CMakeFiles/cmTC_a7568.dir/CheckFunctionExists.c.o: in function `main':
+CheckFunctionExists.c:(.text+0x10): undefined reference to `cheev_'
+collect2: error: ld returned 1 exit status
+gmake[1]: *** [CMakeFiles/cmTC_a7568.dir/build.make:100: cmTC_a7568] Error 1
+gmake[1]: Leaving directory '/ros2_ws/build/slam_toolbox/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:127: cmTC_a7568/fast] Error 2
+
+
+
+Determining if the function cheev_ exists failed with the following output:
+Change Dir: /ros2_ws/build/slam_toolbox/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_3b705/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_3b705.dir/build.make CMakeFiles/cmTC_3b705.dir/build
+gmake[1]: Entering directory '/ros2_ws/build/slam_toolbox/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_3b705.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=cheev_ -o CMakeFiles/cmTC_3b705.dir/CheckFunctionExists.c.o -c /usr/share/cmake-3.22/Modules/CheckFunctionExists.c
+Linking C executable cmTC_3b705
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_3b705.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=cheev_ CMakeFiles/cmTC_3b705.dir/CheckFunctionExists.c.o -o cmTC_3b705  /usr/lib/aarch64-linux-gnu/liblapack.so /usr/lib/aarch64-linux-gnu/libblas.so -fortranlibs 
+cc: error: unrecognized command-line option ‘-fortranlibs’
+gmake[1]: *** [CMakeFiles/cmTC_3b705.dir/build.make:101: cmTC_3b705] Error 1
+gmake[1]: Leaving directory '/ros2_ws/build/slam_toolbox/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:127: cmTC_3b705/fast] Error 2
+
+
+

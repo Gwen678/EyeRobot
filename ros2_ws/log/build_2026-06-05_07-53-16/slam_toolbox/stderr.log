@@ -1,0 +1,43 @@
+[31mCMake Error at CMake/FindTBB.cmake:400 (file):
+  file STRINGS file "/usr/include/tbb/tbb_stddef.h" cannot be read.
+Call Stack (most recent call first):
+  lib/karto_sdk/CMakeLists.txt:15 (find_package)
+
+[0m
+[33mCMake Warning (dev) at /usr/share/cmake-3.22/Modules/FindPackageHandleStandardArgs.cmake:438 (message):
+  The package name passed to `find_package_handle_standard_args` (CSPARSE)
+  does not match the name of the calling package (CSparse).  This can lead to
+  problems in calling code that expects `find_package` result variables
+  (e.g., `_FOUND`) to follow a certain pattern.
+Call Stack (most recent call first):
+  CMake/FindCSparse.cmake:24 (find_package_handle_standard_args)
+  CMakeLists.txt:77 (find_package)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+[0m
+[33mCMake Warning (dev) at /usr/share/cmake-3.22/Modules/FindPackageHandleStandardArgs.cmake:438 (message):
+  The package name passed to `find_package_handle_standard_args` (CHOLMOD)
+  does not match the name of the calling package (Cholmod).  This can lead to
+  problems in calling code that expects `find_package` result variables
+  (e.g., `_FOUND`) to follow a certain pattern.
+Call Stack (most recent call first):
+  CMake/FindCholmod.cmake:86 (find_package_handle_standard_args)
+  CMakeLists.txt:79 (find_package)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+[0m
+[31mCMake Error at CMakeLists.txt:81 (find_package):
+  By not providing "FindCeres.cmake" in CMAKE_MODULE_PATH this project has
+  asked CMake to find a package configuration file provided by "Ceres", but
+  CMake did not find one.
+
+  Could not find a package configuration file provided by "Ceres" with any of
+  the following names:
+
+    CeresConfig.cmake
+    ceres-config.cmake
+
+  Add the installation prefix of "Ceres" to CMAKE_PREFIX_PATH or set
+  "Ceres_DIR" to a directory containing one of the above files.  If "Ceres"
+  provides a separate development package or SDK, be sure it has been
+  installed.
+
+[0m

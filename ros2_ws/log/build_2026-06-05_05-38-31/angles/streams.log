@@ -1,0 +1,83 @@
+[0.027s] Invoking command in '/ros2_ws/build/angles': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /ros2_ws/src/angles/angles -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/angles
+[0.245s] -- The C compiler identification is GNU 11.4.0
+[0.470s] -- The CXX compiler identification is GNU 11.4.0
+[0.495s] -- Detecting C compiler ABI info
+[0.740s] -- Detecting C compiler ABI info - done
+[0.778s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.780s] -- Detecting C compile features
+[0.783s] -- Detecting C compile features - done
+[0.797s] -- Detecting CXX compiler ABI info
+[1.154s] -- Detecting CXX compiler ABI info - done
+[1.191s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[1.191s] -- Detecting CXX compile features
+[1.193s] -- Detecting CXX compile features - done
+[1.207s] -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+[1.834s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[2.266s] -- Found ament_cmake_gtest: 1.3.14 (/opt/ros/humble/share/ament_cmake_gtest/cmake)
+[2.292s] -- Found gtest sources under '/opt/ros/humble/src/gtest_vendor': C++ tests using 'Google Test' will be built
+[2.305s] -- Looking for pthread.h
+[2.628s] -- Looking for pthread.h - found
+[2.628s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[2.908s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[2.911s] -- Found Threads: TRUE  
+[2.922s] -- Found ament_cmake_pytest: 1.3.14 (/opt/ros/humble/share/ament_cmake_pytest/cmake)
+[5.600s] -- Configuring done
+[5.631s] -- Generating done
+[5.644s] -- Build files have been written to: /ros2_ws/build/angles
+[5.667s] Invoked command in '/ros2_ws/build/angles' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /ros2_ws/src/angles/angles -DCMAKE_INSTALL_PREFIX=/ros2_ws/install/angles
+[5.668s] Invoking command in '/ros2_ws/build/angles': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/build/angles -- -j4 -l4
+[5.813s] [ 16%] [32mBuilding CXX object gtest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o[0m
+[8.600s] [ 33%] [32m[1mLinking CXX static library libgtest_main.a[0m
+[8.701s] [ 33%] Built target gtest_main
+[8.785s] [ 33%] Built target ament_cmake_python_copy_angles
+[8.842s] [ 50%] [32mBuilding CXX object gtest/CMakeFiles/gtest.dir/src/gtest-all.cc.o[0m
+[22.180s] [ 66%] [32m[1mLinking CXX static library libgtest.a[0m
+[22.513s] [ 66%] Built target gtest
+[23.526s] running egg_info
+[23.529s] creating angles.egg-info
+[23.530s] writing angles.egg-info/PKG-INFO
+[23.531s] writing dependency_links to angles.egg-info/dependency_links.txt
+[23.532s] writing top-level names to angles.egg-info/top_level.txt
+[23.532s] writing manifest file 'angles.egg-info/SOURCES.txt'
+[23.546s] reading manifest file 'angles.egg-info/SOURCES.txt'
+[23.548s] writing manifest file 'angles.egg-info/SOURCES.txt'
+[23.677s] [ 66%] Built target ament_cmake_python_build_angles_egg
+[23.739s] [ 83%] [32mBuilding CXX object CMakeFiles/angles_utest.dir/test/utest.cpp.o[0m
+[28.137s] [100%] [32m[1mLinking CXX executable angles_utest[0m
+[28.672s] [100%] Built target angles_utest
+[28.705s] Invoked command in '/ros2_ws/build/angles' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/build/angles -- -j4 -l4
+[28.709s] Invoking command in '/ros2_ws/build/angles': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/build/angles
+[28.732s] -- Install configuration: ""
+[28.732s] -- Installing: /ros2_ws/install/angles/include/angles
+[28.733s] -- Installing: /ros2_ws/install/angles/include/angles/angles
+[28.733s] -- Installing: /ros2_ws/install/angles/include/angles/angles/angles.h
+[28.734s] -- Installing: /ros2_ws/install/angles/share/angles/environment/pythonpath.sh
+[28.734s] -- Installing: /ros2_ws/install/angles/share/angles/environment/pythonpath.dsv
+[28.735s] -- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info
+[28.736s] -- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info/SOURCES.txt
+[28.736s] -- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info/dependency_links.txt
+[28.737s] -- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info/top_level.txt
+[28.737s] -- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles-1.16.1-py3.10.egg-info/PKG-INFO
+[28.738s] -- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles
+[28.738s] -- Installing: /ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles/__init__.py
+[28.876s] Listing '/ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles'...
+[28.877s] Compiling '/ros2_ws/install/angles/local/lib/python3.10/dist-packages/angles/__init__.py'...
+[28.904s] -- Installing: /ros2_ws/install/angles/share/ament_index/resource_index/package_run_dependencies/angles
+[28.908s] -- Installing: /ros2_ws/install/angles/share/ament_index/resource_index/parent_prefix_path/angles
+[28.909s] -- Installing: /ros2_ws/install/angles/share/angles/environment/ament_prefix_path.sh
+[28.909s] -- Installing: /ros2_ws/install/angles/share/angles/environment/ament_prefix_path.dsv
+[28.910s] -- Installing: /ros2_ws/install/angles/share/angles/environment/path.sh
+[28.910s] -- Installing: /ros2_ws/install/angles/share/angles/environment/path.dsv
+[28.910s] -- Installing: /ros2_ws/install/angles/share/angles/local_setup.bash
+[28.911s] -- Installing: /ros2_ws/install/angles/share/angles/local_setup.sh
+[28.912s] -- Installing: /ros2_ws/install/angles/share/angles/local_setup.zsh
+[28.912s] -- Installing: /ros2_ws/install/angles/share/angles/local_setup.dsv
+[28.912s] -- Installing: /ros2_ws/install/angles/share/angles/package.dsv
+[28.913s] -- Installing: /ros2_ws/install/angles/share/ament_index/resource_index/packages/angles
+[28.914s] -- Installing: /ros2_ws/install/angles/share/angles/cmake/export_anglesExport.cmake
+[28.914s] -- Installing: /ros2_ws/install/angles/share/angles/cmake/ament_cmake_export_include_directories-extras.cmake
+[28.915s] -- Installing: /ros2_ws/install/angles/share/angles/cmake/ament_cmake_export_targets-extras.cmake
+[28.915s] -- Installing: /ros2_ws/install/angles/share/angles/cmake/anglesConfig.cmake
+[28.915s] -- Installing: /ros2_ws/install/angles/share/angles/cmake/anglesConfig-version.cmake
+[28.916s] -- Installing: /ros2_ws/install/angles/share/angles/package.xml
+[28.923s] Invoked command in '/ros2_ws/build/angles' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/build/angles
