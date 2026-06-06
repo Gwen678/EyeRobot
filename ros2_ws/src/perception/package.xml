@@ -8,7 +8,8 @@
   <maintainer email="pcondesalvarelli@gmail.com">EyeRobot</maintainer>
   <license>MIT</license>
 
-  <buildtool_depend>ament_python</buildtool_depend>
+  <!-- Build type is set in <export> below; no buildtool_depend needed — and
+       'ament_python' is not a rosdep key, so listing it warned on every build. -->
 
   <!-- ROS deps (resolved by rosdep/apt) -->
   <exec_depend>rclpy</exec_depend>

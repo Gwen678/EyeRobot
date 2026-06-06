@@ -31,6 +31,7 @@ runs/
 datasets/
 dataset/
 lego_dataset/
+ml/work/
 *.onnx
 *.engine
 yolov8n.pt
