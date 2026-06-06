@@ -32,10 +32,20 @@ fi
 # ── Optional capabilities (added only if available) ──────────────────────────
 EXTRA=()
 
-# NVIDIA runtime (Jetson / GPU hosts)
-if docker info 2>/dev/null | grep -qi 'Runtimes:.*nvidia'; then
-  EXTRA+=(--runtime nvidia)
-  echo "• NVIDIA runtime: enabled"
+# NVIDIA runtime — OFF by default. This image is CPU-only (ROS Humble 22.04), and
+# on the first-gen Jetson Nano (JetPack 4) the nvidia runtime mounts incompatible
+# JP4 CUDA/driver libs into the 22.04 container, which often stops it from
+# starting. Enable it only with a GPU-capable base (e.g. an Orin on JetPack 6):
+#   NVIDIA_RUNTIME=true ./docker/run.sh
+if [ "${NVIDIA_RUNTIME:-false}" = "true" ]; then
+  if docker info 2>/dev/null | grep -qi 'Runtimes:.*nvidia'; then
+    EXTRA+=(--runtime nvidia)
+    echo "• NVIDIA runtime: enabled"
+  else
+    echo "• NVIDIA runtime: requested but not available on this host — skipping"
+  fi
+else
+  echo "• NVIDIA runtime: disabled (set NVIDIA_RUNTIME=true for a GPU base image)"
 fi
 
 # X11 GUI forwarding (RViz)
