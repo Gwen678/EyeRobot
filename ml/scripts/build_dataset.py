@@ -36,13 +36,17 @@ RESIZE_MAX = 768
 JPEG_Q = 90
 
 # split sizes
-BLOCK_TEST, BLOCK_VAL = 10, 6      # rest -> train
-GROUND_TEST, GROUND_VAL = 1, 1
+BLOCK_TEST, BLOCK_VAL = 10, 12     # rest -> train
+GROUND_TEST, GROUND_VAL = 1, 2
 
 COUNTS_TRAIN = dict(hue=5, sat=5, bri=5, rot=5, trans=5, scale=5, shear=5,
                     persp=5, bgr=5, flipud=1, fliplr=1)
 COUNTS_TEST = dict(hue=2, sat=2, bri=2, rot=2, trans=2, scale=2, shear=2,
                    persp=2, bgr=2, flipud=1, fliplr=1)
+# augment val too so the early-stopping metric is stable (val originals are still
+# disjoint from train originals -> no leakage).
+COUNTS_VAL = dict(hue=2, sat=2, bri=2, rot=2, trans=2, scale=2, shear=2,
+                  persp=2, bgr=2, flipud=1, fliplr=1)
 
 
 def read_label(name):
@@ -101,7 +105,7 @@ def main():
 
     stats = {}
     for s in ("train", "val", "test"):
-        counts = {"train": COUNTS_TRAIN, "test": COUNTS_TEST, "val": None}[s]
+        counts = {"train": COUNTS_TRAIN, "test": COUNTS_TEST, "val": COUNTS_VAL}[s]
         n_orig = n_aug = 0
         for name in split[s]:
             img = downscale(cv2.imread(os.path.join(IMG_DIR, name + ".jpg")))
