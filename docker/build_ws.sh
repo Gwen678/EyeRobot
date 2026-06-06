@@ -4,7 +4,11 @@
 #   /eyerobot/docker/build_ws.sh
 set -euo pipefail
 
+# ROS 2's setup scripts reference vars (AMENT_TRACE_SETUP_FILES, ...) without
+# defaults, so they trip `set -u`. Source them with nounset off, then restore it.
+set +u
 source "/opt/ros/${ROS_DISTRO}/setup.bash"
+set -u
 cd /eyerobot/ros2_ws
 
 # depthai-ros needs the depthai-core C++ library as a sibling package.

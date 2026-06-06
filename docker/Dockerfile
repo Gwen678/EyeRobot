@@ -60,15 +60,18 @@ RUN pip3 install --no-cache-dir \
 # Disable with: WITH_PERCEPTION=0 in docker/build.sh.
 ARG WITH_PERCEPTION=1
 RUN if [ "${WITH_PERCEPTION}" = "1" ]; then \
-      if ! python3 -c "import torch" 2>/dev/null; then \
-        echo "No torch in base — installing CPU torch (aarch64 wheels from PyPI)." ; \
-        pip3 install --no-cache-dir torch torchvision ; \
+      if python3 -c "import torch" 2>/dev/null; then \
+        echo "torch present in base (likely GPU): $(python3 -c 'import torch; print(torch.__version__, "cuda", torch.cuda.is_available())')" ; \
+        echo "Installing ultralytics --no-deps so pip won't replace that torch, plus its runtime deps." ; \
+        pip3 install --no-cache-dir --no-deps ultralytics ultralytics-thop \
+        && pip3 install --no-cache-dir \
+             opencv-python polars pillow pyyaml tqdm psutil py-cpuinfo \
+             pandas requests matplotlib scipy ; \
       else \
-        echo "Using torch from base image: $(python3 -c 'import torch; print(torch.__version__, "cuda", torch.cuda.is_available())')" ; \
+        echo "No torch in base — installing CPU torch (aarch64 wheels) + ultralytics with full deps." ; \
+        pip3 install --no-cache-dir torch torchvision \
+        && pip3 install --no-cache-dir ultralytics ; \
       fi ; \
-      pip3 install --no-cache-dir --no-deps ultralytics ultralytics-thop \
-      && pip3 install --no-cache-dir \
-           pyyaml tqdm psutil py-cpuinfo pandas seaborn requests matplotlib scipy ; \
     else \
       echo "Skipping perception (torch/ultralytics). Set WITH_PERCEPTION=1 to include it." ; \
     fi
@@ -96,6 +99,16 @@ RUN mkdir -p /uros_ws/src \
 # Workspace is mounted here at runtime (docker/run.sh -v REPO:/eyerobot).
 ENV EYEROBOT_WS=/eyerobot/ros2_ws
 WORKDIR ${EYEROBOT_WS}
+
+# Auto-source ROS + the micro-ROS agent + the (mounted) workspace overlay in
+# interactive shells. The ENTRYPOINT covers `docker run`, but `docker exec` shells
+# (run.sh's shell and attach.sh) bypass it — so source from .bashrc too. The
+# workspace overlay only exists after build_ws.sh, hence the guards.
+RUN { \
+      echo "source /opt/ros/${ROS_DISTRO}/setup.bash"; \
+      echo '[ -f /uros_ws/install/local_setup.bash ] && source /uros_ws/install/local_setup.bash'; \
+      echo "[ -f ${EYEROBOT_WS}/install/setup.bash ] && source ${EYEROBOT_WS}/install/setup.bash"; \
+    } >> /root/.bashrc
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

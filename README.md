@@ -41,7 +41,7 @@ git submodule update --init --recursive
 Connect:
 
 ```
-ssh eyerobot@128.179.185.128   # password: eyerobot
+ssh eyerobot@128.179.186.106  # password: eyerobot
 ```
 
 Scripts in `docker/`:
