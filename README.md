@@ -47,9 +47,11 @@ calibration). The OAK-D Lite IMU (BMI270) has no on-chip fusion, so this node fu
 accel+gyro on the host. It opens the OAK directly, so don't run a depthai camera
 driver at the same time — only one process can own the camera over USB.
 
-Use `orientation:=gyro` for yaw. Do **not** use `complementary` here: its accel
-correction lerps the whole quaternion toward a yaw-0 reference (accel can't see yaw
-without a magnetometer), which erases the gyro-integrated heading.
+`orientation:=complementary` gives the full orientation: roll/pitch from the
+accelerometer (drift-free — this is the ramp/tilt signal) and yaw from the gyro
+(drifts slowly; no magnetometer). `gyro` integrates all three axes but its yaw and
+tilt both drift. For the floor-path yaw comparison `dual_odometry` ignores this
+mode entirely (it derives yaw from the gyro rate about gravity directly).
 
 Teleop — drive the robot (`w/a/s/d` wheels, `q/e` fans, `r/t` belt):
 

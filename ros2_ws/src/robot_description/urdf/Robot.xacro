@@ -5,16 +5,23 @@
 <xacro:include filename="$(find robot_description)/urdf/Robot.trans" />
 <xacro:include filename="$(find robot_description)/urdf/Robot.gazebo" />
 
-<!-- REP-103/105 driving frame: X forward, Z up. The estimator publishes
-     odom->base_link, so this frame must stay axis-aligned. The Fusion model is
-     mounted under it via a fixed joint that applies the -90 deg roll about X
-     (clockwise looking down +X) needed to stand the mesh upright, WITHOUT
-     tilting the odometry frame. Flip the sign of the roll if it rotates the
-     wrong way. Root link is empty (no inertia) so KDL emits no warning. -->
+<!-- REP-103/105 driving frame: X forward, +Y left, Z up. The estimator publishes
+     odom->base_link, so this frame must stay axis-aligned. The chassis mesh is
+     mounted under it via a fixed joint that applies the +90 deg roll about X
+     needed to stand the mesh upright, WITHOUT tilting the odometry frame.
+     Flip the sign of the roll if it rotates the wrong way. Root link is empty
+     (no inertia) so KDL emits no warning.
+
+     The xyz translation places base_link at the DRIVE-WHEEL AXLE MIDPOINT (the
+     differential-drive kinematic center the estimator integrates), not the CAD
+     origin. It is -1 * (axle midpoint expressed in base_link); with it the two
+     wheels sit symmetric at Y = +/-0.146 m, X~=0, Z~=0. Recompute if the wheel
+     joint origins change: take the mean of the two Revolution joint origins
+     (chassis frame), map (x,y,z)->(x,-z,y), and negate. -->
 <link name="base_link"/>
 
 <joint name="base_mount" type="fixed">
-  <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+  <origin xyz="0.018885 -0.125267 -0.034371" rpy="1.5708 0 0"/>
   <parent link="base_link"/>
   <child link="chassis"/>
 </joint>
@@ -90,6 +97,19 @@
   <parent link="chassis"/>
   <child link="Moteur_+_Roue_v3_1"/>
   <axis xyz="0.0 -0.0 1.0"/>
+</joint>
+
+<!-- IMU (OAK-D) mount, relative to base_link (the axle center). Offsets are from
+     CAD, measured from the wheel-axle midpoint: 0.42 m forward (X), 0.135 m up (Z),
+     centered on width (Y = 0). Translation is placement only — it does NOT affect
+     orientation fusion (we fuse roll/pitch/yaw-rate, not linear accel). The camera
+     is mounted level (no tilt), so rpy = 0: its REP-103-remapped axes align with
+     base_link and a level robot reports ~0 roll/pitch (in complementary mode). -->
+<link name="imu_link"/>
+<joint name="imu_mount" type="fixed">
+  <origin xyz="0.42 0 0.135" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="imu_link"/>
 </joint>
 
 </robot>

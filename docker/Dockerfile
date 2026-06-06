@@ -26,8 +26,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # math / solver libs (Ceres etc.) for slam_toolbox
       libceres-dev libgoogle-glog-dev libblas-dev liblapack-dev libsuitesparse-dev \
       libboost-all-dev libtbb-dev \
-      # Nav2 + SLAM
+      # Nav2 + SLAM + state-estimation EKF (wheel odom + IMU fusion)
       ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-slam-toolbox \
+      ros-humble-robot-localization \
       # OAK-D camera ROS driver (apt — no vcpkg/source build) + IMU orientation filter
       ros-humble-depthai-ros ros-humble-imu-filter-madgwick \
       # RViz + robot model

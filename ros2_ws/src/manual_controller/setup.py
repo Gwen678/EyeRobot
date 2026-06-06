@@ -13,6 +13,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -25,6 +26,7 @@ setup(
             'manual_controller = manual_controller.manual_controller_node:main',
             'state_estimator = manual_controller.state_estimator_node:main',
             'dual_odometry = manual_controller.dual_odometry_node:main',
+            'odom_to_path = manual_controller.odom_to_path_node:main',
         ],
     },
 )
