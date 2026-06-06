@@ -44,15 +44,16 @@ prebuilt from apt**, not source:
 | Package        | Source        | Why |
 |----------------|---------------|-----|
 | Nav2           | apt           | prebuilt arm64 |
-| slam_toolbox   | apt           | prebuilt arm64 (source submodule is ignored) |
-| micro-ROS agent | apt (`ros-humble-micro-ros-agent`) | it IS in the apt repo — no source build |
-| RViz, cv_bridge, xacro, … | apt | standard ROS packages |
-| depthai-ros    | **source** (opt-in) | not in the proven apt set; build with `BUILD_DEPTHAI_FROM_SOURCE=1` |
+| slam_toolbox   | apt           | prebuilt arm64 (source submodule ignored) |
+| depthai-ros    | apt (`ros-humble-depthai-ros`) | prebuilt — **no vcpkg/source build** (source submodule ignored) |
+| RViz, cv_bridge, xacro, imu-filter-madgwick, … | apt | standard ROS packages (verified in the apt index) |
+| micro-ROS agent | **source** (`/uros_ws`) | the one thing NOT in the apt repo (verified) — built with micro_ros_setup |
 | EyeRobot packages (`manual_controller`, `oak_imu`, `robot_description`, `perception`, …) | **source** (your workspace) | the code you develop |
 
-`build_ws.sh` drops a `COLCON_IGNORE` into the `slam_toolbox` source submodule
-(apt provides it) and, by default, into `depthai-ros` (source build is opt-in via
-`BUILD_DEPTHAI_FROM_SOURCE=1`), so colcon builds only the EyeRobot packages.
+`build_ws.sh` drops a `COLCON_IGNORE` into the `slam_toolbox` and `depthai-ros`
+source submodules (apt provides both) so colcon builds only the EyeRobot
+packages. Build a source copy instead with `BUILD_SLAM_FROM_SOURCE=1` /
+`BUILD_DEPTHAI_FROM_SOURCE=1`.
 
 ### Building a third-party package from source instead
 
@@ -81,8 +82,10 @@ entrypoint — so ROS + the agent + the workspace are also auto-sourced from
 
 ## micro-ROS agent
 
-Installed from apt (`ros-humble-micro-ros-agent`) — it's on the ROS path, no
-overlay to source. Run it against the ESP32 (USB serial):
+`ros-humble-micro-ros-agent` is **not** in the standard ROS apt repo (verified
+against the index — every other package we use is, but not this one). So it's
+**built from source** with micro_ros_setup into `/uros_ws` and auto-sourced. Run
+it against the ESP32 (USB serial):
 ```bash
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
 ```

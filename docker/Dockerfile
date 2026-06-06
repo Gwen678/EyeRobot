@@ -1,15 +1,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # EyeRobot dev container — Ubuntu 22.04 / ROS 2 Humble.
 #
-# Patched to match the known-working image (see the team's original root
-# Dockerfile): plain ros:humble base, all ROS packages from apt INCLUDING the
-# micro-ROS agent (ros-humble-micro-ros-agent IS in the apt repo — no source
-# build needed). depthai-ros / slam_toolbox extras are pulled from apt too.
+# ROS packages come from apt (nav2, slam_toolbox, rviz, … are all in the apt repo
+# — verified). The micro-ROS agent is NOT in the standard apt repo (the team's
+# original image only got it via a custom base with the micro-ROS repo added), so
+# it's built from source below.
 #
 # The repo is bind-mounted at /eyerobot (docker/run.sh), so host edits are live
 # and colcon build/ install/ land back in the tree.
 # ─────────────────────────────────────────────────────────────────────────────
-ARG BASE_IMAGE=ros:humble-base
+ARG BASE_IMAGE=ros:humble-ros-base
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -26,10 +26,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # math / solver libs (Ceres etc.) for slam_toolbox
       libceres-dev libgoogle-glog-dev libblas-dev liblapack-dev libsuitesparse-dev \
       libboost-all-dev libtbb-dev \
-      # micro-ROS agent — straight from apt (this is the proven path)
-      ros-humble-micro-ros-agent \
       # Nav2 + SLAM
       ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-slam-toolbox \
+      # OAK-D camera ROS driver (apt — no vcpkg/source build) + IMU orientation filter
+      ros-humble-depthai-ros ros-humble-imu-filter-madgwick \
       # RViz + robot model
       ros-humble-rviz2 ros-humble-rviz-common ros-humble-rviz-default-plugins \
       ros-humble-rviz-imu-plugin \
@@ -54,17 +54,35 @@ RUN pip3 install --no-cache-dir \
       echo "Skipping perception (ultralytics). Set WITH_PERCEPTION=1 to include it." ; \
     fi
 
+# ── micro-ROS agent (built from source) ──────────────────────────────────────
+# Not in the standard apt repo, so build it with micro_ros_setup into /uros_ws.
+# The agent's own rosdep pulls clang-tidy as a lint dep — skip it; the agent
+# builds fine without it. apt lists are restored for this layer then cleaned.
+RUN mkdir -p /uros_ws/src \
+ && git clone -b ${ROS_DISTRO} https://github.com/micro-ROS/micro_ros_setup.git \
+      /uros_ws/src/micro_ros_setup \
+ && source /opt/ros/${ROS_DISTRO}/setup.bash \
+ && cd /uros_ws \
+ && apt-get update \
+ && rosdep install --from-paths src --ignore-src -y --skip-keys "clang-tidy" \
+ && colcon build \
+ && source install/local_setup.bash \
+ && ros2 run micro_ros_setup create_agent_ws.sh \
+ && ros2 run micro_ros_setup build_agent.sh \
+ && rm -rf /uros_ws/build /uros_ws/log /var/lib/apt/lists/*
+
 # ── Workspace + shell setup ──────────────────────────────────────────────────
 # Repo is mounted here at runtime (docker/run.sh -v REPO:/eyerobot).
 ENV EYEROBOT_WS=/eyerobot/ros2_ws
 WORKDIR ${EYEROBOT_WS}
 
-# Auto-source ROS + the (mounted) workspace overlay in interactive shells. The
-# ENTRYPOINT covers `docker run`, but `docker exec` shells (run.sh / attach.sh)
-# bypass it, so source from .bashrc too. The workspace overlay only exists after
-# build_ws.sh, hence the guard.
+# Auto-source ROS + the agent overlay + the (mounted) workspace overlay in
+# interactive shells. The ENTRYPOINT covers `docker run`, but `docker exec` shells
+# (run.sh / attach.sh) bypass it, so source from .bashrc too. The workspace
+# overlay only exists after build_ws.sh, hence the guard.
 RUN { \
       echo "source /opt/ros/${ROS_DISTRO}/setup.bash"; \
+      echo "[ -f /uros_ws/install/local_setup.bash ] && source /uros_ws/install/local_setup.bash"; \
       echo "[ -f ${EYEROBOT_WS}/install/setup.bash ] && source ${EYEROBOT_WS}/install/setup.bash"; \
     } >> /root/.bashrc
 
