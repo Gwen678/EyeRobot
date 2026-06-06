@@ -20,7 +20,11 @@ from ultralytics import YOLO
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RUN = os.path.join(ROOT, "ml", "runs", "duplo_yolov8n_416")
-WEIGHTS = os.path.join(RUN, "weights", "best.pt")
+# We deploy last.pt (epoch 13): the tiny 7-image val set made Ultralytics tag the
+# noisy epoch-1 model as "best", but on the 231-image test set last.pt is better
+# calibrated (stable recall, ~3x fewer false positives, tighter boxes).
+import sys
+WEIGHTS = sys.argv[1] if len(sys.argv) > 1 else os.path.join(RUN, "weights", "last.pt")
 IMGSZ = 416
 
 

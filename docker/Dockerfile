@@ -76,15 +76,18 @@ RUN mkdir -p /uros_ws/src \
 ENV EYEROBOT_WS=/eyerobot/ros2_ws
 WORKDIR ${EYEROBOT_WS}
 
-# Auto-source ROS + the agent overlay + the (mounted) workspace overlay in
-# interactive shells. The ENTRYPOINT covers `docker run`, but `docker exec` shells
-# (run.sh / attach.sh) bypass it, so source from .bashrc too. The workspace
-# overlay only exists after build_ws.sh, hence the guard.
+# Auto-source ROS + the agent overlay + the (mounted) workspace overlay for EVERY
+# shell and user. The ENTRYPOINT only covers `docker run`; `docker exec` shells
+# bypass it. Writing to a single profile.d script that BOTH /etc/bash.bashrc
+# (interactive non-login) and /etc/profile (login shells) source means it works
+# no matter how anyone connects — not just root via .bashrc. The workspace overlay
+# only exists after build_ws.sh, hence the guard.
 RUN { \
       echo "source /opt/ros/${ROS_DISTRO}/setup.bash"; \
       echo "[ -f /uros_ws/install/local_setup.bash ] && source /uros_ws/install/local_setup.bash"; \
       echo "[ -f ${EYEROBOT_WS}/install/setup.bash ] && source ${EYEROBOT_WS}/install/setup.bash"; \
-    } >> /root/.bashrc
+    } > /etc/profile.d/eyerobot_ros.sh \
+ && echo "source /etc/profile.d/eyerobot_ros.sh" >> /etc/bash.bashrc
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
