@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Build the EyeRobot Docker image.
-#   ./docker/build.sh            # build image "eyerobot:ekf" with the base below
+#   ./docker/build.sh            # build image "eyerobot:humble" with the base below
 #   IMAGE=foo ./docker/build.sh  # custom tag
 #   ./docker/build.sh --no-cache # passthrough docker build flags
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE="${IMAGE:-eyerobot:ekf}"
+IMAGE="${IMAGE:-eyerobot:humble}"
 
 # ── Base image ────────────────────────────────────────────────────────────────
 # Ubuntu 22.04 / ROS 2 Humble, CPU. Builds and runs anywhere, including as a
@@ -18,7 +18,7 @@ IMAGE="${IMAGE:-eyerobot:ekf}"
 # For GPU block detection, run inference off-board on the dev PC, or use a
 # JetPack-4 l4t-pytorch image with an older ROS. GPU + Humble needs an Orin-class
 # Jetson on JetPack 6.
-BASE_IMAGE="ros:humble-base"
+BASE_IMAGE="ros:humble-ros-base"
 
 # Perception (CPU YOLO) on the Nano. Inference will be slow (no GPU from a 22.04
 # container on JetPack 4) — expect ~1-2 fps. Set to 0 for an odometry-only image.
