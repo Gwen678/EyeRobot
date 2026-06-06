@@ -54,3 +54,4 @@ yolov8*.pt
 # ── Local-only docs mirror (nav2/ros2 doc copies, scratch) ───────────────────
 docs/
 Docs/
+images/

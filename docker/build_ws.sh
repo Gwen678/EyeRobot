@@ -4,6 +4,15 @@
 #   /eyerobot/docker/build_ws.sh
 set -euo pipefail
 
+# This script runs INSIDE the container. If ROS_DISTRO/ROS aren't present, you're
+# almost certainly on the Jetson host (Ubuntu 18.04, no ROS Humble) — bail early
+# with a clear message instead of a confusing "/opt/ros//setup.bash" error.
+if [ -z "${ROS_DISTRO:-}" ] || [ ! -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]; then
+  echo "ERROR: ROS not found — run this INSIDE the container, not on the host." >&2
+  echo "  cd <repo> && ./docker/run.sh    # then:  /eyerobot/docker/build_ws.sh" >&2
+  exit 1
+fi
+
 # ROS 2's setup scripts reference vars (AMENT_TRACE_SETUP_FILES, ...) without
 # defaults, so they trip `set -u`. Source them with nounset off, then restore it.
 set +u
