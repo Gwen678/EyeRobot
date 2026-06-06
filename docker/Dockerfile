@@ -22,6 +22,10 @@ ARG BASE_IMAGE=ros:humble-ros-base
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
+# arm64/Jetson: vcpkg (used by depthai-core) must use the system cmake/ninja
+# instead of fetching x86 prebuilts, or its bootstrap fails. Set image-wide so it
+# applies at runtime build time too (build_ws.sh / colcon).
+ENV VCPKG_FORCE_SYSTEM_BINARIES=1
 SHELL ["/bin/bash", "-c"]
 
 # ── Build tooling + ROS deps (apt works natively on Ubuntu 22.04) ────────────
@@ -29,6 +33,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       git wget curl nano \
       python3-pip python3-colcon-common-extensions python3-rosdep python3-vcstool \
       build-essential \
+      # vcpkg bootstrap deps for depthai-core (needed when depthai-ros is built)
+      zip unzip tar ninja-build pkg-config \
       # USB / serial — Oak-D (USB3) and RPLidar (USB serial)
       libusb-1.0-0 libusb-1.0-0-dev usbutils udev \
       # math / solver libs for slam_toolbox (built from source)
@@ -36,6 +42,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libboost-all-dev libtbb-dev \
       # ROS runtime nodes pulled from apt (not built from source)
       ros-humble-nav2-bringup ros-humble-navigation2 \
+      ros-humble-slam-toolbox \
+      ros-humble-depthai-ros \
       ros-humble-rviz2 ros-humble-rviz-default-plugins ros-humble-rviz-imu-plugin \
       ros-humble-robot-state-publisher ros-humble-joint-state-publisher ros-humble-joint-state-publisher-gui \
       ros-humble-xacro \
