@@ -5,7 +5,7 @@ slam_toolbox, RViz, the OAK-D driver, RPLidar, the micro-ROS agent, and (CPU)
 YOLO perception. The repo is bind-mounted at `/eyerobot` so host edits are live
 and `colcon build`/`install` land back in the tree.
 
-Image tag: `eyerobot:ekf` · container name: `eyerobot-ekf`.
+Image tag: `eyerobot:humble` · container name: `eyerobot`.
 
 ## TL;DR
 

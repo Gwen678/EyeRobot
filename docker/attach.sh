@@ -4,7 +4,7 @@
 #   ./docker/attach.sh ros2 topic list   # run a one-off command
 set -euo pipefail
 
-NAME="${NAME:-eyerobot-ekf}"
+NAME="${NAME:-eyerobot}"
 
 if [ -z "$(docker ps -q -f name="^${NAME}$")" ]; then
   echo "Container '${NAME}' is not running. Start it first:  ./docker/run.sh" >&2
