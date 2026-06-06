@@ -63,8 +63,14 @@ def generate_launch_description():
         _arg('wheel_separation_m', '0.150', 'Distance between left and right wheel contact lines'),
         _arg('odom_rate_hz', '30.0', 'Odometry / TF / path publish rate'),
         _arg('publish_tf', 'true', 'Publish odom->base_link TF (set false when an EKF owns it)'),
-        _arg('right_feedback_sign', '1.0', 'Encoder polarity corrected in firmware; flip only for host-side testing'),
-        _arg('left_feedback_sign', '1.0', 'Encoder polarity corrected in firmware; flip only for host-side testing'),
+        _arg('right_feedback_sign', '1.0', 'Right encoder reads + on robot-forward; keep +1'),
+        # The LEFT encoder decrements when the robot rolls forward (invert_motor is
+        # set on the MCU but the encoder sign is not, so its counts oppose robot
+        # forward). Negate it host-side so straight driving is integrated as
+        # translation, not rotation. Do NOT "fix" this by flipping the MCU
+        # invert_encoder — that also feeds the closed-loop speed control and would
+        # destabilise it. See state_estimator_node.py.
+        _arg('left_feedback_sign', '-1.0', 'Left encoder counts oppose robot-forward; negate host-side'),
         _arg('odom_frame', 'odom', 'Odometry fixed frame'),
         _arg('base_frame', 'base_link', 'Robot base frame'),
 

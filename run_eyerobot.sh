@@ -1,76 +1,57 @@
 #!/usr/bin/env bash
-# Launch the EyeRobot stack in four separate terminal windows:
+# run_eyerobot.sh — RUN THIS ON YOUR PC. Opens 4 terminal windows:
 #
-#   1. micro-ROS agent        — bridges the ESP32 serial link to ROS 2
-#   2. keyboard teleop        — drive the robot (w/a/s/d, q/e fans, r/t belt)
-#   3. odometry + URDF        — state_estimator + dual_odometry
-#                               + robot_state_publisher + joint_state_publisher
-#   4. RViz                   — URDF model + the two comparison paths
-#                               (/path_encoder, /path_imu). Skip with RVIZ=false.
+#   1. micro-ROS agent   — bridges the ESP32 serial link to ROS 2   (on the Jetson)
+#   2. keyboard teleop   — drive the robot (w/a/s/d, q/e fans, r/t belt) (Jetson)
+#   3. odometry + URDF   — state_estimator + dual_odometry + robot_state_publisher
+#                          + joint_state_publisher (publishes /path, /path_encoder,
+#                          /path_imu, /robot_description, TF) via the launch file
+#                          (on the Jetson)
+#   4. RViz              — runs LOCALLY ON YOUR PC (per the README): URDF model +
+#                          the two comparison paths, via ./rviz_eyerobot.sh
 #
-# The teleop window gets its own real TTY (it reads raw keypresses); just click
-# it and start driving.
+# Windows 1-3 SSH into the Jetson (password auto-supplied) and attach to the
+# container; window 4 launches RViz on this PC, reading the robot's topics over
+# the network. ESP32 must be on the Jetson. Closing a window stops that node.
+#
+# ONE-TIME on the PC:  sudo apt install sshpass   (else each window prompts for the
+# password). Or run `ssh-copy-id eyerobot@<host>` once and skip the password.
 #
 # Usage:
-#     ./run_eyerobot.sh [SERIAL_DEV]
-#     ./run_eyerobot.sh /dev/ttyACM0
-#     RVIZ=false ./run_eyerobot.sh            # skip the RViz window (3 terminals)
-#     DEBUG_ENCODERS=true ./run_eyerobot.sh   # log raw encoder deltas in window 3
-#
-# Defaults to /dev/ttyUSB0. RViz runs locally here (the data is all local, so it
-# needs no network — forward the display over SSH with `ssh -X`). Closing a
-# window stops that part of the stack.
-
+#   ./run_eyerobot.sh                    # default Jetson IP below
+#   ./run_eyerobot.sh 128.179.186.106    # override Jetson IP
+#   SERIAL_DEV=/dev/ttyUSB0 ./run_eyerobot.sh
+#   RVIZ=false ./run_eyerobot.sh         # skip the RViz window (3 terminals)
 set -u
 
-SERIAL_DEV="${1:-/dev/ttyUSB0}"
-BAUD=115200
-DEBUG_ENCODERS="${DEBUG_ENCODERS:-false}"
-# RViz runs locally in its own window (window 4). The odometry data is all local
-# to this machine, so RViz needs no network — handy when DDS can't cross the WiFi
-# to a dev PC. Set RVIZ=false to skip it (e.g. a headless run).
+JETSON_USER="${JETSON_USER:-eyerobot}"
+JETSON_HOST="${JETSON_HOST:-${1:-128.179.186.106}}"
+JETSON_PASS="${JETSON_PASS:-eyerobot}"
+REMOTE_DIR="${REMOTE_DIR:-~/CleanTest/EyeRobot/docker}"
+SERIAL_DEV="${SERIAL_DEV:-/dev/ttyUSB1}"
+BAUD="${BAUD:-115200}"
 RVIZ="${RVIZ:-true}"
+# This script's own directory, so window 4 can find the local rviz launcher.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Find the repo root (the dir containing ros2_ws/) independent of where this
-# script lives — it may sit at the repo root or be vendored under ros2_ws/src so
-# it ships into the container. Inside the image EYEROBOT_WS is set (=.../ros2_ws);
-# honor it first, otherwise walk up from the script's own directory.
-if [ -n "${EYEROBOT_WS:-}" ] && [ -d "$EYEROBOT_WS" ]; then
-  REPO="$(cd "$EYEROBOT_WS/.." && pwd)"
+# The command each Jetson window runs INSIDE the container (handed to ./attach.sh,
+# which execs it). Plain words only — no shell metacharacters — so they pass
+# through SSH and attach.sh's `exec "$@"` cleanly.
+CMD_AGENT="ros2 run micro_ros_agent micro_ros_agent serial --dev $SERIAL_DEV -b $BAUD"
+CMD_TELEOP="ros2 run manual_controller manual_controller"
+CMD_ODOM="ros2 launch manual_controller manual_controller.launch.py"
+
+# Password helper: prefer sshpass; otherwise fall back to a normal prompt.
+if command -v sshpass >/dev/null 2>&1; then
+  SSH_AUTH="sshpass -p $JETSON_PASS"
 else
-  REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  while [ "$REPO" != "/" ] && [ ! -d "$REPO/ros2_ws" ]; do REPO="$(dirname "$REPO")"; done
+  echo "Note: sshpass not installed — each window will prompt for the password ('$JETSON_PASS')." >&2
+  echo "      Install it for hands-free login:  sudo apt install sshpass" >&2
+  SSH_AUTH=""
 fi
-ROS_SETUP="/opt/ros/humble/setup.bash"
-WS_SETUP="$REPO/ros2_ws/install/setup.bash"
-# Self-contained micro-ROS agent overlay bundled in this repo (microros_agent/),
-# so the serial bridge needs no external workspace.
-AGENT_SETUP="$REPO/microros_agent/setup.bash"
+SSH_OPTS="-o StrictHostKeyChecking=accept-new"
 
-if [ ! -f "$WS_SETUP" ]; then
-  echo "ERROR: $WS_SETUP not found (repo root resolved to '$REPO'). Build the workspace first:" >&2
-  echo "  cd $REPO/ros2_ws && source $ROS_SETUP && colcon build && source install/setup.bash" >&2
-  exit 1
-fi
-
-# Sourced at the top of every spawned terminal — they run `bash -c` (non-interactive)
-# so they do NOT pick up the container's /etc/bash.bashrc auto-sourcing; the
-# PREAMBLE must source everything they need explicitly.
-#   * In the container (EYEROBOT_WS set): the micro-ROS agent is built into the
-#     image at /uros_ws, not on the base ROS path — and the host-built
-#     microros_agent/ overlay (wrong arch) must be ignored even though the mounted
-#     repo makes it visible.
-#   * On the bare host: use the bundled microros_agent/ overlay.
-if [ -z "${EYEROBOT_WS:-}" ] && [ -f "$AGENT_SETUP" ]; then
-  PREAMBLE="source '$ROS_SETUP' && source '$AGENT_SETUP' && source '$WS_SETUP'"
-elif [ -f /uros_ws/install/local_setup.bash ]; then
-  PREAMBLE="source '$ROS_SETUP' && source '/uros_ws/install/local_setup.bash' && source '$WS_SETUP'"
-else
-  echo "Note: no micro-ROS agent overlay found — using the agent from the ROS environment (e.g. apt package)." >&2
-  PREAMBLE="source '$ROS_SETUP' && source '$WS_SETUP'"
-fi
-
-# Pick a terminal emulator: prefer the GNOME one, fall back to whatever exists.
+# Pick a terminal emulator (same logic as before): GNOME, else xterm.
 if command -v gnome-terminal >/dev/null 2>&1; then
   TERM_KIND="gnome"
 elif command -v x-terminal-emulator >/dev/null 2>&1; then
@@ -82,17 +63,14 @@ else
   exit 1
 fi
 
-# open_term TITLE COMMAND [KEEP] — spawn one window running COMMAND.
-# KEEP=keep (default): drop to an interactive shell after COMMAND exits so the
-#   last lines stay visible for debugging.
-# KEEP=close: let COMMAND own the shell to the end — needed when COMMAND sets an
-#   EXIT trap (e.g. 'kill 0' to reap background jobs); appending 'exec bash'
-#   there would replace the shell and the trap would never fire.
-open_term() {
-  local title="$1" cmd="$2" keep="${3:-keep}"
-  local tail="; echo; echo '[$title exited — press Enter or close]'; exec bash"
-  [ "$keep" = "close" ] && tail=""
-  local full="$PREAMBLE; echo '== $title =='; $cmd$tail"
+# open_ssh_term TITLE CONTAINER_CMD [xflag] — one window that SSHes in, attaches to
+# the container, and runs CONTAINER_CMD. xflag="-X" forwards X11 (for RViz).
+open_ssh_term() {
+  local title="$1" cmd="$2" xflag="${3:-}"
+  # -t: force a remote TTY (needed for docker exec -it and raw-keyboard teleop).
+  local remote="cd $REMOTE_DIR && exec ./attach.sh $cmd"
+  local ssh_cmd="$SSH_AUTH ssh $xflag -t $SSH_OPTS $JETSON_USER@$JETSON_HOST \"$remote\""
+  local full="echo '== $title =='; $ssh_cmd; echo; echo '[$title exited — press Enter or close]'; exec bash"
   case "$TERM_KIND" in
     gnome)     gnome-terminal --title="$title" -- bash -c "$full" ;;
     xterm-emu) x-terminal-emulator -T "$title" -e bash -c "$full" & ;;
@@ -100,51 +78,47 @@ open_term() {
   esac
 }
 
-# ── 1. micro-ROS agent ────────────────────────────────────────────────────────
-open_term "micro-ROS agent" \
-  "exec ros2 run micro_ros_agent micro_ros_agent serial --dev '$SERIAL_DEV' -b $BAUD"
+# open_local_term TITLE COMMAND — one window that runs COMMAND on THIS PC (no SSH).
+open_local_term() {
+  local title="$1" cmd="$2"
+  local full="echo '== $title =='; $cmd; echo; echo '[$title exited — press Enter or close]'; exec bash"
+  case "$TERM_KIND" in
+    gnome)     gnome-terminal --title="$title" -- bash -c "$full" ;;
+    xterm-emu) x-terminal-emulator -T "$title" -e bash -c "$full" & ;;
+    xterm)     xterm -T "$title" -e bash -c "$full" & ;;
+  esac
+}
 
+# ── DDS profiles ──────────────────────────────────────────────────────────────
+# Write the WiFi-only DDS profiles and push the Jetson's into place BEFORE the
+# Jetson windows start, so the nodes there come up with the right transport (only
+# the WiFi NIC, not the shared docker0 that would blackhole the data).
+JETSON_HOST="$JETSON_HOST" JETSON_USER="$JETSON_USER" JETSON_PASS="$JETSON_PASS" \
+  "$SCRIPT_DIR/dds_setup.sh" "$JETSON_HOST" >/dev/null || \
+  echo "Warning: dds_setup.sh failed — RViz may stay empty (see its output)." >&2
+
+# ── 1. micro-ROS agent ────────────────────────────────────────────────────────
+open_ssh_term "micro-ROS agent" "$CMD_AGENT"
 # Give the agent a moment to grab the serial port before the rest connect.
 sleep 1
 
 # ── 2. Keyboard teleop ────────────────────────────────────────────────────────
-# exec replaces the shell so the teleop owns the window's TTY and can read raw
-# keypresses (it checks sys.stdin.isatty()).
-open_term "drive (teleop)" \
-  "exec ros2 run manual_controller manual_controller"
+open_ssh_term "drive (teleop)" "$CMD_TELEOP"
 
 # ── 3. Odometry + URDF (state_estimator + dual_odometry + publishers) ─────────
-# robot_state_publisher needs the expanded URDF; xacro is run inside the window
-# after ROS is sourced. All four nodes run in the background (their logs print
-# here) and the foreground `wait` keeps the window — and the kill-0 trap that
-# reaps them — alive until you Ctrl-C. dual_odometry adds the two comparison
-# paths (/path_encoder, /path_imu) that RViz draws.
-ODOM_CMD="
-XACRO_FILE=\"\$(ros2 pkg prefix robot_description)/share/robot_description/urdf/Robot.xacro\"
-trap 'kill 0' EXIT
-ros2 run manual_controller state_estimator --ros-args -p debug_encoders:=$DEBUG_ENCODERS &
-ros2 run manual_controller dual_odometry &
-ros2 run robot_state_publisher robot_state_publisher \
-  --ros-args -p robot_description:=\"\$(xacro \"\$XACRO_FILE\")\" &
-ros2 run joint_state_publisher joint_state_publisher &
-echo '[Ctrl-C here to stop odometry + URDF]'
-wait
-"
-open_term "odometry + URDF" "$ODOM_CMD" close
+open_ssh_term "odometry + URDF" "$CMD_ODOM"
 
-# ── 4. RViz (URDF model + the two comparison paths) ───────────────────────────
-# Loads eyerobot.rviz (RobotModel + /path, /path_encoder red, /path_imu green).
-# Runs locally so it reads everything over loopback/SHM — no DDS across the WiFi.
+# ── 4. RViz (LOCAL on this PC) ────────────────────────────────────────────────
+# Runs rviz_eyerobot.sh here, which sources ROS + the workspace, sets the unicast
+# DDS profile to reach the Jetson, and loads eyerobot.rviz.
 if [ "$RVIZ" = "true" ]; then
-  RVIZ_CMD="
-RVIZ_CFG=\"\$(ros2 pkg prefix manual_controller)/share/manual_controller/rviz/eyerobot.rviz\"
-rviz2 -d \"\$RVIZ_CFG\"
-"
-  open_term "RViz" "$RVIZ_CMD"
+  open_local_term "RViz (local)" "'$SCRIPT_DIR/rviz_eyerobot.sh' '$JETSON_HOST'"
 fi
 
-WINDOWS=3; [ "$RVIZ" = "true" ] && WINDOWS=4
-echo "Launched $WINDOWS windows: micro-ROS agent ($SERIAL_DEV @ $BAUD), teleop, odometry + URDF$([ "$RVIZ" = "true" ] && echo ", RViz")."
+if [ "$RVIZ" = "true" ]; then
+  echo "Launched 4 windows: 3 SSH to ${JETSON_USER}@${JETSON_HOST} (serial $SERIAL_DEV @ $BAUD) + RViz locally on this PC."
+  echo "RViz needs the Jetson's topics to reach this PC over the network — if it stays empty, that's the DDS/WiFi crossing, not RViz."
+else
+  echo "Launched 3 SSH windows to ${JETSON_USER}@${JETSON_HOST} (serial $SERIAL_DEV @ $BAUD)."
+fi
 echo "Click the 'drive (teleop)' window and use w/a/s/d (q/e fans, r/t belt) to drive."
-[ "$RVIZ" = "true" ] || echo "RViz is OFF (omit RVIZ=false to open it)."
-[ "$DEBUG_ENCODERS" = "true" ] && echo "Encoder debug logging is ON in the odometry window."

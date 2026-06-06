@@ -36,11 +36,23 @@ Dual odometry — encoder-only vs encoder+IMU paths (`/path_encoder`, `/path_imu
 ros2 run manual_controller dual_odometry
 ```
 
-RViz — run on your PC (not the Jetson):
+### Visualization (RViz)
+
+RViz runs **on your PC, not the Jetson**. First launch this on the Jetson then the rviz script on PC.
 
 ```
-rviz2
+ros2 launch manual_controller manual_controller.launch.py
 ```
+```
+./rviz_eyerobot.sh                  # or: ./rviz_eyerobot.sh <jetson-ip>
+```
+
+`rviz_eyerobot.sh` runs `dds_setup.sh` first, which works around two things that
+otherwise stop the Jetson's topics from reaching the PC: campus WiFi blocking DDS
+discovery multicast, and both machines sharing `docker0` at `172.17.0.1` (DDS sends
+data to its own docker bridge, so topics list but `echo` is empty). It writes
+WiFi-only DDS profiles for both ends. `run_eyerobot.sh` does the same automatically.
+If RViz still stays empty, re-run after confirming the Jetson IP is correct.
 
 ---
 
