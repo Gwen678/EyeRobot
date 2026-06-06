@@ -5,10 +5,8 @@ set -e
 
 source "/opt/ros/${ROS_DISTRO}/setup.bash"
 
-# micro-ROS agent overlay (built from source into /uros_ws in the Dockerfile).
-if [ -f /uros_ws/install/local_setup.bash ]; then
-  source /uros_ws/install/local_setup.bash
-fi
+# micro-ROS agent comes from apt now (ros-humble-micro-ros-agent), so it's on the
+# ROS path already — no extra overlay to source.
 
 # Source the workspace overlay if it has been built (docker/build_ws.sh).
 if [ -f "${EYEROBOT_WS}/install/setup.bash" ]; then
