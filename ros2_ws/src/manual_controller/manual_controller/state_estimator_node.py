@@ -66,7 +66,7 @@ class StateEstimatorNode(Node):
         # for one full revolution of the wheel (output) shaft.
         self.declare_parameter('counts_per_output_rev', 5756.0)
         self.declare_parameter('wheel_radius_m', 0.06)
-        self.declare_parameter('wheel_separation_m', 0.150)
+        self.declare_parameter('wheel_separation_m', 0.33)  # CAD track width
         self.declare_parameter('odom_rate_hz', 30.0)
         self.declare_parameter('max_odom_step_s', 0.1)
         # Counts arrive slower than this node ticks; if no count has advanced for
