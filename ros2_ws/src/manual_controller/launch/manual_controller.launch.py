@@ -4,7 +4,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -62,7 +62,11 @@ def generate_launch_description():
         _arg('wheel_radius_m', '0.06', 'Wheel radius used for odometry integration'),
         _arg('wheel_separation_m', '0.33', 'Distance between left and right wheels (from CAD)'),
         _arg('odom_rate_hz', '30.0', 'Odometry / TF / path publish rate'),
-        _arg('publish_tf', 'true', 'Publish odom->base_link TF (set false when an EKF owns it)'),
+        _arg('publish_tf', 'true', 'Publish odom->base_link TF (auto-disabled when ekf:=true so the EKF owns it)'),
+        # robot_localization EKF: fuse wheel odom (vx, vyaw) + IMU (roll, pitch,
+        # yaw-rate) into a full pose, owning odom->base_link. Needs the OAK IMU in
+        # complementary mode and ros-humble-robot-localization installed.
+        _arg('ekf', 'false', 'Run the robot_localization EKF fusing wheel odom + IMU'),
         _arg('right_feedback_sign', '1.0', 'Right encoder reads + on robot-forward; keep +1'),
         # The LEFT encoder decrements when the robot rolls forward (invert_motor is
         # set on the MCU but the encoder sign is not, so its counts oppose robot
@@ -111,7 +115,13 @@ def generate_launch_description():
                 'wheel_radius_m': _f('wheel_radius_m'),
                 'wheel_separation_m': _f('wheel_separation_m'),
                 'odom_rate_hz': _f('odom_rate_hz'),
-                'publish_tf': ParameterValue(LaunchConfiguration('publish_tf'), value_type=bool),
+                # Publish odom->base_link only if requested AND the EKF is off
+                # (when ekf:=true the EKF owns that transform).
+                'publish_tf': ParameterValue(
+                    PythonExpression([
+                        "'", LaunchConfiguration('publish_tf'), "' == 'true' and '",
+                        LaunchConfiguration('ekf'), "' == 'false'"]),
+                    value_type=bool),
                 'right_feedback_sign': _f('right_feedback_sign'),
                 'left_feedback_sign': _f('left_feedback_sign'),
                 'odom_frame': LaunchConfiguration('odom_frame'),
@@ -168,5 +178,30 @@ def generate_launch_description():
             arguments=['-d', rviz_config],
             condition=IfCondition(LaunchConfiguration('rviz')),
             output='screen',
+        ),
+        # robot_localization EKF: fuses /odom (wheel vx, vyaw) + /oak/imu/data_raw
+        # (absolute roll/pitch, body rates) into a full 6-DOF pose and owns
+        # odom->base_link. Off by default; state_estimator drops its TF when on.
+        Node(
+            package='robot_localization',
+            executable='ekf_node',
+            name='ekf_filter_node',
+            output='screen',
+            parameters=[PathJoinSubstitution([
+                FindPackageShare('manual_controller'), 'config', 'ekf.yaml'])],
+            condition=IfCondition(LaunchConfiguration('ekf')),
+        ),
+        # Relay the EKF Odometry to a Path so RViz draws it as a line (magenta)
+        # next to the encoder/IMU comparison paths. Visualization only.
+        Node(
+            package='manual_controller',
+            executable='odom_to_path',
+            name='odom_to_path',
+            output='screen',
+            parameters=[{
+                'odom_topic': '/odometry/filtered',
+                'path_topic': '/ekf_path',
+            }],
+            condition=IfCondition(LaunchConfiguration('ekf')),
         ),
     ])

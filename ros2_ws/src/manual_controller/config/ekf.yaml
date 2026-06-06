@@ -1,0 +1,52 @@
+### robot_localization EKF for EyeRobot — fuses wheel odometry + OAK-D IMU.
+#
+# Division of labour:
+#   * wheel /odom -> body-frame velocities vx, vyaw (the planar motion source)
+#   * IMU /oak/imu/data_raw -> absolute roll/pitch (gravity = drift-free, gives
+#     RAMPS) and the body angular rates. NOT absolute yaw (gyro drift, no
+#     magnetometer) and NOT linear acceleration.
+#
+# The EKF owns the odom->base_link TF, so state_estimator must run with
+# publish_tf:=false (the launch wires this automatically when ekf:=true).
+#
+# Requires the OAK IMU in COMPLEMENTARY mode (gravity-referenced roll/pitch):
+#   ros2 launch oak_imu oak_imu.launch.py orientation:=complementary
+# and the static base_link->imu_link mount from the URDF.
+#
+# config vector order (15):
+#   [ x,  y,  z,  roll, pitch, yaw,  vx, vy, vz,  vroll, vpitch, vyaw,  ax, ay, az ]
+ekf_filter_node:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.2
+    two_d_mode: false            # keep roll/pitch in the state so ramps register
+    publish_tf: true             # EKF owns odom->base_link
+    publish_acceleration: false
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+
+    # ── Wheel odometry: trust the body-frame velocities, not absolute pose ──────
+    odom0: odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, true,
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+
+    # ── IMU: absolute roll/pitch (ramps) + body angular rates ───────────────────
+    imu0: /oak/imu/data_raw
+    imu0_config: [false, false, false,
+                  true,  true,  false,
+                  false, false, false,
+                  true,  true,  true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: true

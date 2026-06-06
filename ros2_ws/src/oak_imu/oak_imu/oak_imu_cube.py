@@ -113,6 +113,12 @@ def accel_to_quat(ax, ay, az):
     return quat_from_rpy(roll, pitch, 0.0)
 
 
+def yaw_from_quat(q):
+    """Yaw (rotation about Z) from a quaternion (w, x, y, z)."""
+    w, x, y, z = q
+    return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
+
 def quat_rotate(q, v):
     """Rotate vector v (3-tuple) from body frame to world frame by quat q."""
     w, x, y, z = q
@@ -139,6 +145,7 @@ class OakImuCube(Node):
         self.rate_hz = args.rate
         self.world_frame = args.world_frame
         self.imu_frame = args.imu_frame
+        self.broadcast_tf = not args.no_tf
 
         # --- Axis remap: BMI270 sensor frame -> ROS (REP-103) frame ---------
         # At rest the BMI270 reads accel Z = -9.81, but ROS expects +9.81 for a
@@ -149,9 +156,12 @@ class OakImuCube(Node):
         self.accel_sign = tuple(float(s) for s in args.accel_signs.split(","))
         self.gyro_sign = tuple(float(s) for s in args.gyro_signs.split(","))
 
-        # Best-effort sensor QoS is the conventional choice for high-rate IMU.
+        # RELIABLE so robot_localization's EKF (which subscribes RELIABLE) actually
+        # receives the IMU; a BEST_EFFORT publisher would be silently dropped by it.
+        # dual_odometry's BEST_EFFORT subscription is still compatible with a
+        # RELIABLE publisher. Local Jetson transport, so reliable adds no real cost.
         imu_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
+            reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
             depth=50,
         )
@@ -307,8 +317,9 @@ class OakImuCube(Node):
 
         stamp = self.get_clock().now().to_msg()
         self._publish_imu(stamp, ax, ay, az, gx, gy, gz)
-        self._publish_tf(stamp)
-        self._publish_marker(stamp)
+        if self.broadcast_tf:
+            self._publish_tf(stamp)
+            self._publish_marker(stamp)
         if self.enable_position:
             self._publish_trail(stamp)
 
@@ -326,12 +337,17 @@ class OakImuCube(Node):
             self.q = quat_normalize(quat_mul(self.q, dq))
 
         if self.mode == "complementary":
-            # Nudge roll/pitch toward the accelerometer (gravity) estimate.
-            # Only trust accel when its magnitude is close to 1 g (low motion).
+            # Correct ONLY roll/pitch toward gravity; keep the gyro-integrated
+            # yaw. Accel cannot observe yaw (no magnetometer), so slerping toward
+            # accel_to_quat() — which has yaw=0 — would erase the heading. Build
+            # the target from the accel roll/pitch but the CURRENT yaw, so the
+            # nudge fixes tilt only. Trust accel only near 1 g (low linear motion).
             mag = math.sqrt(ax * ax + ay * ay + az * az)
             if abs(mag - 9.81) < 1.5:
-                q_acc = accel_to_quat(ax, ay, az)
-                self.q = quat_slerp_to(self.q, q_acc, 1.0 - self.alpha)
+                roll = math.atan2(ay, az)
+                pitch = math.atan2(-ax, math.sqrt(ay * ay + az * az))
+                q_target = quat_from_rpy(roll, pitch, yaw_from_quat(self.q))
+                self.q = quat_slerp_to(self.q, q_target, 1.0 - self.alpha)
 
     def _update_position(self, ax, ay, az, gx, gy, gz, dt):
         # 1) Rotate the measured acceleration into the (fixed) world frame.
@@ -524,6 +540,11 @@ def main():
                         help="IMU report rate in Hz")
     parser.add_argument("--world-frame", default="world")
     parser.add_argument("--imu-frame", default="imu_link")
+    parser.add_argument("--no-tf", action="store_true",
+                        help="don't broadcast world->imu_link TF. Use on the robot: "
+                             "base_link->imu_link is a static URDF mount and the "
+                             "orientation is consumed from the Imu message, not TF. "
+                             "Leaving it on would give imu_link two parents.")
     # Axis remap (sensor -> ROS). Default fixes the OAK-D Lite 180-deg-about-X.
     parser.add_argument("--accel-signs", default="1,-1,-1",
                         help="per-axis sign for accelerometer x,y,z")
