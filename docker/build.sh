@@ -18,7 +18,7 @@ IMAGE="${IMAGE:-eyerobot:ekf}"
 # For GPU block detection, run inference off-board on the dev PC, or use a
 # JetPack-4 l4t-pytorch image with an older ROS. GPU + Humble needs an Orin-class
 # Jetson on JetPack 6.
-BASE_IMAGE="ros:humble-ros-base"
+BASE_IMAGE="ros:humble-base"
 
 # Perception (CPU YOLO) on the Nano. Inference will be slow (no GPU from a 22.04
 # container on JetPack 4) — expect ~1-2 fps. Set to 0 for an odometry-only image.
