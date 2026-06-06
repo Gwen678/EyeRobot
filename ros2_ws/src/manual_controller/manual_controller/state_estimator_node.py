@@ -77,10 +77,13 @@ class StateEstimatorNode(Node):
         # counter): if a wheel moves more than this many revolutions in one
         # step, re-baseline instead of integrating the jump.
         self.declare_parameter('max_revs_per_step', 5.0)
-        # Encoder polarity is corrected in firmware (MotorConfig.invert_encoder),
-        # so these stay neutral; flip one only for ad-hoc host-side testing.
+        # Per-wheel feedback polarity in the ROBOT frame. The right encoder reads
+        # + on forward, but the left encoder DECREMENTS on robot-forward (the MCU
+        # inverts the left motor but not its encoder), so it is negated here.
+        # Don't flip the MCU invert_encoder to "fix" it: that also drives the
+        # closed-loop speed control and would destabilise it — correct it host-side.
         self.declare_parameter('right_feedback_sign', 1.0)
-        self.declare_parameter('left_feedback_sign', 1.0)
+        self.declare_parameter('left_feedback_sign', -1.0)
         self.declare_parameter('publish_tf', True)
         # When true, log raw encoder counts and per-wheel/centre deltas each step
         # so a forward-vs-backward odometry asymmetry can be diagnosed live.

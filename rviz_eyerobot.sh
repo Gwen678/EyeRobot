@@ -8,10 +8,12 @@
 # manual_controller.launch.py`). The two paths show as soon as dual_odometry
 # publishes; the IMU line only diverges once /oak/imu/data_raw has data.
 #
-# EPFL WiFi (like most campus/enterprise WiFi) blocks the multicast that Fast DDS
-# uses for discovery, so the PC and Jetson never find each other even though they
-# can ping. This script forces UNICAST discovery by pointing Fast DDS straight at
-# the Jetson's IP, which is what makes the topics actually reach RViz.
+# Two things break PC<->Jetson DDS on this setup, both handled by dds_setup.sh:
+#   1. campus WiFi blocks the multicast Fast DDS uses for discovery, and
+#   2. both machines have docker0 at the SAME 172.17.0.1, so DDS sends data to its
+#      own docker bridge and topics echo empty.
+# dds_setup.sh writes WiFi-only interface-whitelist profiles (unicast peer + only
+# the WiFi NIC) for both ends, which is what makes the topics actually reach RViz.
 #
 # Usage:
 #     ./rviz_eyerobot.sh                  # default Jetson IP below
@@ -41,38 +43,44 @@ fi
 source "$ROS_SETUP"
 source "$WS_SETUP"
 
-# Generate a Fast DDS profile that adds the Jetson as a unicast discovery peer.
-# (Multicast stays on too — this is additive — so local nodes still discover via
-# shared memory, but PDP announcements now also go straight to the Jetson.) Once
-# the PC reaches the Jetson by unicast, the Jetson learns the PC's address and
-# replies, so setting it on this side alone is enough to complete discovery.
-DDS_PROFILE="${TMPDIR:-/tmp}/eyerobot_fastdds_${JETSON_HOST}.xml"
-cat > "$DDS_PROFILE" <<XML
-<?xml version="1.0" encoding="UTF-8" ?>
-<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
-  <profiles>
-    <participant profile_name="eyerobot_unicast" is_default_profile="true">
-      <rtps>
-        <builtin>
-          <initialPeersList>
-            <locator>
-              <udpv4>
-                <address>${JETSON_HOST}</address>
-              </udpv4>
-            </locator>
-          </initialPeersList>
-        </builtin>
-      </rtps>
-    </participant>
-  </profiles>
-</dds>
-XML
+# Generate the WiFi-only DDS profiles (PC local + pushed to the Jetson) and use
+# the PC one. dds_setup.sh prints the PC profile path on stdout.
+DDS_PROFILE="$("$REPO/dds_setup.sh" "$JETSON_HOST")"
 export FASTRTPS_DEFAULT_PROFILES_FILE="$DDS_PROFILE"
-echo "→ unicast discovery peer: $JETSON_HOST (domain $ROS_DOMAIN_ID, $RMW_IMPLEMENTATION)"
+echo "→ DDS profile: $DDS_PROFILE (domain $ROS_DOMAIN_ID, $RMW_IMPLEMENTATION)"
+
+# Publish the URDF LOCALLY on this PC so the RobotModel always has geometry, even
+# though the Jetson's large latched /robot_description does not reliably cross DDS
+# over the WiFi. robot_state_publisher expands the local xacro and also emits the
+# base_link->wheel link TFs; odom->base_link still comes from the Jetson over /tf
+# (small, like the path topics). joint_state_publisher feeds zeroed wheel joints
+# so their transforms exist. Both die with RViz via the trap.
+XACRO_FILE="$(ros2 pkg prefix robot_description)/share/robot_description/urdf/Robot.xacro"
+if [ -f "$XACRO_FILE" ]; then
+  # The URDF is multi-line XML; rcl's CLI parser can't take it as a `-p` override
+  # (newlines break "parameter override rule" parsing). Hand it to
+  # robot_state_publisher via a params file with a YAML literal block scalar
+  # instead — every URDF line is indented under the `robot_description: |` key.
+  PARAMS_FILE="$(mktemp --suffix=.yaml)"
+  {
+    echo "robot_state_publisher:"
+    echo "  ros__parameters:"
+    echo "    robot_description: |"
+    xacro "$XACRO_FILE" | sed 's/^/      /'
+  } > "$PARAMS_FILE"
+  trap 'kill 0; rm -f "$PARAMS_FILE"' EXIT
+  ros2 run robot_state_publisher robot_state_publisher \
+    --ros-args --params-file "$PARAMS_FILE" &
+  ros2 run joint_state_publisher joint_state_publisher &
+  echo "→ publishing URDF locally (robot_description built on this PC)"
+else
+  echo "WARN: robot_description not built on this PC — RobotModel will rely on the" >&2
+  echo "      Jetson's /robot_description crossing the network (often won't show)." >&2
+fi
 
 # Prefer the installed config; fall back to the source tree if not built here.
 RVIZ_CFG="$(ros2 pkg prefix manual_controller 2>/dev/null)/share/manual_controller/rviz/eyerobot.rviz"
 [ -f "$RVIZ_CFG" ] || RVIZ_CFG="$REPO/ros2_ws/src/manual_controller/rviz/eyerobot.rviz"
 
 echo "→ rviz2 -d $RVIZ_CFG"
-exec rviz2 -d "$RVIZ_CFG"
+rviz2 -d "$RVIZ_CFG"

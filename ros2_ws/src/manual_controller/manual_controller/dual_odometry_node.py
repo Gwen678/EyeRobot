@@ -86,8 +86,10 @@ class DualOdometryNode(Node):
         self.declare_parameter('odom_rate_hz', 30.0)
         self.declare_parameter('max_odom_step_s', 0.1)
         self.declare_parameter('max_revs_per_step', 5.0)
+        # Left encoder counts oppose robot-forward; negate host-side so this node
+        # matches state_estimator_node (see its note for why not on the MCU).
         self.declare_parameter('right_feedback_sign', 1.0)
-        self.declare_parameter('left_feedback_sign', 1.0)
+        self.declare_parameter('left_feedback_sign', -1.0)
         self.declare_parameter('path_max_len', 2000)
         self.declare_parameter('odom_frame', 'odom')
         self.declare_parameter('base_frame', 'base_link')
