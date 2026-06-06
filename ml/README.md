@@ -53,6 +53,28 @@ variants per image, with bounding boxes transformed for the geometric ones and
 A block-image variant that loses its box (warped out of frame) is skipped so it
 never becomes a mislabeled negative.
 
+## Results (this run)
+Trained YOLOv8n @416 on CPU, early-stopped at epoch 13 (~1.1h). Evaluated on the
+**231-image augmented test set** (deliberately harsh: includes BGR-swap + extreme
+hue, so live OAK precision will be higher):
+
+| checkpoint | mAP50 | mAP50-95 | recall (conf 0.2–0.8) | false positives |
+|---|---|---|---|---|
+| best.pt (epoch 1) | 0.908 | 0.656 | unstable | 44–94 |
+| **deploy.pt = last.pt (epoch 13)** | 0.903 | **0.671** | **~0.90, flat** | **18–28** |
+
+The 7-image val set is too small to pick a checkpoint reliably (it tagged epoch 1
+as "best"), so we deploy `last.pt`, which the large test set shows is better
+calibrated. Bare-floor negatives produce **no detections** (no false positives).
+
+**Recommended deploy confidence ≈ 0.7–0.8** (prefer false negatives → favour
+precision). Artifacts in `ml/runs/duplo_yolov8n_416/weights/`: `deploy.pt`,
+`deploy.onnx`, `deploy_openvino_2022.1_6shave.blob`.
+
+To improve further: rebuild with a larger held-out validation set (the current
+limiter is checkpoint selection, not model capacity) and/or train at 320 for more
+VPU headroom.
+
 ## Deployment
 See `ml/DEPLOY_OAK.md` for the blob conversion and the full DepthAI
 `ColorCamera → YoloDetectionNetwork → ObjectTracker` pipeline.

@@ -21,7 +21,9 @@ from ultralytics import YOLO
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DS = os.path.join(ROOT, "ml", "dataset")
 DATA = os.path.join(DS, "data.yaml")
-WEIGHTS = os.path.join(ROOT, "ml", "runs", "duplo_yolov8n_416", "weights", "best.pt")
+import sys
+WEIGHTS = sys.argv[1] if len(sys.argv) > 1 else \
+    os.path.join(ROOT, "ml", "runs", "duplo_yolov8n_416", "weights", "best.pt")
 IMGSZ = 416
 TARGET_PRECISION = 0.98   # we strongly prefer avoiding false positives
 

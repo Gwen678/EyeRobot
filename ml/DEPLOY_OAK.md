@@ -1,10 +1,28 @@
 # Deploying the Duplo block detector on the OAK-D Lite object tracker
 
-Trained model: `ml/runs/duplo_yolov8n_416/weights/best.pt`
+Deploy model: `ml/runs/duplo_yolov8n_416/weights/deploy.pt`  (= `last.pt`, epoch 13)
 - Architecture: **YOLOv8n** (smallest, fastest on the Myriad X VPU)
 - Input: **416 x 416**, single class `block`
 - We prefer **false negatives over false positives** → deploy with a higher
-  confidence threshold (see `ml/runs/.../eval` output for the recommended value).
+  confidence threshold. On the (deliberately harsh) augmented test set the model
+  holds recall ≈ 0.90 from conf 0.2 up to 0.8; **conf ≈ 0.7–0.8** keeps recall high
+  while cutting false positives. Push to 0.85+ for near-zero false positives at the
+  cost of recall. Tune live against real OAK footage.
+- NOT `best.pt`: the 7-image val set made Ultralytics mislabel the noisy epoch-1
+  checkpoint as "best"; `last.pt` is better calibrated on the 231-image test set.
+
+Already-built artifacts in `ml/runs/duplo_yolov8n_416/weights/`:
+- `deploy.pt`   — PyTorch weights (the chosen checkpoint)
+- `deploy.onnx` — ONNX, opset 12, 416×416
+- `deploy_openvino_2022.1_6shave.blob` — compiled blob (FP16, 6 SHAVEs, scale=255
+  + reversed input channels baked in)
+
+> ⚠️ The bundled `.blob` is compiled straight from the Ultralytics ONNX, whose head
+> is the raw YOLOv8 output. DepthAI's `YoloDetectionNetwork` decodes the head
+> on-device and expects a matching layout/metadata. For a **guaranteed-correct**
+> deploy, regenerate the blob + JSON with the Luxonis tool (step 1) which adapts the
+> head and emits the right config. The bundled blob is fine for a `NeuralNetwork`
+> node with host-side decoding, or as a starting point.
 
 ## 1. Get a `.blob` (+ metadata JSON)
 
@@ -32,9 +50,9 @@ route you must still hand `YoloDetectionNetwork` the YOLOv8 metadata yourself
 ```python
 import depthai as dai
 
-NN_BLOB = "best.blob"      # from step 1
+NN_BLOB = "deploy_openvino_2022.1_6shave.blob"   # bundled, or your Luxonis-tool blob
 LABELS  = ["block"]
-CONF    = 0.6              # raise to suppress false positives (see eval sweep)
+CONF    = 0.7              # raise to suppress false positives (see eval sweep)
 
 pipeline = dai.Pipeline()
 
