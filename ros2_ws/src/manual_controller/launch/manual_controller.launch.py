@@ -60,7 +60,7 @@ def generate_launch_description():
         # ── State estimator (odometry) node ───────────────────────────────────
         _arg('counts_per_output_rev', '5756.0', 'Encoder counts per wheel (output) revolution'),
         _arg('wheel_radius_m', '0.06', 'Wheel radius used for odometry integration'),
-        _arg('wheel_separation_m', '0.150', 'Distance between left and right wheel contact lines'),
+        _arg('wheel_separation_m', '0.33', 'Distance between left and right wheels (from CAD)'),
         _arg('odom_rate_hz', '30.0', 'Odometry / TF / path publish rate'),
         _arg('publish_tf', 'true', 'Publish odom->base_link TF (set false when an EKF owns it)'),
         _arg('right_feedback_sign', '1.0', 'Right encoder reads + on robot-forward; keep +1'),

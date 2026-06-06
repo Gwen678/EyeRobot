@@ -82,7 +82,7 @@ class DualOdometryNode(Node):
         # reproduces the canonical odometry exactly.
         self.declare_parameter('counts_per_output_rev', 5756.0)
         self.declare_parameter('wheel_radius_m', 0.06)
-        self.declare_parameter('wheel_separation_m', 0.150)
+        self.declare_parameter('wheel_separation_m', 0.33)  # CAD track width
         self.declare_parameter('odom_rate_hz', 30.0)
         self.declare_parameter('max_odom_step_s', 0.1)
         self.declare_parameter('max_revs_per_step', 5.0)

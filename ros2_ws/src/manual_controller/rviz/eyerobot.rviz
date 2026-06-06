@@ -42,16 +42,16 @@ Visualization Manager:
     - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
-      Color: 255; 0; 0
+      Color: 255; 255; 0
       Enabled: true
       Line Style: Lines
       Line Width: 0.05
-      Name: Path
+      Name: Path (state_estimator)
       Offset:
         X: 0
         Y: 0
         Z: 0
-      Pose Color: 255; 0; 0
+      Pose Color: 255; 255; 0
       Pose Style: None
       Topic:
         Value: /path
