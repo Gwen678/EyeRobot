@@ -19,7 +19,7 @@ Drops you into the container shell. Run it again in a new terminal for each node
 micro-ROS agent — motors/encoders ↔ ROS (ESP32 on USB):
 
 ```
-ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
+ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB1 -b 115200
 ```
 
 Teleop — drive the robot (`w/a/s/d` wheels, `q/e` fans, `r/t` belt):

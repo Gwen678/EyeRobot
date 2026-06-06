@@ -28,8 +28,8 @@ def main():
     model = YOLO("yolov8n.pt")  # COCO-pretrained -> transfer learning
     model.train(
         data=DATA,
-        epochs=60,
-        patience=12,
+        epochs=100,
+        patience=20,
         imgsz=416,
         batch=16,
         device="cpu",
