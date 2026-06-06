@@ -31,8 +31,16 @@ DEBUG_ENCODERS="${DEBUG_ENCODERS:-false}"
 # to a dev PC. Set RVIZ=false to skip it (e.g. a headless run).
 RVIZ="${RVIZ:-true}"
 
-# Repo root = this script's directory (so install/setup.bash resolves).
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Find the repo root (the dir containing ros2_ws/) independent of where this
+# script lives — it may sit at the repo root or be vendored under ros2_ws/src so
+# it ships into the container. Inside the image EYEROBOT_WS is set (=.../ros2_ws);
+# honor it first, otherwise walk up from the script's own directory.
+if [ -n "${EYEROBOT_WS:-}" ] && [ -d "$EYEROBOT_WS" ]; then
+  REPO="$(cd "$EYEROBOT_WS/.." && pwd)"
+else
+  REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  while [ "$REPO" != "/" ] && [ ! -d "$REPO/ros2_ws" ]; do REPO="$(dirname "$REPO")"; done
+fi
 ROS_SETUP="/opt/ros/humble/setup.bash"
 WS_SETUP="$REPO/ros2_ws/install/setup.bash"
 # Self-contained micro-ROS agent overlay bundled in this repo (microros_agent/),
@@ -40,19 +48,25 @@ WS_SETUP="$REPO/ros2_ws/install/setup.bash"
 AGENT_SETUP="$REPO/microros_agent/setup.bash"
 
 if [ ! -f "$WS_SETUP" ]; then
-  echo "ERROR: $WS_SETUP not found. Build the workspace first:" >&2
+  echo "ERROR: $WS_SETUP not found (repo root resolved to '$REPO'). Build the workspace first:" >&2
   echo "  cd $REPO/ros2_ws && source $ROS_SETUP && colcon build && source install/setup.bash" >&2
   exit 1
 fi
 
-# Sourced at the top of every spawned terminal. Prefer the bundled agent overlay
-# (bare-host path); if it's absent — e.g. inside the Docker container, where the
-# agent is the apt `ros-humble-micro-ros-agent` already on the ROS path — just
-# fall back to whatever `micro_ros_agent` the environment provides.
-if [ -f "$AGENT_SETUP" ]; then
+# Sourced at the top of every spawned terminal — they run `bash -c` (non-interactive)
+# so they do NOT pick up the container's /etc/bash.bashrc auto-sourcing; the
+# PREAMBLE must source everything they need explicitly.
+#   * In the container (EYEROBOT_WS set): the micro-ROS agent is built into the
+#     image at /uros_ws, not on the base ROS path — and the host-built
+#     microros_agent/ overlay (wrong arch) must be ignored even though the mounted
+#     repo makes it visible.
+#   * On the bare host: use the bundled microros_agent/ overlay.
+if [ -z "${EYEROBOT_WS:-}" ] && [ -f "$AGENT_SETUP" ]; then
   PREAMBLE="source '$ROS_SETUP' && source '$AGENT_SETUP' && source '$WS_SETUP'"
+elif [ -f /uros_ws/install/local_setup.bash ]; then
+  PREAMBLE="source '$ROS_SETUP' && source '/uros_ws/install/local_setup.bash' && source '$WS_SETUP'"
 else
-  echo "Note: bundled microros_agent overlay not found — using the agent from the ROS environment (e.g. apt package in Docker)." >&2
+  echo "Note: no micro-ROS agent overlay found — using the agent from the ROS environment (e.g. apt package)." >&2
   PREAMBLE="source '$ROS_SETUP' && source '$WS_SETUP'"
 fi
 
