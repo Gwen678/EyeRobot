@@ -10,10 +10,19 @@
           <address>127.0.0.1</address>
         </interfaceWhiteList>
       </transport_descriptor>
+      <!-- Shared-memory transport: robust same-host discovery+data
+           (oak_imu -> dual_odometry). --ipc=host shares /dev/shm. -->
+      <transport_descriptor>
+        <transport_id>shm</transport_id>
+        <type>SHM</type>
+      </transport_descriptor>
     </transport_descriptors>
     <participant profile_name="wifi" is_default_profile="true">
       <rtps>
-        <userTransports><transport_id>wifi_only</transport_id></userTransports>
+        <userTransports>
+          <transport_id>shm</transport_id>
+          <transport_id>wifi_only</transport_id>
+        </userTransports>
         <useBuiltinTransports>false</useBuiltinTransports>
         <builtin>
           <initialPeersList>
