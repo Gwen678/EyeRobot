@@ -48,7 +48,7 @@ _profile() {
            (oak_imu -> dual_odometry, etc.). The unicast loopback UDP peer alone
            did NOT reliably link local participants under useBuiltinTransports=
            false; SHM is the canonical local path and is independent of the
-           initial-peers participant range. Container runs --ipc=host so /dev/shm
+           initial-peers participant range. Container runs ipc=host so /dev/shm
            is shared across all shells. -->
       <transport_descriptor>
         <transport_id>shm</transport_id>
