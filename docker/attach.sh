@@ -11,12 +11,15 @@ if [ -z "$(docker ps -q -f name="^${NAME}$")" ]; then
   exit 1
 fi
 
-# If a WiFi-only Fast DDS profile has been pushed here (dds_setup.sh, from the PC),
-# point the container's ROS nodes at it so their topics actually reach the PC —
-# otherwise the shared docker0 (172.17.0.1) blackholes the data. The repo root is
-# this script's parent dir, bind-mounted into the container at /eyerobot.
+# DDS profile injection is OPT-IN and OFF by default. The WiFi-only profile
+# (dds_setup.sh) was meant to get topics to the PC over DDS, but on this rig it
+# breaks Jetson-LOCAL discovery and RELIABLE delivery between nodes (oak_imu ->
+# dual_odometry never linked). Default transport is what actually works on-robot.
+# For PC visualization, run foxglove_bridge on the Jetson and connect Foxglove
+# Studio from the PC over a single websocket — no DDS crossing, no docker0 issue.
+# Re-enable the old profile only if you know you need it: EYEROBOT_DDS_PROFILE=1.
 EXTRA_ENV=(-e DISPLAY)
-if [ -f "$(dirname "$0")/../dds_jetson.xml" ]; then
+if [ "${EYEROBOT_DDS_PROFILE:-0}" = "1" ] && [ -f "$(dirname "$0")/../dds_jetson.xml" ]; then
   EXTRA_ENV+=(-e FASTRTPS_DEFAULT_PROFILES_FILE=/eyerobot/dds_jetson.xml)
 fi
 
