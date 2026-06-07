@@ -18,6 +18,7 @@
         <builtin>
           <initialPeersList>
             <locator><udpv4><address>128.179.186.23</address></udpv4></locator>
+            <locator><udpv4><address>127.0.0.1</address></udpv4></locator>
           </initialPeersList>
         </builtin>
       </rtps>
