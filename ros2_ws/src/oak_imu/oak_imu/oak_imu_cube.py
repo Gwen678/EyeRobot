@@ -156,14 +156,19 @@ class OakImuCube(Node):
         self.accel_sign = tuple(float(s) for s in args.accel_signs.split(","))
         self.gyro_sign = tuple(float(s) for s in args.gyro_signs.split(","))
 
-        # RELIABLE so robot_localization's EKF (which subscribes RELIABLE) actually
-        # receives the IMU; a BEST_EFFORT publisher would be silently dropped by it.
-        # dual_odometry's BEST_EFFORT subscription is still compatible with a
-        # RELIABLE publisher. Local Jetson transport, so reliable adds no real cost.
+        # BEST_EFFORT — the ROS 2 standard for high-rate sensor streams
+        # (SensorDataQoS). This is REQUIRED here: under the WiFi-only Fast DDS
+        # profile (custom SHM+UDP transports, dds_setup.sh), a RELIABLE writer's
+        # ACK/heartbeat handshake does not complete, so a RELIABLE publisher
+        # delivers NOTHING (discovery matches but no data) — exactly how the
+        # encoder topics, which are BEST_EFFORT, still get through. dual_odometry
+        # subscribes BEST_EFFORT, so this matches it directly. NOTE: if you enable
+        # the robot_localization EKF, set its imu0 subscription QoS to best_effort
+        # too (a RELIABLE EKF sub will not match this publisher).
         imu_qos = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
-            depth=50,
+            depth=10,
         )
         self.imu_pub = self.create_publisher(Imu, "/oak/imu/data_raw", imu_qos)
         self.marker_pub = self.create_publisher(Marker, "/oak/imu/cube", 10)
