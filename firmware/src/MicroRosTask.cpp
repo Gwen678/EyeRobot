@@ -153,9 +153,9 @@ bool MicroRosTask::try_connect_and_setup(rclc_support_t&  support,
         }
     }
 
-    if (rclc_timer_init_default2(
+    if (rclc_timer_init_default(
             &timer, &support,
-            RCL_MS_TO_NS(100), timerCallback, true) != RCL_RET_OK) {
+            RCL_MS_TO_NS(100), timerCallback) != RCL_RET_OK) {
         for (size_t i = 0; i < MOTOR_COUNT; ++i) {
             RCL_CLEANUP(rcl_subscription_fini(&_subscribers[i], &node));
             RCL_CLEANUP(rcl_publisher_fini(&_speed_publishers[i], &node));
