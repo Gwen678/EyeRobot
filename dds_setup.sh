@@ -52,6 +52,11 @@ _profile() {
         <builtin>
           <initialPeersList>
             <locator><udpv4><address>$2</address></udpv4></locator>
+            <!-- Loopback peer so nodes on THIS host discover EACH OTHER too.
+                 Without it, useBuiltinTransports=false + a single remote peer
+                 isolates local nodes (e.g. oak_imu -> dual_odometry): only the
+                 cross-machine link works and local topics never link up. -->
+            <locator><udpv4><address>127.0.0.1</address></udpv4></locator>
           </initialPeersList>
         </builtin>
       </rtps>
