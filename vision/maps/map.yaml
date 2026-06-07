@@ -1,6 +1,5 @@
-image: /eyerobot/ros2_ws/maps/map.pgm
-mode: trinary
-resolution: 0.005
+image: map.pgm
+resolution: 0.05
 origin: [-4.0, -4.0, 0.0]
 negate: 0
 occupied_thresh: 0.65
