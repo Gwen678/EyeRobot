@@ -183,10 +183,14 @@ class DualOdometryNode(Node):
         imu_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT,
                              history=HistoryPolicy.KEEP_LAST, depth=10)
 
-        self._enc_path_pub = self.create_publisher(Path, enc_path_topic, 10)
-        self._imu_path_pub = self.create_publisher(Path, imu_path_topic, 10)
-        self._enc_odom_pub = self.create_publisher(Odometry, enc_odom_topic, 10)
-        self._imu_odom_pub = self.create_publisher(Odometry, imu_odom_topic, 10)
+        # BEST_EFFORT: same reason as state_estimator — docker0 collision causes the
+        # PC subscriber's ACKs to miss the Jetson, eventually crashing Fast DDS 2.6.x.
+        pub_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT,
+                             history=HistoryPolicy.KEEP_LAST, depth=10)
+        self._enc_path_pub = self.create_publisher(Path, enc_path_topic, pub_qos)
+        self._imu_path_pub = self.create_publisher(Path, imu_path_topic, pub_qos)
+        self._enc_odom_pub = self.create_publisher(Odometry, enc_odom_topic, pub_qos)
+        self._imu_odom_pub = self.create_publisher(Odometry, imu_odom_topic, pub_qos)
 
         self.create_subscription(Int32, right_fb_topic, self._right_cb, fb_qos)
         self.create_subscription(Int32, left_fb_topic, self._left_cb, fb_qos)
