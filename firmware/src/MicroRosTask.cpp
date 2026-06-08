@@ -168,8 +168,19 @@ bool MicroRosTask::try_connect_and_setup(rclc_support_t&  support,
 
     // 1 timer + MOTOR_COUNT subscribers
     if (rclc_executor_init(&executor, &support.context,
-                           1 + MOTOR_COUNT, &allocator) != RCL_RET_OK ||
-        rclc_executor_add_timer(&executor, &timer) != RCL_RET_OK) {
+                           1 + MOTOR_COUNT, &allocator) != RCL_RET_OK) {
+        RCL_CLEANUP(rcl_timer_fini(&timer));
+        for (size_t i = 0; i < MOTOR_COUNT; ++i) {
+            RCL_CLEANUP(rcl_subscription_fini(&_subscribers[i], &node));
+            RCL_CLEANUP(rcl_publisher_fini(&_speed_publishers[i], &node));
+            RCL_CLEANUP(rcl_publisher_fini(&_publishers[i], &node));
+        }
+        RCL_CLEANUP(rcl_node_fini(&node));
+        rclc_support_fini(&support);
+        return false;
+    }
+    if (rclc_executor_add_timer(&executor, &timer) != RCL_RET_OK) {
+        RCL_CLEANUP(rclc_executor_fini(&executor));
         RCL_CLEANUP(rcl_timer_fini(&timer));
         for (size_t i = 0; i < MOTOR_COUNT; ++i) {
             RCL_CLEANUP(rcl_subscription_fini(&_subscribers[i], &node));
@@ -268,21 +279,16 @@ void MicroRosTask::run()
         if (++spin_count >= 45) {
             spin_count = 0;
 
-            // Heap watch: if free ratchets down across reconnects, the
-            // destroy/rebuild path is leaking. min = worst-case low water.
             ESP_LOGI("uros", "heap free=%u min=%u",
                      (unsigned) esp_get_free_heap_size(),
                      (unsigned) esp_get_minimum_free_heap_size());
 
-            // Multiple attempts per check, and require two consecutive failed
-            // checks before tearing down. A single dropped reply is normal on
-            // the shared UART under the 5x telemetry load; reacting to one miss
-            // caused needless full destroy/rebuild churn (and the heap / XRCE
-            // pool pressure that came with it).
+            // Require two consecutive failed checks before acting. A single
+            // dropped reply is normal on the shared UART under telemetry load.
             if (rmw_uros_ping_agent(100, 3) != RMW_RET_OK) {
                 if (++ping_failures >= 2) {
-                    // Confirmed disconnect: gate motors to 0 before tearing down,
-                    // then drop back to the (non-blocking-to-the-robot) retry.
+                    // Confirmed disconnect: gate motors to 0, tear down entities,
+                    // then drop back to the ping-and-retry loop.
                     _bus.link_up.store(false);
                     destroy_entities(support, node, timer, executor);
                     connected = false;
