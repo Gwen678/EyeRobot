@@ -5,7 +5,8 @@
 
   Fixes two problems that cause "topics list, echo/RViz empty":
   1. docker0 collision (172.17.0.1 on both machines) — fixed by interfaceWhiteList
-     restricting the transport to wlan0 + loopback; docker0 never announced.
+     restricting the transport to the Jetson uplink IP + loopback; docker0 never
+     announced.
   2. Campus WiFi blocks DDS multicast — fixed by unicast initialPeersList.
      Local nodes discover each other via 127.0.0.1; the PC is not listed here
      (it lists the Jetson IP in its own profile and initiates discovery).
@@ -23,7 +24,7 @@
       <transport_descriptor>
         <transport_id>wifi_and_lo</transport_id>
         <type>UDPv4</type>
-        <!-- __JETSON_IP__ is substituted at runtime by dds_env.sh (wlan0 IP).
+        <!-- __JETSON_IP__ is substituted at runtime by dds_env.sh (active uplink IP).
              This avoids interface-name lookup issues in FastDDS 2.6.x where
              interfaceWhiteList entries must be IP addresses, not names. -->
         <interfaceWhiteList>
