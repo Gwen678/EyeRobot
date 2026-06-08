@@ -26,16 +26,16 @@ fi
 
 EXTRA_ENV=(-e DISPLAY)
 
-# X11 auth: copy the host's Xauthority file into the container. SSH writes the
-# forwarded display cookie here (ssh -X), so copying it directly avoids any
-# hostname-key mismatch from xauth nlist. Sets XAUTHORITY so libX11 finds it.
+# X11 auth: SSH stores the forwarded cookie under the Jetson's hostname
+# (e.g. eyerobot/unix:10) but libX11 inside the container looks up the display
+# name literally (localhost:10). Re-register the cookie under exactly $DISPLAY
+# so the lookup succeeds — xauth is installed in the container image.
 # Fixes: "X11 connection rejected because of wrong authentication."
 if [ -n "${DISPLAY:-}" ]; then
-  _XAUTH_SRC="${XAUTHORITY:-${HOME}/.Xauthority}"
-  if [ -f "$_XAUTH_SRC" ]; then
-    docker cp "$_XAUTH_SRC" "${NAME}:/tmp/.docker_xauth" 2>/dev/null \
-      && EXTRA_ENV+=(-e XAUTHORITY=/tmp/.docker_xauth) \
-      || true
+  _DNUM="${DISPLAY##*:}"; _DNUM="${_DNUM%%.*}"
+  _COOKIE=$(xauth list 2>/dev/null | awk -v n="${_DNUM}" '$1 ~ ":0*"n"$" {print $3}' | head -1)
+  if [ -n "$_COOKIE" ]; then
+    docker exec "${NAME}" xauth add "${DISPLAY}" MIT-MAGIC-COOKIE-1 "${_COOKIE}" 2>/dev/null || true
   fi
 fi
 
