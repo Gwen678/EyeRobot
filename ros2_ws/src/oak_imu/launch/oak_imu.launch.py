@@ -42,6 +42,8 @@ def generate_launch_description():
             output='screen',
             arguments=['--orientation', orientation, '--no-tf'],
             condition=UnlessCondition(broadcast_tf),
+            respawn=True,
+            respawn_delay=3.0,
         ),
         # Standalone cube demo: broadcast the TF so the cube rotates.
         Node(
