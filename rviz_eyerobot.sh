@@ -38,7 +38,7 @@ ROS_SETUP="/opt/ros/humble/setup.bash"
 WS_SETUP="$REPO/ros2_ws/install/setup.bash"
 
 # Must match the Jetson container's ROS env (domain 0, Fast DDS, networked).
-JETSON_HOST="${JETSON_HOST:-${1:-128.179.186.106}}"
+JETSON_HOST="${JETSON_HOST:-${1:-}}"   # empty = multicast/hotspot; pass IP for campus WiFi
 export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
 export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
 export ROS_LOCALHOST_ONLY=0

@@ -16,7 +16,9 @@ set -euo pipefail
 
 SESSION="eyerobot"
 USB="${USB:-/dev/ttyUSB1}"
-SETUP="source /opt/ros/humble/setup.bash && source /eyerobot/ros2_ws/install/setup.bash"
+SETUP="source /opt/ros/humble/setup.bash \
+  && source /eyerobot/ros2_ws/install/setup.bash \
+  && { [ -f /eyerobot/dds_env.sh ] && source /eyerobot/dds_env.sh || true; }"
 
 if tmux has-session -t "$SESSION" 2>/dev/null; then
     echo "Session '$SESSION' already running — attaching."

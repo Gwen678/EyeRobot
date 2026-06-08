@@ -13,15 +13,15 @@ x86 laptop with its own ROS 2 + RViz.
 ## TL;DR current state (2026-06-08)
 
 - **The robot side works.** OAK-D + BMI270 IMU stream fine; `oak_imu` publishes
-  `/oak/imu/data_raw` (~190–200 Hz). On **default DDS transport** (no profile),
-  `oak_imu → dual_odometry` links locally and the IMU path is computed.
-- **The hard part is getting the Jetson's topics to a viewer on the PC.** Every
-  *live* path fought either DDS (campus WiFi blocks multicast + a docker0 IP
-  collision) or X11/Foxglove install (apt is broken on the box).
-- **Decision:** keep the Jetson on **default transport** (proven to work locally)
-  and view on the PC **offline** via `ros2 bag` record → scp → replay + RViz.
-- **Open issue:** first bag replay showed **nothing in RViz** — see
-  "Open issue: empty RViz on replay" at the bottom for the next checks.
+  `/oak/imu/data_raw` (~190–200 Hz). `dds_env.sh` applies the whitelist profile
+  (WiFi + loopback) in every container shell; local node-to-node discovery works.
+- **Live PC viz works on phone hotspot / home network** (multicast not blocked).
+  `rviz_eyerobot.sh` with no arguments auto-detects the PC's WiFi interface,
+  excludes docker0, and relies on DDS multicast for cross-machine discovery.
+  See "Known-good runbook (live)" below.
+- **Campus WiFi still needs the unicast workaround**: pass the Jetson's IP to
+  `rviz_eyerobot.sh` so it adds a direct unicast peer:
+  `./rviz_eyerobot.sh <JETSON_IP>`
 
 ---
 
@@ -84,9 +84,39 @@ host (bind mount) where `scp` can reach it.
 
 ---
 
-## Known-good runbook (default transport + bag replay)
+## Known-good runbook — LIVE on phone hotspot / home network
 
-### Jetson (fresh shells — `env | grep FASTRTPS` must be EMPTY)
+On any network where DDS multicast works (phone hotspot, home router — not campus
+WiFi). Both sides exclude docker0 via the whitelist profile; multicast handles
+discovery automatically, no IP coordination needed.
+
+### Jetson — start the stack (via tmux launcher)
+```bash
+./launch_eyerobot.sh   # creates microros / wasd / stack windows, applies dds_env.sh
+```
+Or manually in separate shells (each sources dds_env.sh via /etc/profile.d):
+```bash
+ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
+ros2 launch manual_controller eyerobot.launch.py
+```
+Hold still ~2 s for `gyro bias = ...`. Verify IMU path is computing:
+```bash
+ros2 topic echo /path_imu --field poses[-1].pose.position   # x/y must change on turns
+```
+
+### PC — open RViz (no Jetson IP needed)
+```bash
+cd ~/Pedro/EPFL/MA4/EyeRobot_all/EyeRobot
+./rviz_eyerobot.sh          # auto-detects WiFi iface, applies docker0-exclusion profile
+```
+Topics should appear within ~5 s of discovery. If RViz stays empty, check:
+- `env | grep FASTRTPS` on the Jetson — must show the whitelist profile path (not empty)
+- `ros2 topic list` on the PC — must show Jetson topics; if not, DDS still broken
+- Both machines on the **same** WiFi network (phone hotspot)
+
+---
+
+## Fallback runbook (bag replay — works on any network including campus WiFi)
 ```bash
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
 ros2 run oak_imu oak_imu_cube --orientation gyro
