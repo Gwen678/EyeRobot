@@ -16,11 +16,16 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="${IMAGE:-eyerobot:humble}"
 NAME="${NAME:-eyerobot}"
+SETUP_CMD="source /opt/ros/humble/setup.bash; \
+[ -f /uros_ws/install/local_setup.bash ] && source /uros_ws/install/local_setup.bash; \
+[ -f /eyerobot/ros2_ws/install/setup.bash ] && source /eyerobot/ros2_ws/install/setup.bash; \
+[ -f /eyerobot/dds_env.sh ] && source /eyerobot/dds_env.sh; \
+cd /eyerobot/ros2_ws 2>/dev/null || cd /eyerobot"
 
 # Already running? Just open another shell.
 if [ "$(docker ps -q -f name="^${NAME}$")" ]; then
   echo "Container '${NAME}' already running — attaching a shell."
-  exec docker exec -it "${NAME}" bash
+  exec docker exec -it "${NAME}" bash -lc "${SETUP_CMD}; exec bash -i"
 fi
 
 # Exists but stopped? Remove so we recreate cleanly with current flags.
@@ -71,4 +76,6 @@ docker run -dit \
   "${IMAGE}" >/dev/null
 
 echo "Container up. Opening a shell (exit leaves it running; ./docker/attach.sh for more)."
-exec docker exec -it "${NAME}" bash
+# Source the current repo overlays explicitly so new repo-side env changes (notably
+# dds_env.sh for PC<->Jetson Fast DDS) take effect immediately even on older images.
+exec docker exec -it "${NAME}" bash -lc "${SETUP_CMD}; exec bash -i"
