@@ -157,6 +157,9 @@ def generate_launch_description():
                 'publish_tf': ParameterValue(
                     PythonExpression(["'", LaunchConfiguration('ekf'), "' == 'false'"]),
                     value_type=bool),
+                'publish_filtered_odom': ParameterValue(
+                    PythonExpression(["'", LaunchConfiguration('ekf'), "' == 'false'"]),
+                    value_type=bool),
             }],
         ),
         # Publishes the URDF on /robot_description and the link TFs (base_link ->

@@ -249,18 +249,38 @@ def main() -> None:
 
     axes[1].legend(fontsize=8)
 
-    # ── EKF Q recommendation ───────────────────────────────────────────────────
+    # ── EKF calibration recommendations ───────────────────────────────────────
     if arw_list:
         avg_arw = float(np.mean(arw_list))
-        dt_ekf  = 1.0 / 30.0   # EKF at 30 Hz
-        q_vyaw  = avg_arw ** 2 * dt_ekf
-        print("╠══ EKF PROCESS NOISE RECOMMENDATION ════════════════════════════════╣")
-        print(f"  Average gyro ARW : {avg_arw:.4e} rad/s/√s")
-        print(f"  Q[vyaw] = ARW² × dt_ekf = {avg_arw:.4e}² × {dt_ekf:.4f} = {q_vyaw:.6f}")
-        print(f"\n  In ekf.yaml, set the vyaw diagonal (index [11][11]) of")
-        print(f"  process_noise_covariance to ≈ {q_vyaw:.5f}")
-        print(f"  (current value in ekf.yaml: 0.05000 — "
-              + ("increase" if q_vyaw > 0.05 else "decrease") + " it)")
+        arw_z   = float(gyro_axes['z'].std())  # rough; Allan-derived is more accurate
+        # Measurement noise: variance of a single IMU sample = ARW² × sample_rate.
+        # This is what goes into angular_velocity_covariance in the IMU publisher
+        # (e.g. oak_imu_cube.py _G), not the EKF process noise Q.
+        g_meas  = avg_arw ** 2 * rate   # rad²/s² per sample
+        g_meas_z = (9.14e-05 ** 2 * rate if True else 0)  # placeholder; use axis values below
+
+        # Use per-axis ARW from the slope fits (stored as they were printed above).
+        # For the diagonal of angular_velocity_covariance [gx, gy, gz]:
+        arw_per_axis = {}
+        for axis, samples in gyro_axes.items():
+            taus_a, adevs_a = overlapping_adev(samples, rate)
+            v = slope_value(taus_a, adevs_a, (max(taus_a[0], 0.1), 2.0), -0.5)
+            arw_per_axis[axis] = v if v else avg_arw
+
+        g_x = arw_per_axis['x'] ** 2 * rate
+        g_y = arw_per_axis['y'] ** 2 * rate
+        g_z = arw_per_axis['z'] ** 2 * rate   # yaw axis — most important for EKF
+
+        print("╠══ IMU MEASUREMENT NOISE (angular_velocity_covariance) ═════════════╣")
+        print(f"  _G_x = ARW_x² × {rate:.1f} Hz = ({arw_per_axis['x']:.3e})² × {rate:.1f} = {g_x:.3e} rad²/s²")
+        print(f"  _G_y = ARW_y² × {rate:.1f} Hz = ({arw_per_axis['y']:.3e})² × {rate:.1f} = {g_y:.3e} rad²/s²")
+        print(f"  _G_z = ARW_z² × {rate:.1f} Hz = ({arw_per_axis['z']:.3e})² × {rate:.1f} = {g_z:.3e} rad²/s²")
+        print(f"\n  → In oak_imu_cube.py set:")
+        print(f"      _G = {g_z:.2e}   # gyro z (yaw) measurement noise from Allan variance")
+        print(f"    (or a conservative diagonal: [{g_x:.2e}, {g_y:.2e}, {g_z:.2e}])")
+        print(f"\n  NOTE: Q[vyaw] in ekf.yaml is the EKF process noise (robot dynamics),")
+        print(f"  NOT a sensor property. Keep it at 0.05 and tune empirically.")
+        print(f"  The improvement comes from tightening the IMU measurement noise above.")
     print("╚════════════════════════════════════════════════════════════════════╝")
 
     # ── Save plot ──────────────────────────────────────────────────────────────

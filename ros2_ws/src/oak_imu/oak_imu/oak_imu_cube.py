@@ -496,13 +496,12 @@ class OakImuCube(Node):
         msg.linear_acceleration.y = ay
         msg.linear_acceleration.z = az
 
-        # BMI270 covariances for robot_localization EKF.
-        # -1 in [0] = "ignore this field" — do NOT use -1 or the EKF discards the measurement.
-        #
-        # angular_velocity (gyro): BMI270 is good at yaw rate — small variance.
-        # This is the main signal the EKF uses to correct encoder yaw drift.
-        _G = 0.001  # rad²/s²
-        msg.angular_velocity_covariance = [_G, 0.0, 0.0, 0.0, _G, 0.0, 0.0, 0.0, _G]
+        # BMI270 covariances calibrated from 61-min Allan variance run (2026-06-08).
+        # Measurement noise = ARW² × sample_rate (198 Hz); per axis:
+        #   x: (9.14e-5)² × 198 = 1.65e-6  y: (9.65e-5)² × 198 = 1.84e-6  z: (8.75e-5)² × 198 = 1.52e-6
+        # -1 in [0] = "ignore field" — never use -1, EKF would discard the measurement.
+        _Gx, _Gy, _Gz = 1.65e-6, 1.84e-6, 1.52e-6  # rad²/s²
+        msg.angular_velocity_covariance = [_Gx, 0.0, 0.0, 0.0, _Gy, 0.0, 0.0, 0.0, _Gz]
         # orientation: gyro-integrated, drifts over time — high variance so EKF
         # doesn't over-trust absolute orientation (yaw is excluded in ekf.yaml anyway).
         _O = 0.05   # rad²
@@ -511,7 +510,13 @@ class OakImuCube(Node):
         _A = 0.01   # m²/s⁴
         msg.linear_acceleration_covariance = [_A, 0.0, 0.0, 0.0, _A, 0.0, 0.0, 0.0, _A]
         self.imu_pub.publish(msg)
+        # The gravity projection in dual_odometry gives yaw_rate = dot(gyro, g_hat)
+        # where g_hat ≈ (0,0,−1) in the corrected IMU frame (accel_sign Z = −1).
+        # That makes dual_odometry's yaw_rate = −gz, which is correct. robot_localization
+        # uses gz directly, so its sign must be flipped here to match.
+        msg.angular_velocity.z = -msg.angular_velocity.z
         self.imu_ekf_pub.publish(msg)
+        msg.angular_velocity.z = -msg.angular_velocity.z  # restore for callers
 
     def _publish_tf(self, stamp):
         t = TransformStamped()

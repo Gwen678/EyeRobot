@@ -113,6 +113,9 @@ class DualOdometryNode(Node):
         # When true, broadcast odom->base_link TF from the IMU-fused pose.
         # Enable this when the EKF is off so path_imu becomes the default estimate.
         self.declare_parameter('publish_tf', False)
+        # When true, also publish the IMU-fused odometry on /odometry/filtered so
+        # Nav2 has a source regardless of whether the EKF is running.
+        self.declare_parameter('publish_filtered_odom', False)
 
         self._counts_per_rev = positive_float(
             self.get_parameter('counts_per_output_rev').value, 5756.0)
@@ -149,6 +152,7 @@ class DualOdometryNode(Node):
         enc_odom_topic = str(self.get_parameter('enc_odom_topic').value)
         imu_odom_topic = str(self.get_parameter('imu_odom_topic').value)
         self._publish_tf = bool(self.get_parameter('publish_tf').value)
+        self._publish_filtered_odom = bool(self.get_parameter('publish_filtered_odom').value)
 
         self._m_per_count = (2.0 * math.pi * self._wheel_radius) / self._counts_per_rev
         self._max_counts_per_step = self._max_revs_per_step * self._counts_per_rev
@@ -196,6 +200,11 @@ class DualOdometryNode(Node):
         self._imu_path_pub = self.create_publisher(Path, imu_path_topic, pub_qos)
         self._enc_odom_pub = self.create_publisher(Odometry, enc_odom_topic, pub_qos)
         self._imu_odom_pub = self.create_publisher(Odometry, imu_odom_topic, pub_qos)
+        # RELIABLE: Nav2 subscribes with RELIABLE; EKF publishes here when ekf:=true.
+        filtered_qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
+                                  history=HistoryPolicy.KEEP_LAST, depth=10)
+        self._filtered_odom_pub = self.create_publisher(
+            Odometry, '/odometry/filtered', filtered_qos)
 
         self.create_subscription(Int32, right_fb_topic, self._right_cb, fb_qos)
         self.create_subscription(Int32, left_fb_topic, self._left_cb, fb_qos)
@@ -359,6 +368,8 @@ class DualOdometryNode(Node):
                       self._enc_path_pub, self._enc_odom_pub)
         self._publish(now, self._imu, self._imu_path,
                       self._imu_path_pub, self._imu_odom_pub)
+        if self._publish_filtered_odom:
+            self._filtered_odom_pub.publish(self._make_odom(now, self._imu))
         if self._publish_tf:
             self._broadcast_tf(now, self._imu)
 
@@ -379,9 +390,8 @@ class DualOdometryNode(Node):
         self._tf_broadcaster.sendTransform(t)
 
 
-    def _publish(self, stamp, pose: Pose2D, path: Path, path_pub, odom_pub) -> None:
+    def _make_odom(self, stamp, pose: Pose2D) -> Odometry:
         qx, qy, qz, qw = yaw_to_quaternion(pose.yaw)
-
         odom = Odometry()
         odom.header.stamp = stamp
         odom.header.frame_id = self._odom_frame
@@ -392,6 +402,10 @@ class DualOdometryNode(Node):
         odom.pose.pose.orientation.y = qy
         odom.pose.pose.orientation.z = qz
         odom.pose.pose.orientation.w = qw
+        return odom
+
+    def _publish(self, stamp, pose: Pose2D, path: Path, path_pub, odom_pub) -> None:
+        odom = self._make_odom(stamp, pose)
         odom_pub.publish(odom)
 
         ps = PoseStamped()
