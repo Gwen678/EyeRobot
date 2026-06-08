@@ -37,6 +37,8 @@ def generate_launch_description():
     lidar_share = get_package_share_directory('sllidar_ros2')
 
     return LaunchDescription([
+        DeclareLaunchArgument('tracker', default_value='false',
+                              description='Start block tracker FSM (requires camera.py running separately)'),
         DeclareLaunchArgument('lidar', default_value='false',
                               description='Start RPLidar A1M8 on ttyUSB0'),
         DeclareLaunchArgument('slam', default_value='false',
@@ -63,6 +65,17 @@ def generate_launch_description():
                 'frame_id': 'laser',
             }.items(),
             condition=IfCondition(LaunchConfiguration('lidar')),
+        ),
+
+        # Block tracker FSM — subscribes to /eyerobot/vision/lego_target + /scan,
+        # publishes /motor_*wheel_cmd + /block_tracker/* debug topics.
+        # Run camera.py separately to provide the vision detections.
+        Node(
+            package='manual_controller',
+            executable='block_tracker',
+            name='block_tracker',
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('tracker')),
         ),
 
         # SLAM Toolbox (online async) — subscribes to /scan and odom→base_link TF,
