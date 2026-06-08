@@ -33,6 +33,7 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     mc_share = get_package_share_directory('manual_controller')
+    oak_share = get_package_share_directory('oak_imu')
     lidar_share = get_package_share_directory('sllidar_ros2')
 
     return LaunchDescription([
@@ -46,6 +47,12 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(
                 os.path.join(mc_share, 'launch', 'manual_controller.launch.py')),
         ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(oak_share, 'launch', 'oak_imu.launch.py')),
+            launch_arguments={'orientation': 'gyro'}.items(),
+        ),
+
         # RPLidar A1M8 — publishes /scan on frame "laser" (matches URDF lidar_mount).
         # ttyUSB0: lidar. ttyUSB1: micro-ROS ESP32.
         IncludeLaunchDescription(
