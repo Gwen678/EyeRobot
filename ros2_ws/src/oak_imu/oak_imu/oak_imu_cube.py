@@ -502,14 +502,14 @@ class OakImuCube(Node):
         # angular_velocity (gyro): BMI270 is good at yaw rate — small variance.
         # This is the main signal the EKF uses to correct encoder yaw drift.
         _G = 0.001  # rad²/s²
-        msg.angular_velocity_covariance = [_G, 0, 0, 0, _G, 0, 0, 0, _G]
+        msg.angular_velocity_covariance = [_G, 0.0, 0.0, 0.0, _G, 0.0, 0.0, 0.0, _G]
         # orientation: gyro-integrated, drifts over time — high variance so EKF
         # doesn't over-trust absolute orientation (yaw is excluded in ekf.yaml anyway).
         _O = 0.05   # rad²
-        msg.orientation_covariance = [_O, 0, 0, 0, _O, 0, 0, 0, _O]
+        msg.orientation_covariance = [_O, 0.0, 0.0, 0.0, _O, 0.0, 0.0, 0.0, _O]
         # linear_acceleration: not fused by EKF but must be non-(-1).
         _A = 0.01   # m²/s⁴
-        msg.linear_acceleration_covariance = [_A, 0, 0, 0, _A, 0, 0, 0, _A]
+        msg.linear_acceleration_covariance = [_A, 0.0, 0.0, 0.0, _A, 0.0, 0.0, 0.0, _A]
         self.imu_pub.publish(msg)
         self.imu_ekf_pub.publish(msg)
 
