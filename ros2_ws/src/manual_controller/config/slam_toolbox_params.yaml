@@ -1,0 +1,65 @@
+slam_toolbox:
+  ros__parameters:
+
+    # ── Frames ────────────────────────────────────────────────────────────────
+    odom_frame:  odom
+    map_frame:   map
+    base_frame:  base_link
+    scan_topic:  /scan        # RPLidar A1M8 default output topic
+
+    # ── Mode ─────────────────────────────────────────────────────────────────
+    # online_async: processes scans as they arrive, publishes map→odom TF live.
+    # Use this for driving/mapping. To save a map: ros2 run nav2_map_server map_saver_cli -f ~/map
+    mode: mapping
+
+    # ── Solver ───────────────────────────────────────────────────────────────
+    solver_plugin:            solver_plugins::CeresSolver
+    ceres_linear_solver:      SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner:     SCHUR_JACOBI
+    ceres_trust_strategy:     LEVENBERG_MARQUARDT
+    ceres_dogleg_type:        TRADITIONAL_DOGLEG
+    ceres_loss_function:      None
+
+    # ── Map ───────────────────────────────────────────────────────────────────
+    resolution:          0.05   # 5 cm/cell — adequate for A1M8's 6 m range
+    map_update_interval: 5.0    # seconds between full map publishes
+
+    # ── Laser ────────────────────────────────────────────────────────────────
+    max_laser_range:    6.0     # A1M8 reliable range (spec: 12 m but accuracy drops)
+    throttle_scans:     1       # process every scan (A1M8 runs at ~7.5 Hz, no need to skip)
+    minimum_time_interval: 0.1  # floor: process at most 10 Hz even if scans arrive faster
+
+    # ── Scan matching ─────────────────────────────────────────────────────────
+    use_scan_matching:    true
+    use_scan_barycenter:  true
+
+    # Update pose graph only after meaningful motion — avoids cramming in nearly-
+    # identical scans when the robot is stationary.
+    minimum_travel_distance: 0.1   # metres
+    minimum_travel_heading:  0.1   # radians (~6 deg)
+
+    scan_buffer_size:                    10
+    scan_buffer_maximum_scan_distance:   10.0
+
+    # Scan matching fine/coarse search windows
+    fine_search_angle_offset:   0.00349   # ~0.2 deg
+    coarse_search_angle_offset: 0.349     # ~20 deg
+    coarse_angle_resolution:    0.0349    # ~2 deg step
+
+    link_match_minimum_response_fine: 0.1
+    distance_variance_penalty:        0.5
+    angle_variance_penalty:           1.0
+    minimum_angle_penalty:            0.9
+    minimum_distance_penalty:         0.5
+    use_response_expansion:           true
+
+    # ── TF / timing ──────────────────────────────────────────────────────────
+    transform_publish_period: 0.02   # 50 Hz map→odom TF broadcast
+    transform_timeout:        0.2    # seconds to wait for a TF lookup
+    tf_buffer_duration:       30.0   # keep 30 s of TF history
+
+    # ── Resource limits (Jetson Nano) ─────────────────────────────────────────
+    stack_size_to_use: 40000000   # 40 MB stack — enough for Ceres on Nano
+
+    debug_logging: false
+    use_map_saver: true

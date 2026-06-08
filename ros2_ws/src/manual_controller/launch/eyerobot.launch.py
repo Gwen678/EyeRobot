@@ -10,6 +10,14 @@ Those need a real TTY / separate session:
 
 Optional flags:
   lidar:=true   Start the RPLidar A1M8 (ttyUSB1). Off by default.
+  slam:=true    Start SLAM Toolbox (requires lidar:=true). Publishes map→odom TF.
+                Combine with ekf:=true for IMU-fused odometry under the map.
+
+Full mapping session:
+  ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true
+
+Save map after driving:
+  ros2 run nav2_map_server map_saver_cli -f ~/map
 """
 import os
 
@@ -18,7 +26,9 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -29,6 +39,9 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('lidar', default_value='false',
                               description='Start RPLidar A1M8 on ttyUSB1'),
+        DeclareLaunchArgument('slam', default_value='false',
+                              description='Run SLAM Toolbox (requires lidar:=true). '
+                                          'Publishes map→odom TF for full localization.'),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -39,6 +52,7 @@ def generate_launch_description():
                 os.path.join(oak_share, 'launch', 'oak_imu.launch.py')),
             launch_arguments={'orientation': 'gyro'}.items(),
         ),
+
         # RPLidar A1M8 — publishes /scan on frame "laser" (matches URDF lidar_mount).
         # ttyUSB1: lidar. ttyUSB0: micro-ROS ESP32.
         IncludeLaunchDescription(
@@ -49,5 +63,19 @@ def generate_launch_description():
                 'frame_id': 'laser',
             }.items(),
             condition=IfCondition(LaunchConfiguration('lidar')),
+        ),
+
+        # SLAM Toolbox (online async) — subscribes to /scan and odom→base_link TF,
+        # builds a map, and publishes map→odom TF.
+        # Requires: lidar:=true (for /scan) + odom→base_link (ekf:=true or default
+        # state_estimator TF). TF chain: map → odom → base_link → laser.
+        Node(
+            package='slam_toolbox',
+            executable='async_slam_toolbox_node',
+            name='slam_toolbox',
+            output='screen',
+            parameters=[PathJoinSubstitution([
+                FindPackageShare('manual_controller'), 'config', 'slam_toolbox_params.yaml'])],
+            condition=IfCondition(LaunchConfiguration('slam')),
         ),
     ])
