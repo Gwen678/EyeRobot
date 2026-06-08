@@ -195,13 +195,27 @@ replay but RViz is still blank, it's purely RViz view/config — paste the RViz
 - `rviz_eyerobot.sh`: reconstructed PC-side RViz launcher (DDS profile + local
   URDF) — only relevant if the live-DDS path is revisited.
 
-## If you want LIVE PC viz later (not bag replay)
-The blocker is the DDS crossing. Options, roughly best-first given apt is broken:
-- Build the vendored `rosbridge` cleanly (`rm -rf build/ install/` for the
-  rosbridge pkgs, rebuild, confirm `rosbridge_websocket` lands in libexec),
-  ensure `tornado`/`twisted` exist (or `pip install --target=/eyerobot/.pydeps`),
-  run it, SSH-tunnel `9090`, connect Foxglove **web app** via `ws://localhost:9090`.
-- Or fix the docker0 collision (e.g. bring `docker0` down on the PC, or change one
-  machine's docker bip) + unicast discovery, then native RViz on the PC.
-- Or bake `foxglove_bridge` into `docker/Dockerfile` and rebuild the image (apt
-  inside `docker build` is independent of the broken host apt).
+## Live PC viz via Foxglove (WORKING ✓)
+
+Bypasses all DDS/docker0/multicast issues entirely — WebSocket over SSH tunnel.
+
+### Jetson — inside the container
+```bash
+ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765
+```
+
+### PC — SSH tunnel (keep this terminal open)
+```bash
+ssh -L 8765:localhost:8765 eyerobot@128.179.186.106
+```
+
+### Foxglove Studio on PC
+Open connection → **Foxglove WebSocket** → `ws://localhost:8765`
+
+All topics appear automatically. Works on campus WiFi, home network, hotspot — anywhere SSH works.
+
+**Install** (if not already in the image):
+```bash
+docker exec eyerobot bash -c "apt-get update && apt-get install -y ros-humble-foxglove-bridge"
+```
+`foxglove_bridge` is also baked into `docker/Dockerfile` for the next image rebuild.
