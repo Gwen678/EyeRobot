@@ -28,7 +28,7 @@ ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
 **Terminal 2** — full stack (odometry + IMU + URDF/TF):
 
 ```
-ros2 launch manual_controller eyerobot.launch.py
+ros2 launch manual_controller eyerobot.launch.py ekf:=true
 ```
 
 Starts `state_estimator` (`/odom`, `odom`→`base_link` TF), `dual_odometry`

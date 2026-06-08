@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 import rclpy
-from geometry_msgs.msg import PoseStamped, Vector3
+from geometry_msgs.msg import Pose2D, PoseStamped
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 
@@ -29,7 +29,7 @@ class OdomToPathNode(Node):
         self._pub = self.create_publisher(Path, path_topic, 10)
         # Human-readable EKF pose: x (m), y (m), z = yaw (deg).
         #   ros2 topic echo /pose2d_ekf
-        self._pose2d_pub = self.create_publisher(Vector3, 'pose2d_ekf', 10)
+        self._pose2d_pub = self.create_publisher(Pose2D, 'pose2d_ekf', 10)
         self.create_subscription(Odometry, odom_topic, self._cb, 10)
         self.get_logger().info(
             f'Relaying {odom_topic} -> {path_topic} as nav_msgs/Path.')
@@ -48,10 +48,10 @@ class OdomToPathNode(Node):
         q = msg.pose.pose.orientation
         yaw_deg = math.degrees(math.atan2(2.0 * (q.w * q.z + q.x * q.y),
                                           1.0 - 2.0 * (q.y * q.y + q.z * q.z)))
-        self._pose2d_pub.publish(Vector3(
+        self._pose2d_pub.publish(Pose2D(
             x=msg.pose.pose.position.x,
             y=msg.pose.pose.position.y,
-            z=yaw_deg,
+            theta=yaw_deg,
         ))
 
 

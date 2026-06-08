@@ -20,7 +20,7 @@ from dataclasses import dataclass
 import math
 
 import rclpy
-from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3
+from geometry_msgs.msg import Pose2D, PoseStamped, TransformStamped
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
@@ -179,7 +179,7 @@ class StateEstimatorNode(Node):
         self._path_pub = self.create_publisher(Path, path_topic, pub_qos)
         # Human-readable pose: x (m), y (m), z = yaw (deg). Echo with:
         #   ros2 topic echo /pose2d
-        self._pose2d_pub = self.create_publisher(Vector3, 'pose2d', pub_qos)
+        self._pose2d_pub = self.create_publisher(Pose2D, 'pose2d', pub_qos)
         self._tf_broadcaster = TransformBroadcaster(self)
 
         self.create_subscription(Int32, right_fb_topic, self._right_cb, fb_qos)
@@ -334,10 +334,10 @@ class StateEstimatorNode(Node):
         odom.twist.covariance[0] = self._twist_x_cov    # vx
         odom.twist.covariance[35] = self._twist_yaw_cov  # wz
         self._odom_pub.publish(odom)
-        self._pose2d_pub.publish(Vector3(
+        self._pose2d_pub.publish(Pose2D(
             x=self._pose.x,
             y=self._pose.y,
-            z=math.degrees(self._pose.yaw),
+            theta=math.degrees(self._pose.yaw),
         ))
 
         if self._publish_tf:
