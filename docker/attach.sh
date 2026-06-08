@@ -26,19 +26,17 @@ fi
 
 EXTRA_ENV=(-e DISPLAY)
 
-# X11 auth: build the cookie file on the host (xauth is available here via the
-# SSH X11 forwarding stack) and docker-cp it into the container. This avoids
-# needing xauth installed inside the image and works regardless of how the
-# Jetson's xauth keyed the entry (hostname/unix/localhost).
+# X11 auth: copy the host's Xauthority file into the container. SSH writes the
+# forwarded display cookie here (ssh -X), so copying it directly avoids any
+# hostname-key mismatch from xauth nlist. Sets XAUTHORITY so libX11 finds it.
 # Fixes: "X11 connection rejected because of wrong authentication."
-if [ -n "${DISPLAY:-}" ] && command -v xauth &>/dev/null; then
-  XAUTH_TMP=$(mktemp)
-  if xauth nlist "${DISPLAY}" 2>/dev/null | xauth -f "$XAUTH_TMP" nmerge - 2>/dev/null \
-      && [ -s "$XAUTH_TMP" ]; then
-    docker cp "$XAUTH_TMP" "${NAME}:/tmp/.docker_xauth" 2>/dev/null || true
-    EXTRA_ENV+=(-e XAUTHORITY=/tmp/.docker_xauth)
+if [ -n "${DISPLAY:-}" ]; then
+  _XAUTH_SRC="${XAUTHORITY:-${HOME}/.Xauthority}"
+  if [ -f "$_XAUTH_SRC" ]; then
+    docker cp "$_XAUTH_SRC" "${NAME}:/tmp/.docker_xauth" 2>/dev/null \
+      && EXTRA_ENV+=(-e XAUTHORITY=/tmp/.docker_xauth) \
+      || true
   fi
-  rm -f "$XAUTH_TMP"
 fi
 
 if [ "$#" -eq 0 ]; then
