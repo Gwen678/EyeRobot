@@ -7,13 +7,18 @@ Run in its own terminal (or tmux window) — no teleop, no RViz.
 Those need a real TTY / separate session:
   ros2 run manual_controller manual_controller   # wasd
   rviz2 -d <path>/eyerobot.rviz                  # on PC
+
+Optional flags:
+  lidar:=true   Start the RPLidar A1M8 (ttyUSB1). Off by default.
 """
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
@@ -22,6 +27,9 @@ def generate_launch_description():
     lidar_share = get_package_share_directory('sllidar_ros2')
 
     return LaunchDescription([
+        DeclareLaunchArgument('lidar', default_value='false',
+                              description='Start RPLidar A1M8 on ttyUSB1'),
+
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(mc_share, 'launch', 'manual_controller.launch.py')),
@@ -40,5 +48,6 @@ def generate_launch_description():
                 'serial_port': '/dev/ttyUSB1',
                 'frame_id': 'laser',
             }.items(),
+            condition=IfCondition(LaunchConfiguration('lidar')),
         ),
     ])
