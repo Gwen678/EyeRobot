@@ -166,8 +166,17 @@ class StateEstimatorNode(Node):
         self._linear = 0.0
         self._angular = 0.0
 
-        self._odom_pub = self.create_publisher(Odometry, odom_topic, 10)
-        self._path_pub = self.create_publisher(Path, path_topic, 10)
+        # BEST_EFFORT: avoids the Fast DDS RELIABLE retransmission storm caused by
+        # the docker0 locator collision (both machines have 172.17.0.1; the PC's
+        # subscriber ACKs land on the PC's own bridge instead of reaching the Jetson,
+        # Fast DDS 2.6.x eventually segfaults the publisher process).
+        pub_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
+        )
+        self._odom_pub = self.create_publisher(Odometry, odom_topic, pub_qos)
+        self._path_pub = self.create_publisher(Path, path_topic, pub_qos)
         self._tf_broadcaster = TransformBroadcaster(self)
 
         self.create_subscription(Int32, right_fb_topic, self._right_cb, fb_qos)
