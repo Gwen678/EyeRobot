@@ -39,7 +39,7 @@ cat > "$PC_PROFILE" <<XML
         <transport_id>wifi_and_lo</transport_id>
         <type>UDPv4</type>
         <interfaceWhiteList>
-          <address>${PC_IFACE}</address>
+          <address>${PC_IP}</address>
           <address>127.0.0.1</address>
         </interfaceWhiteList>
         <maxInitialPeersRange>32</maxInitialPeersRange>
