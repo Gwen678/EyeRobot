@@ -23,11 +23,11 @@
       <transport_descriptor>
         <transport_id>wifi_and_lo</transport_id>
         <type>UDPv4</type>
-        <!-- wlan0 = Jetson Nano built-in WiFi; excludes docker0. Interface name
-             survives DHCP IP changes. If topics don't appear, verify with
-             `ip link show` on the Jetson and update to the actual WiFi iface. -->
+        <!-- __JETSON_IP__ is substituted at runtime by dds_env.sh (wlan0 IP).
+             This avoids interface-name lookup issues in FastDDS 2.6.x where
+             interfaceWhiteList entries must be IP addresses, not names. -->
         <interfaceWhiteList>
-          <address>wlan0</address>
+          <address>__JETSON_IP__</address>
           <address>127.0.0.1</address>
         </interfaceWhiteList>
         <maxInitialPeersRange>32</maxInitialPeersRange>
