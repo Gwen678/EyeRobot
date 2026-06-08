@@ -27,6 +27,7 @@ setup(
             'state_estimator = manual_controller.state_estimator_node:main',
             'dual_odometry = manual_controller.dual_odometry_node:main',
             'odom_to_path = manual_controller.odom_to_path_node:main',
+            'cmd_vel_bridge = manual_controller.cmd_vel_bridge_node:main',
         ],
     },
 )

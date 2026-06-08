@@ -1,109 +1,82 @@
-"""Nav2 localization + navigation for EyeRobot.
+"""Nav2 localization + (optional) navigation for EyeRobot.
 
-Run AFTER the main stack (eyerobot.launch.py) is up:
+Wraps the official nav2_bringup launch files instead of instantiating nodes
+manually — more robust lifecycle management, battle-tested parameter loading.
+
+Run AFTER: ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true
+
+Localization only (AMCL → map->odom TF, you drive manually):
   ros2 launch manual_controller nav2.launch.py
-  ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/map_fermee_sans_tapis.yaml
 
-Brings up:
-  - map_server        (serves the saved .pgm map)
-  - amcl              (localises on map -> publishes map->odom TF)
-  - planner_server    (global path planning)
-  - controller_server (local DWB controller -> /cmd_vel)
-  - recoveries_server (spin / backup / wait behaviours)
-  - bt_navigator      (behaviour tree action server)
-  - lifecycle managers (autostart all of the above)
+Full navigation stack (adds global planner + local DWB controller):
+  ros2 launch manual_controller nav2.launch.py full_nav:=true
 
-Prerequisites:
-  - eyerobot.launch.py running (EKF, lidar, URDF)
-  - /scan publishing (RPLidar on ttyUSB1)
-  - /odometry/filtered publishing (EKF with ekf:=true)
-  - odom->base_link TF from EKF
-  - base_link->laser TF from URDF
+Choose a map:
+  ros2 launch manual_controller nav2.launch.py \\
+    map:=/eyerobot/ros2_ws/maps/map_fermee_sans_tapis.yaml
+
+Available maps (inside the container):
+  /eyerobot/ros2_ws/maps/map.yaml
+  /eyerobot/ros2_ws/maps/map_fermee_sans_tapis.yaml
+  /eyerobot/ros2_ws/maps/map_ouverte_sans_tapis.yaml
+
+On startup AMCL initialises at (0,0,0). If the robot is elsewhere, publish an
+initial pose via Foxglove (/initialpose) or the 2D Pose Estimate tool.
+
+NOTE: full_nav:=true publishes /cmd_vel (Twist). Your firmware does not yet
+subscribe to it — you need a cmd_vel -> wheel-speed bridge before autonomous
+navigation actually moves the robot.
 """
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
 
 
 def generate_launch_description():
     mc_share = get_package_share_directory('manual_controller')
-    params_file = os.path.join(mc_share, 'config', 'nav2_params.yaml')
-    default_map = os.path.join('/eyerobot/ros2_ws/maps', 'map.yaml')
+    nav2_share = get_package_share_directory('nav2_bringup')
 
-    map_arg = DeclareLaunchArgument(
-        'map', default_value=default_map,
-        description='Full path to the map yaml file')
-    map_path = LaunchConfiguration('map')
+    params_file = os.path.join(mc_share, 'config', 'nav2_params.yaml')
+    default_map  = '/eyerobot/ros2_ws/maps/map.yaml'
+
+    localization_launch = os.path.join(nav2_share, 'launch', 'localization_launch.py')
+    navigation_launch   = os.path.join(nav2_share, 'launch', 'navigation_launch.py')
 
     return LaunchDescription([
-        map_arg,
+        DeclareLaunchArgument('map', default_value=default_map,
+                              description='Full path to the .yaml map file'),
+        DeclareLaunchArgument('full_nav', default_value='false',
+                              description='Add global planner + local controller '
+                                          '(requires /cmd_vel → wheel-speed bridge)'),
 
-        Node(
-            package='nav2_map_server',
-            executable='map_server',
-            name='map_server',
-            output='screen',
-            parameters=[params_file, {'yaml_filename': map_path}],
+        # ── AMCL + map_server ─────────────────────────────────────────────────
+        # nav2_bringup/localization_launch.py manages map_server + amcl via the
+        # Nav2 lifecycle manager. Publishes map->odom TF from /scan + /map.
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(localization_launch),
+            launch_arguments={
+                'map':           LaunchConfiguration('map'),
+                'params_file':   params_file,
+                'use_sim_time':  'false',
+                'autostart':     'true',
+            }.items(),
         ),
-        Node(
-            package='nav2_amcl',
-            executable='amcl',
-            name='amcl',
-            output='screen',
-            parameters=[params_file],
-        ),
-        Node(
-            package='nav2_lifecycle_manager',
-            executable='lifecycle_manager',
-            name='lifecycle_manager_localization',
-            output='screen',
-            parameters=[params_file],
-        ),
-        Node(
-            package='nav2_planner',
-            executable='planner_server',
-            name='planner_server',
-            output='screen',
-            parameters=[params_file],
-        ),
-        Node(
-            package='nav2_controller',
-            executable='controller_server',
-            name='controller_server',
-            output='screen',
-            parameters=[params_file],
-            remappings=[('cmd_vel', '/cmd_vel')],
-        ),
-        Node(
-            package='nav2_recoveries',
-            executable='recoveries_server',
-            name='recoveries_server',
-            output='screen',
-            parameters=[params_file],
-        ),
-        Node(
-            package='nav2_bt_navigator',
-            executable='bt_navigator',
-            name='bt_navigator',
-            output='screen',
-            parameters=[params_file],
-        ),
-        Node(
-            package='nav2_waypoint_follower',
-            executable='waypoint_follower',
-            name='waypoint_follower',
-            output='screen',
-            parameters=[params_file],
-        ),
-        Node(
-            package='nav2_lifecycle_manager',
-            executable='lifecycle_manager',
-            name='lifecycle_manager_navigation',
-            output='screen',
-            parameters=[params_file],
+
+        # ── Full navigation stack ─────────────────────────────────────────────
+        # nav2_bringup/navigation_launch.py adds controller_server,
+        # planner_server, behavior_server, bt_navigator, waypoint_follower.
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(navigation_launch),
+            launch_arguments={
+                'params_file':  params_file,
+                'use_sim_time': 'false',
+                'autostart':    'true',
+            }.items(),
+            condition=IfCondition(LaunchConfiguration('full_nav')),
         ),
     ])
