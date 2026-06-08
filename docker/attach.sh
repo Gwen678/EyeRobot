@@ -18,9 +18,7 @@ fi
 
 # -e DISPLAY passes the caller's DISPLAY through so GUI apps (e.g. RViz over an
 # `ssh -X` session) can draw. The container shares the host network (--net=host)
-# and mounts the X socket + ~/.Xauthority (docker/run.sh), so the forwarded
-# display is reachable. If RViz still says "cannot open display", reconnect
-# with: ssh -X eyerobot@<ip>
+# so the forwarded display socket is reachable. Requires: ssh -X eyerobot@<ip>
 if [ -z "${DISPLAY:-}" ]; then
   echo "WARN: \$DISPLAY is not set — GUI apps (RViz) will fail inside the container." >&2
   echo "      Reconnect with: ssh -X eyerobot@<ip>" >&2
@@ -28,26 +26,19 @@ fi
 
 EXTRA_ENV=(-e DISPLAY)
 
-# X11 auth: the SSH-forwarded display requires an MIT-MAGIC-COOKIE that lives in
-# the host's xauth database but may not be present in the container's
-# /root/.Xauthority (especially when the container was started in a prior session).
-# Extract the cookie on the host and inject it via env vars; the SETUP_CMD below
-# registers it with xauth inside the container before any GUI app starts.
-# This fixes: "X11 connection rejected because of wrong authentication."
-if [ -n "${DISPLAY:-}" ]; then
-  XAUTH_LINE=$(xauth list "${DISPLAY}" 2>/dev/null | head -1)
-  if [ -n "$XAUTH_LINE" ]; then
-    _XKEY=$(echo "$XAUTH_LINE"   | awk '{print $1}')
-    _XPROTO=$(echo "$XAUTH_LINE" | awk '{print $2}')
-    _XCOOKIE=$(echo "$XAUTH_LINE" | awk '{print $3}')
-    EXTRA_ENV+=(
-      -e "_XKEY=${_XKEY}"
-      -e "_XPROTO=${_XPROTO}"
-      -e "_XCOOKIE=${_XCOOKIE}"
-    )
-    SETUP_CMD="${SETUP_CMD}; \
-xauth add \"\${_XKEY}\" \"\${_XPROTO}\" \"\${_XCOOKIE}\" 2>/dev/null || true"
+# X11 auth: build the cookie file on the host (xauth is available here via the
+# SSH X11 forwarding stack) and docker-cp it into the container. This avoids
+# needing xauth installed inside the image and works regardless of how the
+# Jetson's xauth keyed the entry (hostname/unix/localhost).
+# Fixes: "X11 connection rejected because of wrong authentication."
+if [ -n "${DISPLAY:-}" ] && command -v xauth &>/dev/null; then
+  XAUTH_TMP=$(mktemp)
+  if xauth nlist "${DISPLAY}" 2>/dev/null | xauth -f "$XAUTH_TMP" nmerge - 2>/dev/null \
+      && [ -s "$XAUTH_TMP" ]; then
+    docker cp "$XAUTH_TMP" "${NAME}:/tmp/.docker_xauth" 2>/dev/null || true
+    EXTRA_ENV+=(-e XAUTHORITY=/tmp/.docker_xauth)
   fi
+  rm -f "$XAUTH_TMP"
 fi
 
 if [ "$#" -eq 0 ]; then
