@@ -16,21 +16,44 @@ if [ -z "$(docker ps -q -f name="^${NAME}$")" ]; then
   exit 1
 fi
 
-# Explicitly source the repo-side env on every attach so current DDS/profile fixes
-# work even if the running container was started from an older image.
-EXTRA_ENV=(-e DISPLAY)
-
 # -e DISPLAY passes the caller's DISPLAY through so GUI apps (e.g. RViz over an
 # `ssh -X` session) can draw. The container shares the host network (--net=host)
 # and mounts the X socket + ~/.Xauthority (docker/run.sh), so the forwarded
-# display is reachable. If RViz still says "cannot open display", run
-# `xhost +local:` on the Jetson host, or reconnect with `ssh -Y`.
+# display is reachable. If RViz still says "cannot open display", reconnect
+# with: ssh -X eyerobot@<ip>
+if [ -z "${DISPLAY:-}" ]; then
+  echo "WARN: \$DISPLAY is not set — GUI apps (RViz) will fail inside the container." >&2
+  echo "      Reconnect with: ssh -X eyerobot@<ip>" >&2
+fi
+
+EXTRA_ENV=(-e DISPLAY)
+
+# X11 auth: the SSH-forwarded display requires an MIT-MAGIC-COOKIE that lives in
+# the host's xauth database but may not be present in the container's
+# /root/.Xauthority (especially when the container was started in a prior session).
+# Extract the cookie on the host and inject it via env vars; the SETUP_CMD below
+# registers it with xauth inside the container before any GUI app starts.
+# This fixes: "X11 connection rejected because of wrong authentication."
+if [ -n "${DISPLAY:-}" ]; then
+  XAUTH_LINE=$(xauth list "${DISPLAY}" 2>/dev/null | head -1)
+  if [ -n "$XAUTH_LINE" ]; then
+    _XKEY=$(echo "$XAUTH_LINE"   | awk '{print $1}')
+    _XPROTO=$(echo "$XAUTH_LINE" | awk '{print $2}')
+    _XCOOKIE=$(echo "$XAUTH_LINE" | awk '{print $3}')
+    EXTRA_ENV+=(
+      -e "_XKEY=${_XKEY}"
+      -e "_XPROTO=${_XPROTO}"
+      -e "_XCOOKIE=${_XCOOKIE}"
+    )
+    SETUP_CMD="${SETUP_CMD}; \
+xauth add \"\${_XKEY}\" \"\${_XPROTO}\" \"\${_XCOOKIE}\" 2>/dev/null || true"
+  fi
+fi
+
 if [ "$#" -eq 0 ]; then
   exec docker exec "${EXTRA_ENV[@]}" -it "${NAME}" bash -lc "${SETUP_CMD}; exec bash -i"
 else
   # Run the one-off command after sourcing the same env an interactive shell gets.
-  # Do NOT source /entrypoint.sh here: it ends in `exec "$@"`, so sourcing it
-  # replaces the shell and the real command never runs.
   exec docker exec "${EXTRA_ENV[@]}" -it "${NAME}" \
     bash -lc "${SETUP_CMD}; exec \"\$@\"" _ "$@"
 fi
