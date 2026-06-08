@@ -39,6 +39,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # vision / message deps used by the workspace packages
       ros-humble-image-transport ros-humble-vision-opencv \
       ros-humble-vision-msgs ros-humble-angles \
+      # Foxglove bridge — WebSocket server so Foxglove Studio on the PC can
+      # subscribe to all topics without any DDS crossing (SSH tunnel port 8765).
+      ros-humble-foxglove-bridge \
  && rm -rf /var/lib/apt/lists/*
 
 # ── Python deps (proven set) ─────────────────────────────────────────────────

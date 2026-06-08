@@ -1,19 +1,11 @@
 ### robot_localization EKF for EyeRobot — fuses wheel odometry + OAK-D IMU.
 #
 # Division of labour:
-#   * wheel /odom  -> vx (forward speed, encoders are good at this)
-#                     vyaw excluded — encoders are bad at yaw, high covariance set
-#   * IMU /oak/imu/data_raw -> angular rates (vroll, vpitch, vyaw)
-#                              the gyro is the primary yaw source
+#   * wheel /odom  -> vx only (encoders are good at forward distance)
+#   * IMU          -> vyaw only (gyro is the sole yaw source)
 #
-# IMPORTANT: oak_imu_cube.py must publish real covariances (not -1).
-# -1 in covariance[0] = robot_localization silently ignores the whole sensor.
-#
-# We launch oak_imu with orientation:=gyro (gyro-integrated orientation, drifts).
-# Roll/pitch from IMU are therefore NOT used (they drift without gravity correction).
-# Switch to orientation:=complementary and re-enable roll/pitch rows if needed.
-#
-# The EKF owns odom->base_link (publish_tf:=false on state_estimator when ekf:=true).
+# two_d_mode: true — only feed states that exist in 2D (x, y, yaw, vx, vyaw).
+# Feeding vroll/vpitch in 2D mode adds noise with no benefit.
 #
 # config vector order (15):
 #   [ x,  y,  z,  roll, pitch, yaw,  vx, vy, vz,  vroll, vpitch, vyaw,  ax, ay, az ]
@@ -22,8 +14,8 @@ ekf_filter_node:
   ros__parameters:
     frequency: 30.0
     sensor_timeout: 0.2
-    two_d_mode: true             # ground robot — ignore z, roll, pitch in state
-    publish_tf: true             # EKF owns odom->base_link
+    two_d_mode: true
+    publish_tf: true
     publish_acceleration: false
 
     map_frame: map
@@ -31,36 +23,31 @@ ekf_filter_node:
     base_link_frame: base_link
     world_frame: odom
 
-    # ── Wheel odometry: vx only — vyaw excluded (encoder yaw is bad) ────────────
-    # The high twist_yaw_cov in state_estimator_node.py (0.5) already tells the
-    # EKF not to trust encoder yaw rate, but disabling it here is cleaner.
+    # ── Wheel odometry: vx only ──────────────────────────────────────────────────
     odom0: odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  false, false,
-                   false, false, false,
+                   false, false, true,
                    false, false, false]
     odom0_differential: false
     odom0_relative: false
     odom0_queue_size: 10
 
-    # ── IMU: angular rates only (gyro is the yaw source) ────────────────────────
-    # Roll/pitch orientation disabled — gyro-integrated orientation drifts.
-    # vyaw from gyro (angular_velocity.z) is the primary yaw correction.
+    # ── IMU: vyaw only — gyro is the sole yaw source ─────────────────────────────
+    # vroll/vpitch disabled: two_d_mode ignores those states, feeding them adds noise.
     imu0: /oak/imu/data_raw
     imu0_config: [false, false, false,
                   false, false, false,
                   false, false, false,
-                  true,  true,  true,
+                  false, false, true,
                   false, false, false]
     imu0_differential: false
-    imu0_relative: false
+    imu0_relative: true
     imu0_queue_size: 10
     imu0_remove_gravitational_acceleration: false
 
     # ── Process noise Q (15-state: x y z r p yaw vx vy vz vr vp vyaw ax ay az) ─
-    # Smaller = trust motion model more (slower to follow measurements).
-    # vyaw (index 11) gets moderate noise so EKF stays responsive to IMU gyro.
     process_noise_covariance: [0.05, 0,    0,    0,    0,    0,    0,     0,     0,    0,    0,     0,    0,    0,    0,
                                0,    0.05, 0,    0,    0,    0,    0,     0,     0,    0,    0,     0,    0,    0,    0,
                                0,    0,    0.06, 0,    0,    0,    0,     0,     0,    0,    0,     0,    0,    0,    0,
