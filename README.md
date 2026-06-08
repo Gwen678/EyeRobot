@@ -16,44 +16,28 @@ Drops you into the container shell. Run it again in a new terminal for each node
 
 ## Run
 
-One terminal each (re-run `./ssh_jetson.sh` for a new container shell). Start them
+Three terminals (re-run `./ssh_jetson.sh` for a new container shell). Start them
 in this order.
 
-micro-ROS agent — motors/encoders ↔ ROS (ESP32 on USB):
+**Terminal 1** — micro-ROS agent (motors/encoders ↔ ROS, ESP32 on USB):
 
 ```
-ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB1 -b 115200
+ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
 ```
 
-Odometry stack — wheel odometry + the encoder-vs-IMU path comparison + URDF/TF for RViz:
+**Terminal 2** — full stack (odometry + IMU + URDF/TF):
 
 ```
-ros2 launch manual_controller manual_controller.launch.py
+ros2 launch manual_controller eyerobot.launch.py
 ```
 
-Publishes `/odom` (and the `odom`→`base_link` TF) from `state_estimator`, plus two
-comparison trajectories from `dual_odometry`: `/path_encoder` (heading from the
-wheels) and `/path_imu` (heading from the IMU, distance from the wheels). Teleop and
-RViz stay off here on purpose — run them in their own terminals (below).
+Starts `state_estimator` (`/odom`, `odom`→`base_link` TF), `dual_odometry`
+(`/path_encoder` heading from wheels, `/path_imu` heading from IMU), the OAK-D IMU
+(`/oak/imu/data_raw`, gyro mode), and `robot_state_publisher`/`joint_state_publisher`
+for the URDF. Keep the robot **still for ~2 s** until it logs `gyro bias = …` before
+driving — the BMI270 has no on-chip fusion and bias is averaged at startup.
 
-IMU — software-fused orientation on `/oak/imu/data_raw`, feeds the `/path_imu` heading:
-
-```
-ros2 launch oak_imu oak_imu.launch.py orientation:=gyro
-```
-
-Keep the robot **still for ~2 s at startup** until it logs `gyro_bias=…` (gyro-bias
-calibration). The OAK-D Lite IMU (BMI270) has no on-chip fusion, so this node fuses
-accel+gyro on the host. It opens the OAK directly, so don't run a depthai camera
-driver at the same time — only one process can own the camera over USB.
-
-`orientation:=complementary` gives the full orientation: roll/pitch from the
-accelerometer (drift-free — this is the ramp/tilt signal) and yaw from the gyro
-(drifts slowly; no magnetometer). `gyro` integrates all three axes but its yaw and
-tilt both drift. For the floor-path yaw comparison `dual_odometry` ignores this
-mode entirely (it derives yaw from the gyro rate about gravity directly).
-
-Teleop — drive the robot (`w/a/s/d` wheels, `q/e` fans, `r/t` belt):
+**Terminal 3** — keyboard teleop (`w/a/s/d` wheels, `q/e` fans, `r/t` belt):
 
 ```
 ros2 run manual_controller manual_controller

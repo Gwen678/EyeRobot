@@ -87,6 +87,7 @@ RUN { \
       echo "source /opt/ros/${ROS_DISTRO}/setup.bash"; \
       echo "[ -f /uros_ws/install/local_setup.bash ] && source /uros_ws/install/local_setup.bash"; \
       echo "[ -f ${EYEROBOT_WS}/install/setup.bash ] && source ${EYEROBOT_WS}/install/setup.bash"; \
+      echo "[ -f /eyerobot/dds_env.sh ] && source /eyerobot/dds_env.sh"; \
     } > /etc/profile.d/eyerobot_ros.sh \
  && echo "source /etc/profile.d/eyerobot_ros.sh" >> /etc/bash.bashrc
 

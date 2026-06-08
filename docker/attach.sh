@@ -11,17 +11,15 @@ if [ -z "$(docker ps -q -f name="^${NAME}$")" ]; then
   exit 1
 fi
 
-# DDS profile injection is OPT-IN and OFF by default. The WiFi-only profile
-# (dds_setup.sh) was meant to get topics to the PC over DDS, but on this rig it
-# breaks Jetson-LOCAL discovery and RELIABLE delivery between nodes (oak_imu ->
-# dual_odometry never linked). Default transport is what actually works on-robot.
-# For PC visualization, run foxglove_bridge on the Jetson and connect Foxglove
-# Studio from the PC over a single websocket — no DDS crossing, no docker0 issue.
-# Re-enable the old profile only if you know you need it: EYEROBOT_DDS_PROFILE=1.
+# The DDS profile (dds_jetson.xml) is now applied automatically to every shell
+# via /etc/profile.d/eyerobot_ros.sh → dds_env.sh (sourced at container startup).
+# No per-shell injection needed here any more.
+# To activate without rebuilding the Docker image, run this once on the Jetson:
+#   docker exec eyerobot bash -c \
+#     "grep -q dds_env /etc/profile.d/eyerobot_ros.sh || \
+#      echo '[ -f /eyerobot/dds_env.sh ] && source /eyerobot/dds_env.sh' \
+#      >> /etc/profile.d/eyerobot_ros.sh"
 EXTRA_ENV=(-e DISPLAY)
-if [ "${EYEROBOT_DDS_PROFILE:-0}" = "1" ] && [ -f "$(dirname "$0")/../dds_jetson.xml" ]; then
-  EXTRA_ENV+=(-e FASTRTPS_DEFAULT_PROFILES_FILE=/eyerobot/dds_jetson.xml)
-fi
 
 # -e DISPLAY passes the caller's DISPLAY through so GUI apps (e.g. RViz over an
 # `ssh -X` session) can draw. The container shares the host network (--net=host)

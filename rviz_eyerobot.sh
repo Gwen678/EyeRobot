@@ -7,10 +7,15 @@
 #
 # It does three things plain `rviz2` won't, all required for the topics to show:
 #   1. Sources ROS 2 + this repo's PC-native workspace build.
-#   2. Sets a WiFi-only Fast DDS profile (via dds_setup.sh) so the Jetson's topics
-#      actually reach this PC. Without it the topics LIST but echo/RViz stay empty,
-#      because both machines have docker0 at 172.17.0.1 and DDS blackholes data to
-#      its own bridge; campus WiFi also blocks the multicast DDS uses for discovery.
+#   2. Sets a PC-side Fast DDS profile (via dds_setup.sh) so the Jetson's topics
+#      actually reach this PC. Two problems fixed:
+#        - docker0 collision: both machines have docker0 at 172.17.0.1; DDS routes
+#          data to its own bridge and packets vanish.  Fixed by restricting DDS to
+#          the WiFi interface only (excludes docker0 as a locator on both sides).
+#        - Campus WiFi blocks DDS multicast; fixed with unicast initial peers.
+#      The Jetson side (dds_jetson.xml) is always-on in every container shell via
+#      dds_env.sh.  This script only generates the PC-side profile dynamically
+#      (current PC IP + Jetson peer) — no SSH push to the Jetson needed.
 #   3. Publishes the URDF LOCALLY (robot_state_publisher + joint_state_publisher).
 #      The Jetson's large latched /robot_description does not reliably cross the
 #      WiFi, so the RobotModel needs a local source. The small odom->base_link TF
@@ -49,9 +54,10 @@ fi
 source "$ROS_SETUP"
 source "$WS_SETUP"
 
-# ── DDS: write the WiFi-only profiles and use the PC one ──────────────────────
-# dds_setup.sh writes the PC profile, pushes the matching Jetson profile over SSH,
-# and prints the PC profile path on stdout.
+# ── DDS: generate PC-side profile and activate it ─────────────────────────────
+# dds_setup.sh generates the PC profile (WiFi interface + Jetson unicast peer)
+# and prints the path on stdout.  The Jetson profile is static (dds_jetson.xml,
+# always-on via dds_env.sh in the container) — no SSH push required.
 if [ -x "$REPO/dds_setup.sh" ]; then
   DDS_PROFILE="$("$REPO/dds_setup.sh" "$JETSON_HOST")"
   export FASTRTPS_DEFAULT_PROFILES_FILE="$DDS_PROFILE"
