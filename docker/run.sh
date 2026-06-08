@@ -22,10 +22,10 @@ SETUP_CMD="source /opt/ros/humble/setup.bash; \
 [ -f /eyerobot/dds_env.sh ] && source /eyerobot/dds_env.sh; \
 cd /eyerobot/ros2_ws 2>/dev/null || cd /eyerobot"
 
-# Already running? Delegate to attach.sh (handles DISPLAY + xauth injection).
+# Already running? Just open another shell.
 if [ "$(docker ps -q -f name="^${NAME}$")" ]; then
   echo "Container '${NAME}' already running — attaching a shell."
-  exec "$(dirname "${BASH_SOURCE[0]}")/attach.sh" "$@"
+  exec docker exec -it "${NAME}" bash -lc "${SETUP_CMD}; exec bash -i"
 fi
 
 # Exists but stopped? Remove so we recreate cleanly with current flags.

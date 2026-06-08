@@ -18,31 +18,15 @@ fi
 
 # -e DISPLAY passes the caller's DISPLAY through so GUI apps (e.g. RViz over an
 # `ssh -X` session) can draw. The container shares the host network (--net=host)
-# so the forwarded display socket is reachable. Requires: ssh -X eyerobot@<ip>
-if [ -z "${DISPLAY:-}" ]; then
-  echo "WARN: \$DISPLAY is not set — GUI apps (RViz) will fail inside the container." >&2
-  echo "      Reconnect with: ssh -X eyerobot@<ip>" >&2
-fi
-
-EXTRA_ENV=(-e DISPLAY)
-
-# X11 auth: SSH stores the forwarded cookie under the Jetson's hostname
-# (e.g. eyerobot/unix:10) but libX11 inside the container looks up the display
-# name literally (localhost:10). Re-register the cookie under exactly $DISPLAY
-# so the lookup succeeds — xauth is installed in the container image.
-# Fixes: "X11 connection rejected because of wrong authentication."
-if [ -n "${DISPLAY:-}" ]; then
-  _DNUM="${DISPLAY##*:}"; _DNUM="${_DNUM%%.*}"
-  _COOKIE=$(xauth list 2>/dev/null | awk -v n="${_DNUM}" '$1 ~ ":0*"n"$" {print $3}' | head -1)
-  if [ -n "$_COOKIE" ]; then
-    docker exec "${NAME}" xauth add "${DISPLAY}" MIT-MAGIC-COOKIE-1 "${_COOKIE}" 2>/dev/null || true
-  fi
-fi
-
+# and mounts the X socket + ~/.Xauthority (docker/run.sh), so the forwarded
+# display is reachable. If RViz still says "cannot open display", run
+# `xhost +local:` on the Jetson host, or reconnect with `ssh -Y`.
 if [ "$#" -eq 0 ]; then
-  exec docker exec "${EXTRA_ENV[@]}" -it "${NAME}" bash -lc "${SETUP_CMD}; exec bash -i"
+  exec docker exec -it "${NAME}" bash -lc "${SETUP_CMD}; exec bash -i"
 else
   # Run the one-off command after sourcing the same env an interactive shell gets.
-  exec docker exec "${EXTRA_ENV[@]}" -it "${NAME}" \
+  # Do NOT source /entrypoint.sh here: it ends in `exec "$@"`, so sourcing it
+  # replaces the shell and the real command never runs.
+  exec docker exec -it "${NAME}" \
     bash -lc "${SETUP_CMD}; exec \"\$@\"" _ "$@"
 fi

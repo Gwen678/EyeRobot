@@ -25,7 +25,7 @@ echo "→ ${JETSON_USER}@${JETSON_HOST} : ${REMOTE_DIR} → attach to container"
 # xhost +local:root allows the container's root user to use the forwarded display.
 # Attach to the container; if it isn't running, start it.
 # (If you haven't run ssh-copy-id yet, SSH will just prompt for the password.)
-exec ssh -t -X \
+exec ssh -t \
   -o StrictHostKeyChecking=accept-new \
   "${JETSON_USER}@${JETSON_HOST}" \
   "cd ${REMOTE_DIR} && (./attach.sh || ./run.sh)"
