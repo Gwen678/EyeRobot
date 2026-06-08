@@ -38,7 +38,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('lidar', default_value='false',
-                              description='Start RPLidar A1M8 on ttyUSB1'),
+                              description='Start RPLidar A1M8 on ttyUSB0'),
         DeclareLaunchArgument('slam', default_value='false',
                               description='Run SLAM Toolbox (requires lidar:=true). '
                                           'Publishes map→odom TF for full localization.'),
@@ -54,12 +54,12 @@ def generate_launch_description():
         ),
 
         # RPLidar A1M8 — publishes /scan on frame "laser" (matches URDF lidar_mount).
-        # ttyUSB1: lidar. ttyUSB0: micro-ROS ESP32.
+        # ttyUSB0: lidar. ttyUSB1: micro-ROS ESP32.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(lidar_share, 'launch', 'sllidar_a1_launch.py')),
             launch_arguments={
-                'serial_port': '/dev/ttyUSB1',
+                'serial_port': '/dev/ttyUSB0',
                 'frame_id': 'laser',
             }.items(),
             condition=IfCondition(LaunchConfiguration('lidar')),
