@@ -4,6 +4,13 @@ ESP32 (motors, micro-ROS) + first-gen Jetson Nano running ROS 2 Humble in Docker
 Firmware is pre-flashed and the container image + workspace are already built —
 below are just the commands to connect and run.
 
+## USB port mapping
+
+| Port | Device |
+|------|--------|
+| `/dev/ttyUSB0` | RPLidar A1M8 |
+| `/dev/ttyUSB1` | micro-ROS ESP32 |
+
 ## Connect
 
 From your PC. One-time: `ssh-copy-id eyerobot@128.179.186.106` (password `eyerobot`).
@@ -16,13 +23,12 @@ Drops you into the container shell. Run it again in a new terminal for each node
 
 ## Run
 
-Three terminals (re-run `./ssh_jetson.sh` for a new container shell). Start them
-in this order.
+### Odometry only (no lidar)
 
-**Terminal 1** — micro-ROS agent (motors/encoders ↔ ROS, ESP32 on USB):
+**Terminal 1** — micro-ROS agent (motors/encoders ↔ ROS, ESP32 on ttyUSB1):
 
 ```
-ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
+ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB1 -b 115200
 ```
 
 **Terminal 2** — full stack (odometry + IMU + URDF/TF):
@@ -43,7 +49,55 @@ driving — the BMI270 has no on-chip fusion and bias is averaged at startup.
 ros2 run manual_controller manual_controller
 ```
 
-### Visualization (RViz)
+### Mapping (SLAM)
+
+Run this once per room to build a map. Drive the full perimeter slowly.
+
+**Terminal 1** — micro-ROS agent (same as above)
+
+**Terminal 2** — full stack with lidar + SLAM:
+
+```
+ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true
+```
+
+**Terminal 3** — keyboard teleop (same as above)
+
+**Terminal 4** — save map after driving the room:
+
+```
+ros2 run nav2_map_server map_saver_cli -f /eyerobot/ros2_ws/maps/room_8x8 --ros-args -p map_subscribe_transient_local:=true
+```
+
+Check that the saved `.yaml` shows `resolution: 0.05`. If it shows `0.005` the map
+came from a stale publisher — close all terminals, restart only the SLAM launch, and
+save again.
+
+### Localization + Navigation (AMCL + Nav2)
+
+Requires a pre-built map. Run eyerobot.launch.py **without** `slam:=true`, then
+start Nav2 in a separate terminal.
+
+**Terminal 1** — micro-ROS agent
+
+**Terminal 2** — full stack with lidar (no SLAM — AMCL owns map→odom):
+
+```
+ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true
+```
+
+**Terminal 3** — Nav2 (AMCL localization + planner/controller):
+
+```
+ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/room_8x8.yaml
+```
+
+**Terminal 4** — keyboard teleop (or send goals from RViz via Nav2 goal tool)
+
+Do **not** run `slam:=true` and `nav2.launch.py` at the same time — both try to
+publish `map→odom` and will conflict.
+
+## Visualization (RViz)
 
 RViz runs **on your PC, not the Jetson**, with the stack above already running on the
 Jetson. The PC needs its own native build of the workspace first (the Jetson's build
@@ -63,6 +117,23 @@ discovery multicast, and both machines sharing `docker0` at `172.17.0.1` (DDS se
 data to its own docker bridge, so topics list but `echo` is empty). It writes
 WiFi-only DDS profiles for both ends. `run_eyerobot.sh` does the same automatically.
 If RViz still stays empty, re-run after confirming the Jetson IP is correct.
+
+## IMU calibration (Allan variance)
+
+Record a static bag (robot not moving, ≥10 min):
+
+```
+ros2 bag record -o ~/bags/static_$(date +%Y%m%d_%H%M) /oak/imu/data_raw
+```
+
+Analyse on the PC:
+
+```
+python3 analyse_imu.py ~/bags/static_<name>
+```
+
+Outputs per-axis ARW and the `_Gx/_Gy/_Gz` values to paste into
+`oak_imu/oak_imu_cube.py`. These tighten the EKF's IMU measurement noise.
 
 ---
 
