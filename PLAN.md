@@ -32,7 +32,7 @@ then rebuild: `colcon build --packages-select manual_controller`.
 
 ---
 
-## Step 1 — EKF validation (no lidar)
+## Step 1 — EKF validation (no lidar)  ✅
 
 **Goal**: confirm EKF now fuses IMU yaw correctly after the QoS fix
 (`/oak/imu/data_ekf` RELIABLE topic).
@@ -60,7 +60,7 @@ ros2 service call /set_pose robot_localization/srv/SetPose \
 
 ---
 
-## Step 2 — Lidar scan validation
+## Step 2 — Lidar scan validation  ✅
 
 **Goal**: confirm RPLidar A1M8 is publishing and the frame is correct.
 
@@ -79,7 +79,7 @@ ros2 launch manual_controller eyerobot.launch.py lidar:=true
 
 ---
 
-## Step 3 — EKF + lidar TF chain
+## Step 3 — EKF + lidar TF chain  ✅
 
 **Goal**: confirm `map→odom→base_link→laser` TF is intact and scan moves with the robot.
 
