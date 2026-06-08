@@ -253,9 +253,11 @@ class OakImuCube(Node):
         xout = pipeline.create(dai.node.XLinkOut)
         xout.setStreamName("imu")
 
-        # BMI270 on the OAK-D Lite: raw accelerometer + raw gyroscope.
+        # BMI270: calibrated gyro (on-chip bias correction) + raw accelerometer.
+        # GYROSCOPE_CALIBRATED has the BMI270's internal bias estimate subtracted,
+        # which reduces yaw drift compared to GYROSCOPE_RAW.
         imu.enableIMUSensor(
-            [dai.IMUSensor.ACCELEROMETER_RAW, dai.IMUSensor.GYROSCOPE_RAW],
+            [dai.IMUSensor.ACCELEROMETER_RAW, dai.IMUSensor.GYROSCOPE_CALIBRATED],
             int(self.rate_hz),
         )
         # Report each batch promptly (low latency).
@@ -484,10 +486,20 @@ class OakImuCube(Node):
         msg.linear_acceleration.y = ay
         msg.linear_acceleration.z = az
 
-        # We don't have real covariances; -1 in [0] marks "unknown".
-        msg.orientation_covariance[0] = -1.0
-        msg.angular_velocity_covariance[0] = -1.0
-        msg.linear_acceleration_covariance[0] = -1.0
+        # BMI270 covariances for robot_localization EKF.
+        # -1 in [0] = "ignore this field" — do NOT use -1 or the EKF discards the measurement.
+        #
+        # angular_velocity (gyro): BMI270 is good at yaw rate — small variance.
+        # This is the main signal the EKF uses to correct encoder yaw drift.
+        _G = 0.001  # rad²/s²
+        msg.angular_velocity_covariance = [_G, 0, 0, 0, _G, 0, 0, 0, _G]
+        # orientation: gyro-integrated, drifts over time — high variance so EKF
+        # doesn't over-trust absolute orientation (yaw is excluded in ekf.yaml anyway).
+        _O = 0.05   # rad²
+        msg.orientation_covariance = [_O, 0, 0, 0, _O, 0, 0, 0, _O]
+        # linear_acceleration: not fused by EKF but must be non-(-1).
+        _A = 0.01   # m²/s⁴
+        msg.linear_acceleration_covariance = [_A, 0, 0, 0, _A, 0, 0, 0, _A]
         self.imu_pub.publish(msg)
 
     def _publish_tf(self, stamp):

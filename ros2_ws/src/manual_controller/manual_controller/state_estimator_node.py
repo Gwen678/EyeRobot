@@ -96,9 +96,9 @@ class StateEstimatorNode(Node):
         self.declare_parameter('path_topic', 'path')
         # Diagonal measurement covariances reported on the Odometry message.
         self.declare_parameter('pose_xy_cov', 0.002)
-        self.declare_parameter('pose_yaw_cov', 0.005)
-        self.declare_parameter('twist_x_cov', 0.002)
-        self.declare_parameter('twist_yaw_cov', 0.005)
+        self.declare_parameter('pose_yaw_cov', 0.1)   # encoders unreliable for yaw
+        self.declare_parameter('twist_x_cov', 0.01)   # encoders decent at forward speed
+        self.declare_parameter('twist_yaw_cov', 0.5)  # encoders bad at yaw rate — trust IMU instead
 
         self._counts_per_rev = positive_float(
             self.get_parameter('counts_per_output_rev').value, 5756.0
