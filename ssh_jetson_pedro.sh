@@ -4,11 +4,11 @@
 # attaches to the running container — starting it first if it isn't up.
 #
 # ONE-TIME SETUP (so it never asks for a password):
-#   ssh-copy-id eyerobot@128.179.186.106     # type the password (eyerobot) once
+#   ssh-copy-id eyerobot@10.33.142.171     # type the password (eyerobot) once
 #
 # Usage:
 #   ./ssh_jetson.sh                  # default IP below
-#   ./ssh_jetson.sh 128.179.186.106  # override with the Jetson's current IP
+#   ./ssh_jetson.sh 10.33.142.171  # override with the Jetson's current IP i connected to my phones network
 #   JETSON_HOST=foo ./ssh_jetson.sh  # or via env
 set -euo pipefail
 

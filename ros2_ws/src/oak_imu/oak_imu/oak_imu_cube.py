@@ -288,11 +288,19 @@ class OakImuCube(Node):
 
     # ----- main loop ------------------------------------------------------- #
     def _poll(self):
-        pkt = self.queue.tryGet()
+        try:
+            pkt = self.queue.tryGet()
+        except RuntimeError as exc:
+            self.get_logger().error(f'OAK-D device error: {exc} — shutting down')
+            raise SystemExit(1)
         while pkt is not None:
             for p in pkt.packets:
                 self._handle_packet(p)
-            pkt = self.queue.tryGet()
+            try:
+                pkt = self.queue.tryGet()
+            except RuntimeError as exc:
+                self.get_logger().error(f'OAK-D device error: {exc} — shutting down')
+                raise SystemExit(1)
 
     def _handle_packet(self, p):
         a = p.acceleroMeter      # m/s^2
