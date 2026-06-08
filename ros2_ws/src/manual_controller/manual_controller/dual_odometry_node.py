@@ -34,13 +34,14 @@ from dataclasses import dataclass
 import math
 
 import rclpy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu
 from std_msgs.msg import Int32
 from std_srvs.srv import Empty
+from tf2_ros import TransformBroadcaster
 
 
 @dataclass
@@ -109,6 +110,9 @@ class DualOdometryNode(Node):
         self.declare_parameter('imu_path_topic', 'path_imu')
         self.declare_parameter('enc_odom_topic', 'odom_encoder')
         self.declare_parameter('imu_odom_topic', 'odom_imu')
+        # When true, broadcast odom->base_link TF from the IMU-fused pose.
+        # Enable this when the EKF is off so path_imu becomes the default estimate.
+        self.declare_parameter('publish_tf', False)
 
         self._counts_per_rev = positive_float(
             self.get_parameter('counts_per_output_rev').value, 5756.0)
@@ -144,6 +148,7 @@ class DualOdometryNode(Node):
         imu_path_topic = str(self.get_parameter('imu_path_topic').value)
         enc_odom_topic = str(self.get_parameter('enc_odom_topic').value)
         imu_odom_topic = str(self.get_parameter('imu_odom_topic').value)
+        self._publish_tf = bool(self.get_parameter('publish_tf').value)
 
         self._m_per_count = (2.0 * math.pi * self._wheel_radius) / self._counts_per_rev
         self._max_counts_per_step = self._max_revs_per_step * self._counts_per_rev
@@ -206,12 +211,14 @@ class DualOdometryNode(Node):
 
         self.create_timer(1.0 / self._odom_rate, self._update)
 
+        self._tf_broadcaster = TransformBroadcaster(self)
+
         self._imu_seen = False
         self.get_logger().info(
             f'Dual odometry ready: encoder-only -> {enc_path_topic}, '
             f'encoder+IMU-yaw -> {imu_path_topic} (IMU on {imu_topic}). '
             f'{self._counts_per_rev:.0f} counts/rev, r={self._wheel_radius:.3f} m, '
-            f'base={self._wheel_separation:.3f} m.')
+            f'base={self._wheel_separation:.3f} m, publish_tf={self._publish_tf}.')
 
     # ── Inputs ────────────────────────────────────────────────────────────────
     def _right_cb(self, msg: Int32) -> None:
@@ -352,8 +359,26 @@ class DualOdometryNode(Node):
                       self._enc_path_pub, self._enc_odom_pub)
         self._publish(now, self._imu, self._imu_path,
                       self._imu_path_pub, self._imu_odom_pub)
+        if self._publish_tf:
+            self._broadcast_tf(now, self._imu)
 
-    # ── Outputs ─────────────────────────────────────────────────────────────
+    # ── Outputs ──────────────────────────────────────────────────────────────
+    def _broadcast_tf(self, stamp, pose: Pose2D) -> None:
+        qx, qy, qz, qw = yaw_to_quaternion(pose.yaw)
+        t = TransformStamped()
+        t.header.stamp = stamp
+        t.header.frame_id = self._odom_frame
+        t.child_frame_id = self._base_frame
+        t.transform.translation.x = pose.x
+        t.transform.translation.y = pose.y
+        t.transform.translation.z = 0.0
+        t.transform.rotation.x = qx
+        t.transform.rotation.y = qy
+        t.transform.rotation.z = qz
+        t.transform.rotation.w = qw
+        self._tf_broadcaster.sendTransform(t)
+
+
     def _publish(self, stamp, pose: Pose2D, path: Path, path_pub, odom_pub) -> None:
         qx, qy, qz, qw = yaw_to_quaternion(pose.yaw)
 

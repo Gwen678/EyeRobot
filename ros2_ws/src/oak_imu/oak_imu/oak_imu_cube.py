@@ -171,6 +171,16 @@ class OakImuCube(Node):
             depth=10,
         )
         self.imu_pub = self.create_publisher(Imu, "/oak/imu/data_raw", imu_qos)
+        # robot_localization EKF subscribes RELIABLE; a BEST_EFFORT publisher won't
+        # match. Publish the same data on a dedicated RELIABLE topic for the EKF.
+        # Safe: only the EKF (same container) subscribes to this — no cross-machine
+        # ACK storm because there is no remote subscriber.
+        ekf_imu_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
+        )
+        self.imu_ekf_pub = self.create_publisher(Imu, "/oak/imu/data_ekf", ekf_imu_qos)
         self.marker_pub = self.create_publisher(Marker, "/oak/imu/cube", 10)
         self.trail_pub = self.create_publisher(Marker, "/oak/imu/trail", 10)
         self.tf_broadcaster = TransformBroadcaster(self)
@@ -501,6 +511,7 @@ class OakImuCube(Node):
         _A = 0.01   # m²/s⁴
         msg.linear_acceleration_covariance = [_A, 0, 0, 0, _A, 0, 0, 0, _A]
         self.imu_pub.publish(msg)
+        self.imu_ekf_pub.publish(msg)
 
     def _publish_tf(self, stamp):
         t = TransformStamped()

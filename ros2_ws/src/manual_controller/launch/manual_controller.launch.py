@@ -117,10 +117,13 @@ def generate_launch_description():
                 'odom_rate_hz': _f('odom_rate_hz'),
                 # Publish odom->base_link only if requested AND the EKF is off
                 # (when ekf:=true the EKF owns that transform).
+                # state_estimator publishes TF only when nothing else will:
+                # dual_odometry (default on) owns TF when ekf:=false.
                 'publish_tf': ParameterValue(
                     PythonExpression([
                         "'", LaunchConfiguration('publish_tf'), "' == 'true' and '",
-                        LaunchConfiguration('ekf'), "' == 'false'"]),
+                        LaunchConfiguration('ekf'), "' == 'false' and '",
+                        LaunchConfiguration('dual_odometry'), "' == 'false'"]),
                     value_type=bool),
                 'right_feedback_sign': _f('right_feedback_sign'),
                 'left_feedback_sign': _f('left_feedback_sign'),
@@ -148,6 +151,11 @@ def generate_launch_description():
                 'base_frame': LaunchConfiguration('base_frame'),
                 'imu_topic': LaunchConfiguration('imu_topic'),
                 'imu_yaw_sign': _f('imu_yaw_sign'),
+                # Publish odom->base_link TF from the IMU-fused pose when the EKF
+                # is off, making path_imu the default odometry source.
+                'publish_tf': ParameterValue(
+                    PythonExpression(["'", LaunchConfiguration('ekf'), "' == 'false'"]),
+                    value_type=bool),
             }],
         ),
         # Publishes the URDF on /robot_description and the link TFs (base_link ->
