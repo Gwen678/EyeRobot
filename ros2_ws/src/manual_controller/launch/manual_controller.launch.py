@@ -67,6 +67,7 @@ def generate_launch_description():
         # yaw-rate) into a full pose, owning odom->base_link. Needs the OAK IMU in
         # complementary mode and ros-humble-robot-localization installed.
         _arg('ekf', 'false', 'Run the robot_localization EKF fusing wheel odom + IMU'),
+        _arg('cmd_vel_bridge', 'false', 'Bridge /cmd_vel (Nav2) to motor wheel commands (for autonomous navigation)'),
         _arg('right_feedback_sign', '1.0', 'Right encoder reads + on robot-forward; keep +1'),
         # The LEFT encoder decrements when the robot rolls forward (invert_motor is
         # set on the MCU but the encoder sign is not, so its counts oppose robot
@@ -198,6 +199,21 @@ def generate_launch_description():
             parameters=[PathJoinSubstitution([
                 FindPackageShare('manual_controller'), 'config', 'ekf.yaml'])],
             condition=IfCondition(LaunchConfiguration('ekf')),
+        ),
+        # Bridge /cmd_vel (Twist from Nav2) to per-wheel Float32 speed commands.
+        # Off by default — enable when running nav2.launch.py full_nav:=true.
+        Node(
+            package='manual_controller',
+            executable='cmd_vel_bridge',
+            name='cmd_vel_bridge',
+            output='screen',
+            parameters=[{
+                'wheel_radius_m':     _f('wheel_radius_m'),
+                'wheel_separation_m': _f('wheel_separation_m'),
+                'right_command_sign': _f('right_command_sign'),
+                'left_command_sign':  _f('left_command_sign'),
+            }],
+            condition=IfCondition(LaunchConfiguration('cmd_vel_bridge')),
         ),
         # Relay the EKF Odometry to a Path so RViz draws it as a line (magenta)
         # next to the encoder/IMU comparison paths. Visualization only.

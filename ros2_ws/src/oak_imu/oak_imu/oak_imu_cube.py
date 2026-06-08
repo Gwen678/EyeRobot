@@ -264,10 +264,10 @@ class OakImuCube(Node):
         xout.setStreamName("imu")
 
         # BMI270: calibrated gyro (on-chip bias correction) + raw accelerometer.
-        # GYROSCOPE_CALIBRATED has the BMI270's internal bias estimate subtracted,
-        # which reduces yaw drift compared to GYROSCOPE_RAW.
+        # GYROSCOPE_CALIBRATED is unsupported on this OAK-D firmware; use RAW.
+        # Bias is removed by the 2-second startup calibration in dual_odometry.
         imu.enableIMUSensor(
-            [dai.IMUSensor.ACCELEROMETER_RAW, dai.IMUSensor.GYROSCOPE_CALIBRATED],
+            [dai.IMUSensor.ACCELEROMETER_RAW, dai.IMUSensor.GYROSCOPE_RAW],
             int(self.rate_hz),
         )
         # Report each batch promptly (low latency).
