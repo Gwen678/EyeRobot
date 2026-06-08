@@ -91,10 +91,6 @@ RUN { \
     } > /etc/profile.d/eyerobot_ros.sh \
  && echo "source /etc/profile.d/eyerobot_ros.sh" >> /etc/bash.bashrc
 
-# ── X11 auth (separate layer — install without rebuilding the whole image) ────
-RUN apt-get update && apt-get install -y --no-install-recommends xauth \
- && rm -rf /var/lib/apt/lists/*
-
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
