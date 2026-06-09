@@ -47,12 +47,13 @@ def generate_launch_description():
         _arg('teleop', 'false', 'Spawn keyboard teleop in an xterm (off by default; run it in its own terminal instead)'),
 
         # ── Teleop (control) node ─────────────────────────────────────────────
-        _arg('command_speed_rad_s', '10.0', 'Wheel command for forward/backward keys'),
+        _arg('command_speed_rad_s', '9.0', 'Wheel command for forward/backward keys'),
         _arg('turn_speed_rad_s', '5.0', 'Wheel command for pivot turn keys'),
         _arg('fan_command_rad_s', '8.0', 'Fan command magnitude (q/e)'),
         _arg('belt_command_rad_s', '8.0', 'Belt command magnitude (r/t)'),
         _arg('command_rate_hz', '20.0', 'Motor command publish rate'),
         _arg('release_timeout_s', '0.2', 'Stop wheels if no key repeat arrives within this time'),
+        _arg('accel_rad_s2', '18.0', 'Wheel acceleration ramp rate (rad/s²); limits step per publish tick'),
         # Direction is handled on the MCU (invert_motor/invert_encoder); host sends +forward.
         _arg('right_command_sign', '1.0', 'Host command polarity; keep +1, fix direction on the MCU'),
         _arg('left_command_sign', '1.0', 'Host command polarity; keep +1, fix direction on the MCU'),
@@ -102,6 +103,7 @@ def generate_launch_description():
                 'belt_command_rad_s': _f('belt_command_rad_s'),
                 'command_rate_hz': _f('command_rate_hz'),
                 'release_timeout_s': _f('release_timeout_s'),
+                'accel_rad_s2': _f('accel_rad_s2'),
                 'right_command_sign': _f('right_command_sign'),
                 'left_command_sign': _f('left_command_sign'),
             }],
@@ -217,6 +219,16 @@ def generate_launch_description():
                 'left_command_sign':  _f('left_command_sign'),
             }],
             condition=IfCondition(LaunchConfiguration('cmd_vel_bridge')),
+        ),
+        # Relay /robot_description from TRANSIENT_LOCAL → VOLATILE so
+        # foxglove_bridge can receive it. robot_state_publisher publishes latched
+        # (TRANSIENT_LOCAL) which foxglove_bridge misses over WebSocket.
+        Node(
+            package='manual_controller',
+            executable='urdf_relay',
+            name='urdf_relay',
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('robot_model')),
         ),
         # Relay the EKF Odometry to a Path so RViz draws it as a line (magenta)
         # next to the encoder/IMU comparison paths. Visualization only.

@@ -41,7 +41,7 @@ class CmdVelBridgeNode(Node):
 
         self.declare_parameter('wheel_radius_m',    0.06)
         self.declare_parameter('wheel_separation_m', 0.33)
-        self.declare_parameter('max_wheel_rad_s',   15.0)   # hard clamp — protect motors
+        self.declare_parameter('max_wheel_rad_s',    9.0)   # hard clamp — protect motors
         self.declare_parameter('right_command_sign', 1.0)
         self.declare_parameter('left_command_sign',  1.0)
         self.declare_parameter('cmd_vel_topic',      '/cmd_vel')
@@ -53,7 +53,7 @@ class CmdVelBridgeNode(Node):
 
         self._radius     = positive_float(self.get_parameter('wheel_radius_m').value,     0.06)
         self._separation = positive_float(self.get_parameter('wheel_separation_m').value, 0.33)
-        self._max_speed  = positive_float(self.get_parameter('max_wheel_rad_s').value,   15.0)
+        self._max_speed  = positive_float(self.get_parameter('max_wheel_rad_s').value,    9.0)
         self._r_sign     = finite_float(self.get_parameter('right_command_sign').value,   1.0)
         self._l_sign     = finite_float(self.get_parameter('left_command_sign').value,    1.0)
         self._timeout    = positive_float(self.get_parameter('timeout_s').value,           0.5)

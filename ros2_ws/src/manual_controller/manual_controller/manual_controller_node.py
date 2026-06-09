@@ -64,6 +64,7 @@ class ManualControllerNode(Node):
         self.declare_parameter('belt_command_rad_s', 8.0)
         self.declare_parameter('command_rate_hz', 20.0)
         self.declare_parameter('release_timeout_s', 0.2)
+        self.declare_parameter('accel_rad_s2', 18.0)
         # Direction/polarity is handled entirely on the MCU (per-wheel
         # invert_motor/invert_encoder), so the host sends a clean speed where
         # +forward/-backward for both wheels. Leave these at +1.
@@ -95,6 +96,9 @@ class ManualControllerNode(Node):
         )
         self._release_timeout = positive_float(
             self.get_parameter('release_timeout_s').value, 0.2
+        )
+        self._accel = positive_float(
+            self.get_parameter('accel_rad_s2').value, 18.0
         )
         self._right_command_sign = finite_float(
             self.get_parameter('right_command_sign').value, 1.0
@@ -159,6 +163,9 @@ class ManualControllerNode(Node):
         self._cmd_rfan = 0.0
         self._cmd_lfan = 0.0
         self._cmd_belt = 0.0
+        # Ramped actual wheel speeds — step toward _cmd_right/left each publish tick.
+        self._actual_right = 0.0
+        self._actual_left = 0.0
         # Wheels are momentary: key auto-repeat refreshes this timestamp while a
         # wheel key is held; once it stops repeating, _publish_command zeroes the
         # wheels after release_timeout. Fans/belt are latched and ignore it.
@@ -211,6 +218,8 @@ class ManualControllerNode(Node):
             self._cmd_rfan = 0.0
             self._cmd_lfan = 0.0
             self._cmd_belt = 0.0
+            self._actual_right = 0.0
+            self._actual_left = 0.0
 
         for _ in range(3):
             self._publish_command()
@@ -226,20 +235,31 @@ class ManualControllerNode(Node):
                 self._cmd_belt,
             )
 
+    @staticmethod
+    def _ramp(actual: float, target: float, max_step: float) -> float:
+        diff = target - actual
+        if abs(diff) <= max_step:
+            return target
+        return actual + math.copysign(max_step, diff)
+
     def _publish_command(self) -> None:
         # Wheels are momentary: zero them once their key stops auto-repeating.
         # Fans/belt are latched and keep their value until toggled or stopped.
         now_s = time.monotonic()
+        max_step = self._accel / self._command_rate
         with self._lock:
             if (now_s - self._last_wheel_press_s) > self._release_timeout:
                 self._cmd_right = 0.0
                 self._cmd_left = 0.0
 
-            right = self._cmd_right * self._right_command_sign
-            left = self._cmd_left * self._left_command_sign
-            rfan = self._cmd_rfan * self._rfan_command_sign
-            lfan = self._cmd_lfan * self._lfan_command_sign
-            belt = self._cmd_belt * self._belt_command_sign
+            self._actual_right = self._ramp(self._actual_right, self._cmd_right, max_step)
+            self._actual_left  = self._ramp(self._actual_left,  self._cmd_left,  max_step)
+
+            right = self._actual_right * self._right_command_sign
+            left  = self._actual_left  * self._left_command_sign
+            rfan  = self._cmd_rfan * self._rfan_command_sign
+            lfan  = self._cmd_lfan * self._lfan_command_sign
+            belt  = self._cmd_belt * self._belt_command_sign
 
         self._pub_r.publish(Float32(data=right))
         self._pub_l.publish(Float32(data=left))
