@@ -4,7 +4,7 @@
 # attaches to the running container — starting it first if it isn't up.
 #
 # ONE-TIME SETUP (so it never asks for a password):
-#   ssh-copy-id eyerobot@128.179.186.106     # type the password (eyerobot) once
+#   ssh-copy-id eyerobot@128.179.185.117     # type the password (eyerobot) once
 #
 # Usage:
 #   ./ssh_jetson.sh                  # default IP below
@@ -15,7 +15,7 @@ set -euo pipefail
 JETSON_USER="${JETSON_USER:-eyerobot}"
 # Hardcoded current Jetson IP (.local mDNS doesn't resolve on this network).
 # It's a DHCP lease, so if it changes, edit this line or pass the new IP as $1.
-JETSON_HOST="${JETSON_HOST:-${1:-128.179.186.106}}"
+JETSON_HOST="${JETSON_HOST:-${1:-128.179.185.117}}"
 REMOTE_DIR="${REMOTE_DIR:-~/CleanTest/EyeRobot/docker}"
 
 echo "→ ${JETSON_USER}@${JETSON_HOST} : ${REMOTE_DIR} → attach to container"
