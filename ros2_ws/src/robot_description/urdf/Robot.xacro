@@ -116,7 +116,7 @@
      Z=0.20 m is measured from the wheel-axle midpoint (base_link origin).
      ADJUST Z if the actual mount height differs — measure from axle to lidar
      scan plane in metres. The lidar sits flat (no roll/pitch), facing forward
-     (no yaw offset). Frame name "laser" matches sllidar_ros2's default frame_id
+     (no yaw offset). Frame name "laser" matches rplidar_ros's default frame_id
      so no remapping is needed. -->
 <link name="laser"/>
 <joint name="lidar_mount" type="fixed">

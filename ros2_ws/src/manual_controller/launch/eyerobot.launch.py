@@ -34,7 +34,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     mc_share = get_package_share_directory('manual_controller')
     oak_share = get_package_share_directory('oak_imu')
-    lidar_share = get_package_share_directory('sllidar_ros2')
+    lidar_share = get_package_share_directory('rplidar_ros')
 
     return LaunchDescription([
         DeclareLaunchArgument('tracker', default_value='false',
@@ -67,7 +67,7 @@ def generate_launch_description():
         # ttyUSB0: lidar. ttyUSB1: micro-ROS ESP32.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(lidar_share, 'launch', 'sllidar_a1_launch.py')),
+                os.path.join(lidar_share, 'launch', 'rplidar_a1_launch.py')),
             launch_arguments={
                 'serial_port': '/dev/ttyUSB0',
                 'frame_id': 'laser',
