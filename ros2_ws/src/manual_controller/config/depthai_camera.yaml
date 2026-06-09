@@ -32,6 +32,8 @@
       i_publish_topic: true
       i_batch_report_threshold: 1              # minimal batching for low latency
       i_max_batch_reports: 10
-      i_sync_method: "LINEAR_INTERPOLATE_INERTIAL"
+      # Valid values: COPY, LINEAR_INTERPOLATE_GYRO, LINEAR_INTERPOLATE_ACCEL —
+      # anything else aborts the container with a map .at() error.
+      i_sync_method: "LINEAR_INTERPOLATE_ACCEL"
       i_get_base_device_timestamp: false
       i_update_ros_base_time_on_ros_msg: false

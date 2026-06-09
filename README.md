@@ -51,8 +51,8 @@ ros2 run manual_controller manual_controller
 ```
 
 `w/s` forward/backward, `a/d` turn — published to
-`/diff_drive_controller/cmd_vel_unstamped` (ros2_control applies the
-velocity/acceleration limits). `q/e` fans, `r/t` belt (latched — tap again to
+`/diff_drive_controller/cmd_vel_unstamped` (ros2_control caps velocity; no
+acceleration ramp, commands apply immediately). `q/e` fans, `r/t` belt (latched — tap again to
 stop), `space` stops everything. `u/j`, `i/k`, `o/l` adjust max/linear/angular
 speed.
 

@@ -17,22 +17,17 @@ diff_drive_controller:
     wheel_separation: 0.33
     wheel_radius:     0.06
 
-    # Velocity + acceleration limits.
+    # Velocity limits only — no acceleration ramp, commands apply immediately.
     # max_velocity: 9 rad/s * 0.06 m = 0.54 m/s linear; 0.54 / 0.165 = 3.27 rad/s angular.
-    # max_acceleration: reach max in 0.5 s (matches accel_rad_s2=18 in cmd_vel_bridge).
     linear.x.has_velocity_limits:    true
     linear.x.max_velocity:           0.54
     linear.x.min_velocity:          -0.54
-    linear.x.has_acceleration_limits: true
-    linear.x.max_acceleration:       1.08
-    linear.x.min_acceleration:      -1.08
+    linear.x.has_acceleration_limits: false
 
     angular.z.has_velocity_limits:    true
     angular.z.max_velocity:           3.27
     angular.z.min_velocity:          -3.27
-    angular.z.has_acceleration_limits: true
-    angular.z.max_acceleration:       6.54
-    angular.z.min_acceleration:      -6.54
+    angular.z.has_acceleration_limits: false
 
     # Stop the robot if no /cmd_vel arrives within this window.
     cmd_vel_timeout: 0.5
