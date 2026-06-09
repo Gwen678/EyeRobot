@@ -25,7 +25,7 @@ slam_toolbox:
     map_update_interval: 5.0    # seconds between full map publishes
 
     # ── Laser ────────────────────────────────────────────────────────────────
-    max_laser_range:    6.0     # A1M8 reliable range (spec: 12 m but accuracy drops)
+    max_laser_range:    10.0    # A1M8 reliable indoor range; 6 m was too conservative for an 8x8 m room
     throttle_scans:     1       # process every scan (A1M8 runs at ~7.5 Hz, no need to skip)
     minimum_time_interval: 0.1  # floor: process at most 10 Hz even if scans arrive faster
 

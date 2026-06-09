@@ -44,10 +44,18 @@ def generate_launch_description():
         DeclareLaunchArgument('slam', default_value='false',
                               description='Run SLAM Toolbox (requires lidar:=true). '
                                           'Publishes map→odom TF for full localization.'),
+        DeclareLaunchArgument('ekf', default_value='false',
+                              description='Run the robot_localization EKF fusing wheel odom + IMU'),
+        DeclareLaunchArgument('cmd_vel_bridge', default_value='false',
+                              description='Bridge /cmd_vel (Nav2) to motor wheel commands'),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(mc_share, 'launch', 'manual_controller.launch.py')),
+            launch_arguments={
+                'ekf':            LaunchConfiguration('ekf'),
+                'cmd_vel_bridge': LaunchConfiguration('cmd_vel_bridge'),
+            }.items(),
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(

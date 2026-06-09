@@ -20,7 +20,7 @@ amcl:
     odom_frame_id: odom
     global_frame_id: map
     laser_model_type: likelihood_field
-    laser_max_range: 6.0          # A1M8 max range
+    laser_max_range: 10.0         # A1M8 reliable indoor range (spec 12 m; 10 m keeps accuracy adequate for likelihood field)
     laser_min_range: 0.15
     laser_likelihood_max_dist: 2.0
     max_beams: 60
