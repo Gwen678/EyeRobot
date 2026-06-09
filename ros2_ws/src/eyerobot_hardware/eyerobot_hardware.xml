@@ -1,0 +1,11 @@
+<library path="eyerobot_hardware">
+  <class name="eyerobot_hardware/EyeRobotHardware"
+         type="eyerobot_hardware::EyeRobotHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      EyeRobot hardware interface: subscribes to micro-ROS Int32 encoder topics
+      (motor_rwheel_fb / motor_lwheel_fb) and publishes Float32 velocity commands
+      (motor_rwheel_cmd / motor_lwheel_cmd).
+    </description>
+  </class>
+</library>

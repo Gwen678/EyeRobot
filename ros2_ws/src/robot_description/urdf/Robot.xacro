@@ -85,19 +85,44 @@
   </collision>
 </link>
 
-<joint name="Revolution 3" type="continuous">
+<joint name="left_wheel_joint" type="continuous">
   <origin xyz="-0.018502 0.032756 -0.27162" rpy="0 0 0"/>
   <parent link="chassis"/>
   <child link="Moteur_+_Roue_v1_Symetrie_miroir__1"/>
-  <axis xyz="-0.0 0.0 1.0"/>
+  <axis xyz="0.0 0.0 1.0"/>
 </joint>
 
-<joint name="Revolution 4" type="continuous">
+<joint name="right_wheel_joint" type="continuous">
   <origin xyz="-0.019268 0.035986 0.021086" rpy="0 0 0"/>
   <parent link="chassis"/>
   <child link="Moteur_+_Roue_v3_1"/>
-  <axis xyz="0.0 -0.0 1.0"/>
+  <axis xyz="0.0 0.0 1.0"/>
 </joint>
+
+<!-- ros2_control block: hardware interface plugin + joint interfaces.
+     Parameters mirror state_estimator_node.py and cmd_vel_bridge_node.py. -->
+<ros2_control name="eyerobot_hardware" type="system">
+  <hardware>
+    <plugin>eyerobot_hardware/EyeRobotHardware</plugin>
+    <param name="counts_per_output_rev">5756.0</param>
+    <param name="right_feedback_sign">1.0</param>
+    <param name="left_feedback_sign">-1.0</param>
+    <param name="right_fb_topic">motor_rwheel_fb</param>
+    <param name="left_fb_topic">motor_lwheel_fb</param>
+    <param name="right_cmd_topic">motor_rwheel_cmd</param>
+    <param name="left_cmd_topic">motor_lwheel_cmd</param>
+  </hardware>
+  <joint name="right_wheel_joint">
+    <command_interface name="velocity"/>
+    <state_interface name="position"/>
+    <state_interface name="velocity"/>
+  </joint>
+  <joint name="left_wheel_joint">
+    <command_interface name="velocity"/>
+    <state_interface name="position"/>
+    <state_interface name="velocity"/>
+  </joint>
+</ros2_control>
 
 <!-- IMU (OAK-D) mount, relative to base_link (the axle center). Offsets are from
      CAD, measured from the wheel-axle midpoint: 0.42 m forward (X), 0.135 m up (Z),

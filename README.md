@@ -43,11 +43,14 @@ Starts `state_estimator` (`/odom`, `odom`→`base_link` TF), `dual_odometry`
 for the URDF. Keep the robot **still for ~2 s** until it logs `gyro bias = …` before
 driving — the BMI270 has no on-chip fusion and bias is averaged at startup.
 
-**Terminal 3** — keyboard teleop (`w/a/s/d` wheels, `q/e` fans, `r/t` belt):
+**Terminal 3** — keyboard control (wheels + fans + belt, all in one terminal):
 
 ```
 ros2 run manual_controller manual_controller
 ```
+
+`w/a/s/d` drives via `/cmd_vel` → `cmd_vel_bridge` (same path as Nav2, with ramp).
+`q/e` fans, `r/t` belt, `space` stops everything.
 
 ### Mapping (SLAM)
 
@@ -61,9 +64,9 @@ Run this once per room to build a map. Drive the full perimeter slowly.
 ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true
 ```
 
-**Terminal 3** — keyboard teleop (same as above)
+**Terminal 3** — keyboard control (same as above)
 
-**Terminal 4** — save map after driving the room:
+**Terminal 5** — save map after driving the room:
 
 ```
 ros2 run nav2_map_server map_saver_cli -f /eyerobot/ros2_ws/maps/room_8x8 --ros-args -p map_subscribe_transient_local:=true
@@ -92,10 +95,20 @@ ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true
 ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/room_8x8.yaml
 ```
 
-**Terminal 4** — keyboard teleop (or send goals from RViz via Nav2 goal tool)
+Nav2 publishes `/cmd_vel` which goes through `cmd_vel_bridge` to the motors.
+The robot has obstacle avoidance active at all times via the live local costmap.
 
 Do **not** run `slam:=true` and `nav2.launch.py` at the same time — both try to
 publish `map→odom` and will conflict.
+
+## Visualization (Foxglove)
+
+Open [Foxglove Studio](https://foxglove.dev) on your PC and connect to
+`ws://<jetson-ip>:8765`. The `foxglove_bridge` node starts automatically with
+the launch file.
+
+To visualize the robot model: add a **URDF** panel and set the topic to
+`/robot_description_volatile`.
 
 ## Visualization (RViz)
 

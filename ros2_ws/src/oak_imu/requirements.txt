@@ -1,5 +1,0 @@
-# OAK-D Lite IMU node dependencies.
-#
-# This node targets the DepthAI v2 IMU API (the stable, well-documented one).
-# pip now defaults to depthai v3 which has a different IMU API, so we pin v2.
-depthai==2.30.0.0

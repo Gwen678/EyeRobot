@@ -1,0 +1,36 @@
+# depthai_ros_driver camera node parameters for EyeRobot (OAK-D Lite).
+#
+# Only the IMU stream is enabled; camera/depth streams are disabled to avoid
+# bandwidth overhead (run detect_lego.py directly when perception is needed —
+# it cannot share the device with depthai_ros_driver simultaneously).
+#
+# Verify parameter names against your installed depthai-ros version:
+#   ros2 param list /oak
+# Values here are tested against depthai_ros_driver 2.7.x (ROS 2 Humble apt).
+
+/**:
+  ros__parameters:
+
+    camera:
+      i_pipeline_type: "DEPTH"  # DEPTH is the minimal type that includes IMU
+
+    # Disable camera streams — only IMU is used.
+    left:
+      i_publish_topic: false
+    right:
+      i_publish_topic: false
+    stereo:
+      i_publish_topic: false
+    rgb:
+      i_publish_topic: false
+
+    imu:
+      i_acc_freq: 200                          # Hz — matches oak_imu_cube.py --rate 200
+      i_gyro_freq: 200
+      i_message_type: "IMU"                    # sensor_msgs/Imu
+      i_publish_topic: true
+      i_batch_report_threshold: 1              # minimal batching for low latency
+      i_max_batch_reports: 10
+      i_sync_method: "LINEAR_INTERPOLATE_INERTIAL"
+      i_get_base_device_timestamp: false
+      i_update_ros_base_time_on_ros_msg: false

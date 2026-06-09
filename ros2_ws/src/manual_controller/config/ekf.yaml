@@ -24,7 +24,8 @@ ekf_filter_node:
     world_frame: odom
 
     # ── Wheel odometry: vx only ──────────────────────────────────────────────────
-    odom0: odom
+    # diff_drive_controller publishes under its own namespace by default.
+    odom0: /diff_drive_controller/odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  false, false,
@@ -36,7 +37,9 @@ ekf_filter_node:
 
     # ── IMU: vyaw only — gyro is the sole yaw source ─────────────────────────────
     # vroll/vpitch disabled: two_d_mode ignores those states, feeding them adds noise.
-    imu0: /oak/imu/data_ekf
+    # imu_remap_node publishes axis-corrected accel+gyro; orientation_covariance[0]=-1
+    # signals no orientation estimate — EKF reads angular_velocity.z only.
+    imu0: /oak/imu/data_raw
     imu0_config: [false, false, false,
                   false, false, false,
                   false, false, false,

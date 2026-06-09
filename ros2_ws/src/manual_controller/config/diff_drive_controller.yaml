@@ -1,0 +1,48 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50  # Hz — above the 30 Hz odom rate so no update is missed
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+diff_drive_controller:
+  ros__parameters:
+    left_wheel_names:  ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+
+    # Geometry — must match state_estimator_node and cmd_vel_bridge params.
+    wheel_separation: 0.33
+    wheel_radius:     0.06
+
+    # Velocity + acceleration limits.
+    # max_velocity: 9 rad/s * 0.06 m = 0.54 m/s linear; 0.54 / 0.165 = 3.27 rad/s angular.
+    # max_acceleration: reach max in 0.5 s (matches accel_rad_s2=18 in cmd_vel_bridge).
+    linear.x.has_velocity_limits:    true
+    linear.x.max_velocity:           0.54
+    linear.x.min_velocity:          -0.54
+    linear.x.has_acceleration_limits: true
+    linear.x.max_acceleration:       1.08
+    linear.x.min_acceleration:      -1.08
+
+    angular.z.has_velocity_limits:    true
+    angular.z.max_velocity:           3.27
+    angular.z.min_velocity:          -3.27
+    angular.z.has_acceleration_limits: true
+    angular.z.max_acceleration:       6.54
+    angular.z.min_acceleration:      -6.54
+
+    # Stop the robot if no /cmd_vel arrives within this window.
+    cmd_vel_timeout: 0.5
+
+    # Odometry — same covariances as state_estimator_node.py.
+    publish_rate: 30.0
+    odom_frame_id:  odom
+    base_frame_id:  base_link
+    enable_odom_tf: true
+    pose_covariance_diagonal:  [0.002, 0.002, 0.0, 0.0, 0.0, 0.1]
+    twist_covariance_diagonal: [0.01,  0.0,   0.0, 0.0, 0.0, 0.5]
+
+    use_stamped_vel: false

@@ -1,0 +1,29 @@
+# imu_filter_madgwick parameters for OAK-D Lite BMI270.
+#
+# Input:  /oak/imu/data_raw  (axis-corrected accel + gyro, no orientation)
+# Output: /oak/imu/data      (sensor_msgs/Imu with orientation from Madgwick)
+#
+# Node is launched in the /oak namespace so relative topics resolve correctly.
+
+imu_filter_madgwick_node:
+  ros__parameters:
+
+    # Low gain (0.01): BMI270 has no magnetometer so yaw is unobservable from
+    # accel — trusting gyro heavily avoids drifting yaw corrections from accel
+    # noise during motion.  Equivalent to alpha=0.98 in the old complementary filter.
+    gain: 0.01
+    zeta: 0.0            # no gyro drift compensation (no magnetometer reference)
+    use_mag: false       # BMI270 has no magnetometer
+
+    # Do not publish TF — base_link→imu_link is a static URDF mount.
+    # Emitting it here would give imu_link two parents.
+    publish_tf: false
+
+    world_frame: "enu"   # East-North-Up = ROS REP-103 (Z up, X forward)
+
+    remove_gravity_vector: false  # EKF only fuses vyaw, not linear_acceleration
+    use_magnetic_field_msg: false
+
+    # Stationary detection thresholds (used for adaptive gain).
+    stationary_acc_thr:  0.01    # m/s²
+    stationary_gyro_thr: 0.01    # rad/s

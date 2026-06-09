@@ -1,184 +1,265 @@
-#!/usr/bin/env python3
-"""Fans and belt keyboard controller.
+# Copyright 2011 Brown University Robotics.
+# Copyright 2017 Open Source Robotics Foundation, Inc.
+# All rights reserved.
+#
+# Software License Agreement (BSD License 2.0)
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  * Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  * Redistributions in binary form must reproduce the above
+#    copyright notice, this list of conditions and the following
+#    disclaimer in the documentation and/or other materials provided
+#    with the distribution.
+#  * Neither the name of the Willow Garage nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 
-Driving is handled by teleop_twist_keyboard (→ /cmd_vel → cmd_vel_bridge).
-This node only controls the fans and belt, which Twist cannot carry.
-
-  tap q/e : fans forward / reverse  (latched, tap again to stop)
-  tap r/t : belt forward / reverse  (latched, tap again to stop)
-  space/x : stop fans and belt
-  ctrl-c  : quit
-"""
-from __future__ import annotations
-
-import math
-import select
 import sys
-import termios
 import threading
-import time
-import tty
 
+import geometry_msgs.msg
 import rclpy
-from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Float32
 
-
-_HEADER = (
-    '\n'
-    'EyeRobot fans/belt controller\n'
-    '  tap q/e: fans forward/reverse   (latched)\n'
-    '  tap r/t: belt forward/reverse   (latched)\n'
-    '  space or x: stop fans and belt\n'
-    '  ctrl-c: quit\n'
-    '\n'
-    'Drive with teleop_twist_keyboard in another terminal.\n'
-)
+if sys.platform == 'win32':
+    import msvcrt
+else:
+    import termios
+    import tty
 
 
-def finite_float(value: object, fallback: float) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return fallback
-    return number if math.isfinite(number) else fallback
+msg = """
+This node takes keypresses from the keyboard and publishes them
+as Twist/TwistStamped messages. It works best with a US keyboard layout.
+---------------------------
+Moving around:
+   u    i    o
+   j    k    l
+   m    ,    .
+
+For Holonomic mode (strafing), hold down the shift key:
+---------------------------
+   U    I    O
+   J    K    L
+   M    <    >
+
+t : up (+z)
+b : down (-z)
+
+anything else : stop
+
+q/z : increase/decrease max speeds by 10%
+w/x : increase/decrease only linear speed by 10%
+e/c : increase/decrease only angular speed by 10%
+
+---------------------------
+EyeRobot extras (latched toggles):
+a/s : fans  forward / reverse  (tap again to stop)
+d/f : belt  forward / reverse  (tap again to stop)
+
+CTRL-C to quit
+"""
+
+moveBindings = {
+    'i': (1, 0, 0, 0),
+    'o': (1, 0, 0, -1),
+    'j': (0, 0, 0, 1),
+    'l': (0, 0, 0, -1),
+    'u': (1, 0, 0, 1),
+    ',': (-1, 0, 0, 0),
+    '.': (-1, 0, 0, 1),
+    'm': (-1, 0, 0, -1),
+    'O': (1, -1, 0, 0),
+    'I': (1, 0, 0, 0),
+    'J': (0, 1, 0, 0),
+    'L': (0, -1, 0, 0),
+    'U': (1, 1, 0, 0),
+    '<': (-1, 0, 0, 0),
+    '>': (-1, -1, 0, 0),
+    'M': (-1, 1, 0, 0),
+    't': (0, 0, 1, 0),
+    'b': (0, 0, -1, 0),
+}
+
+speedBindings = {
+    'q': (1.1, 1.1),
+    'z': (.9, .9),
+    'w': (1.1, 1),
+    'x': (.9, 1),
+    'e': (1, 1.1),
+    'c': (1, .9),
+}
+
+# Fans/belt latched toggles — tap to activate, tap same key again to stop.
+# +value = forward, -value = reverse; cmd_vel_bridge applies motor coupling.
+fanBindings = {
+    'a': 1.0,   # fans forward
+    's': -1.0,  # fans reverse
+}
+
+beltBindings = {
+    'd': 1.0,   # belt forward
+    'f': -1.0,  # belt reverse
+}
 
 
-def positive_float(value: object, fallback: float) -> float:
-    number = finite_float(value, fallback)
-    return number if number > 0.0 else fallback
+def getKey(settings):
+    if sys.platform == 'win32':
+        key = msvcrt.getwch()
+    else:
+        tty.setraw(sys.stdin.fileno())
+        key = sys.stdin.read(1)
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+    return key
 
 
-class ManualControllerNode(Node):
-    def __init__(self) -> None:
-        super().__init__('manual_controller')
-
-        self.declare_parameter('fan_command_rad_s',  8.0)
-        self.declare_parameter('belt_command_rad_s', 8.0)
-        self.declare_parameter('command_rate_hz',   20.0)
-        self.declare_parameter('cmd_fans_topic', '/cmd_fans')
-        self.declare_parameter('cmd_belt_topic', '/cmd_belt')
-
-        self._fan_speed    = positive_float(self.get_parameter('fan_command_rad_s').value,  8.0)
-        self._belt_speed   = positive_float(self.get_parameter('belt_command_rad_s').value, 8.0)
-        self._command_rate = positive_float(self.get_parameter('command_rate_hz').value,   20.0)
-
-        qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
-                         history=HistoryPolicy.KEEP_LAST, depth=1)
-        self._pub_fans = self.create_publisher(Float32, self.get_parameter('cmd_fans_topic').value, qos)
-        self._pub_belt = self.create_publisher(Float32, self.get_parameter('cmd_belt_topic').value, qos)
-
-        self._lock     = threading.Lock()
-        self._cmd_fans = 0.0
-        self._cmd_belt = 0.0
-
-        self.create_timer(1.0 / self._command_rate, self._publish_command)
-        self.get_logger().info('Fans/belt controller ready.')
-
-    def apply_key(self, key: str) -> str | None:
-        key = key.lower()
-        fs, bs = self._fan_speed, self._belt_speed
-        bindings = {
-            'q': ('fans', fs,   'FANS >'),
-            'e': ('fans', -fs,  'FANS <'),
-            'r': ('belt', bs,   'BELT +'),
-            't': ('belt', -bs,  'BELT -'),
-            ' ': ('stop', 0.0,  'STOP'),
-            'x': ('stop', 0.0,  'STOP'),
-        }
-        entry = bindings.get(key)
-        if entry is None:
-            return None
-        group, value, label = entry
-
-        with self._lock:
-            if group == 'fans':
-                self._cmd_fans = 0.0 if self._cmd_fans == value else value
-            elif group == 'belt':
-                self._cmd_belt = 0.0 if self._cmd_belt == value else value
-            elif group == 'stop':
-                self._cmd_fans = 0.0
-                self._cmd_belt = 0.0
-        return label
-
-    def stop(self) -> None:
-        with self._lock:
-            self._cmd_fans = 0.0
-            self._cmd_belt = 0.0
-        for _ in range(3):
-            self._publish_command()
-            time.sleep(0.02)
-
-    def _publish_command(self) -> None:
-        with self._lock:
-            fans = self._cmd_fans
-            belt = self._cmd_belt
-        self._pub_fans.publish(Float32(data=fans))
-        self._pub_belt.publish(Float32(data=belt))
+def saveTerminalSettings():
+    if sys.platform == 'win32':
+        return None
+    return termios.tcgetattr(sys.stdin)
 
 
-class RawKeyboard:
-    def __enter__(self) -> RawKeyboard:
-        self._fd = sys.stdin.fileno()
-        self._saved_attrs = termios.tcgetattr(self._fd)
-        tty.setraw(self._fd)
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        termios.tcsetattr(self._fd, termios.TCSADRAIN, self._saved_attrs)
-
-    def read_key(self, timeout_s: float) -> str | None:
-        readable, _, _ = select.select([sys.stdin], [], [], timeout_s)
-        if not readable:
-            return None
-        return sys.stdin.read(1)
-
-
-def main(args=None) -> None:
-    rclpy.init(args=args)
-    node = ManualControllerNode()
-
-    spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
-    spin_thread.start()
-
-    if not sys.stdin.isatty():
-        node.get_logger().error('Keyboard control requires an interactive terminal.')
-        node.stop()
-        node.destroy_node()
-        rclpy.shutdown()
+def restoreTerminalSettings(old_settings):
+    if sys.platform == 'win32':
         return
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
-    print(_HEADER, flush=True)
+
+def vels(speed, turn):
+    return 'currently:\tspeed %s\tturn %s ' % (speed, turn)
+
+
+def main():
+    settings = saveTerminalSettings()
+
+    rclpy.init()
+
+    node = rclpy.create_node('teleop_twist_keyboard')
+
+    # parameters
+    stamped = node.declare_parameter('stamped', False).value
+    frame_id = node.declare_parameter('frame_id', '').value
+    fan_speed = node.declare_parameter('fan_command_rad_s', 8.0).value
+    belt_speed = node.declare_parameter('belt_command_rad_s', 8.0).value
+    if not stamped and frame_id:
+        raise Exception("'frame_id' can only be set when 'stamped' is True")
+
+    if stamped:
+        TwistMsg = geometry_msgs.msg.TwistStamped
+    else:
+        TwistMsg = geometry_msgs.msg.Twist
+
+    pub      = node.create_publisher(TwistMsg, 'cmd_vel', 10)
+    pub_fans = node.create_publisher(Float32, '/cmd_fans', 10)
+    pub_belt = node.create_publisher(Float32, '/cmd_belt', 10)
+
+    spinner = threading.Thread(target=rclpy.spin, args=(node,))
+    spinner.start()
+
+    speed = 0.5
+    turn = 1.0
+    x = 0.0
+    y = 0.0
+    z = 0.0
+    th = 0.0
+    status = 0.0
+
+    fans_cmd = 0.0
+    belt_cmd = 0.0
+
+    twist_msg = TwistMsg()
+
+    if stamped:
+        twist = twist_msg.twist
+        twist_msg.header.stamp = node.get_clock().now().to_msg()
+        twist_msg.header.frame_id = frame_id
+    else:
+        twist = twist_msg
 
     try:
-        with RawKeyboard() as keyboard:
-            sys.stdout.write('\rWaiting for key...\r')
-            sys.stdout.flush()
+        print(msg)
+        print(vels(speed, turn))
+        while True:
+            key = getKey(settings)
+            if key in moveBindings.keys():
+                x = moveBindings[key][0]
+                y = moveBindings[key][1]
+                z = moveBindings[key][2]
+                th = moveBindings[key][3]
+            elif key in speedBindings.keys():
+                speed = speed * speedBindings[key][0]
+                turn = turn * speedBindings[key][1]
 
-            while rclpy.ok():
-                key = keyboard.read_key(0.05)
-                if key is None:
-                    continue
-                if key == '\x03':
+                print(vels(speed, turn))
+                if (status == 14):
+                    print(msg)
+                status = (status + 1) % 15
+            elif key in fanBindings.keys():
+                target = fanBindings[key] * fan_speed
+                fans_cmd = 0.0 if fans_cmd == target else target
+                print('fans: %s' % ('+' if fans_cmd > 0 else ('-' if fans_cmd < 0 else 'off')))
+                pub_fans.publish(Float32(data=fans_cmd))
+            elif key in beltBindings.keys():
+                target = beltBindings[key] * belt_speed
+                belt_cmd = 0.0 if belt_cmd == target else target
+                print('belt: %s' % ('+' if belt_cmd > 0 else ('-' if belt_cmd < 0 else 'off')))
+                pub_belt.publish(Float32(data=belt_cmd))
+            else:
+                x = 0.0
+                y = 0.0
+                z = 0.0
+                th = 0.0
+                if (key == '\x03'):
                     break
 
-                label = node.apply_key(key)
-                if label is None:
-                    continue
+            if stamped:
+                twist_msg.header.stamp = node.get_clock().now().to_msg()
 
-                with node._lock:
-                    fans, belt = node._cmd_fans, node._cmd_belt
-                sys.stdout.write(
-                    f'\r  {label:<10}  fans={fans:+.1f}  belt={belt:+.1f}    \r'
-                )
-                sys.stdout.flush()
+            twist.linear.x = x * speed
+            twist.linear.y = y * speed
+            twist.linear.z = z * speed
+            twist.angular.x = 0.0
+            twist.angular.y = 0.0
+            twist.angular.z = th * turn
+            pub.publish(twist_msg)
+
+    except Exception as e:
+        print(e)
 
     finally:
-        node.stop()
-        node.destroy_node()
+        if stamped:
+            twist_msg.header.stamp = node.get_clock().now().to_msg()
+
+        twist.linear.x = 0.0
+        twist.linear.y = 0.0
+        twist.linear.z = 0.0
+        twist.angular.x = 0.0
+        twist.angular.y = 0.0
+        twist.angular.z = 0.0
+        pub.publish(twist_msg)
+        pub_fans.publish(Float32(data=0.0))
+        pub_belt.publish(Float32(data=0.0))
         rclpy.shutdown()
-        print('\nFans and belt stopped.')
+        spinner.join()
+
+        restoreTerminalSettings(settings)
 
 
 if __name__ == '__main__':

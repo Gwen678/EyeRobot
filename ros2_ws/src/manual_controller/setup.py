@@ -30,6 +30,7 @@ setup(
             'cmd_vel_bridge = manual_controller.cmd_vel_bridge_node:main',
             'block_tracker = manual_controller.block_tracker_node:main',
             'urdf_relay = manual_controller.urdf_relay_node:main',
+            'imu_remap = manual_controller.imu_remap_node:main',
         ],
     },
 )
