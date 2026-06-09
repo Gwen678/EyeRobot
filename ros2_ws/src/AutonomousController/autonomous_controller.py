@@ -21,8 +21,6 @@ class State(Enum):
     FIND_DUPLO = auto()
     EAT_DUPLO = auto()
 
-
-@dataclass
 class Robot:
     """Stores the current physical state and worldview of the robot."""
     def __init__(self) -> None:
@@ -31,7 +29,9 @@ class Robot:
         self.theta = 0.0
         self.checkpoint = (0.0, 0.0, 0.0)  # (x, y, theta) of the next navigation target
         self.checkpoint_tolerance = 0.1  # meters
-        self.checkpoint_angle_tolerance = math.radians(np.pi/12)  # radians
+        self.checkpoint_angle_tolerance = math.radians(10)  # converted to radians
+        self.kp_linear = 1.0  # Proportional gain for linear speed
+        self.kp_angle = 1.0  # Proportional gain for angle correction
     
     def set_checkpoint(self, x: float, y: float, theta: float) -> None:
         self.checkpoint = (x, y, theta)
@@ -57,6 +57,17 @@ class Robot:
         desired_theta = math.atan2(self.checkpoint[1] - self.y, self.checkpoint[0] - self.x)
         angle_diff = (desired_theta - self.theta + math.pi) % (2 * math.pi) - math.pi
         return angle_diff
+    
+    def rotate_in_place(self,speed) -> tuple[float, float]:
+        return speed, -speed
+    
+    def go_to_checkpoint(self): #replace this with nav2
+        linear_speed = self.kp.linear * self.dist_to_checkpoint()
+        angle_speed = self.kp_angle * self.angle_to_checkpoint() + self.kp_angle * ((self.theta - self.checkpoint[2] + math.pi) % (2 * math.pi) - math.pi)
+
+        return linear_speed + angle_speed, linear_speed - angle_speed #TODO we might need to clip linear_speed+angle_speed to avoid saturation and ffectively turn
+
+
 
 class Duplo:
     """Represents a detected Duplo block in the environment."""
@@ -159,7 +170,8 @@ class AutonomousControllerNode(Node):
             pass
 
         elif self.current_state == State.GO_TO_RAMP:
-            r_wheel, l_wheel, r_fan, l_fan, belt = 0.0, 0.0, 0.0, 0.0, 0.0
+            r_wheel, l_wheel = self.robot.go_to_checkpoint()
+
 
             
         elif self.current_state == State.FIND_DUPLO:
@@ -167,14 +179,12 @@ class AutonomousControllerNode(Node):
             if duplo_found:
                 self.next_duplo = Duplo(x, y)
             else:
-                r_wheel, l_wheel = self.rotate_in_place()
+                r_wheel, l_wheel = self.robot.rotate_in_place(self.base_speed)
                 
 
 
         elif self.current_state == State.EAT_DUPLO:
-            r_wheel, l_wheel = 0.0, 0.0
-            r_fan, l_fan = 8.0, 8.0
-            belt = 2.0
+            self.robot.go_to_checkpoint()
 
 
 
@@ -198,8 +208,6 @@ class AutonomousControllerNode(Node):
         self.pub_lfan.publish(Float32(data=lfan))
         self.pub_belt.publish(Float32(data=belt))
 
-    def rotate_in_place(self) -> tuple[float, float]:
-        return self.base_speed, -self.base_speed
 
 
 def main(args=None) -> None: #TO be checked
