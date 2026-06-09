@@ -78,29 +78,17 @@ def generate_launch_description():
             }.items(),
         ),
 
-        # imu_remap: applies accel/gyro sign correction (180° about X) so values
-        # are in REP-103 frame.  input_topic must match what depthai_ros_driver
-        # actually publishes — check with `ros2 topic list | grep oak` after launch.
-        # Some depthai-ros versions publish to /oak/imu, others to /oak/imu/data.
-        Node(
-            package='manual_controller',
-            executable='imu_remap',
-            name='imu_remap',
-            output='screen',
-            respawn=True,
-            respawn_delay=3.0,
-            parameters=[{
-                'accel_signs':  [1.0, -1.0, -1.0],
-                'gyro_signs':   [1.0, -1.0, -1.0],
-                'input_topic':  '/oak/imu',        # adjust if depthai-ros uses /oak/imu/data
-                'output_topic': '/oak/imu/data_raw',
-                'frame_id':     'imu_link',
-            }],
-        ),
-
-        # imu_filter_madgwick: fuses corrected accel + gyro into an orientation
-        # estimate.  Runs in /oak namespace so imu/data_raw → /oak/imu/data_raw
-        # and imu/data → /oak/imu/data automatically.
+        # imu_filter_madgwick: fuses depthai_ros_driver accel+gyro into orientation.
+        # depthai_ros_driver already applies the device factory calibration (IMU→camera
+        # extrinsics), so no manual axis remap is needed.  Verify on first boot:
+        #   ros2 topic echo /oak/imu --once
+        # while the robot is flat: accel_z should be ~+9.81 m/s² and angular_velocity.z
+        # should increase counter-clockwise (yaw left = positive).  If wrong, the
+        # imu_remap_node in manual_controller/imu_remap_node.py can be re-added.
+        #
+        # Runs in /oak namespace: imu/data_raw → /oak/imu/data_raw, imu/data → /oak/imu/data.
+        # Remap input to whatever depthai_ros_driver actually publishes (check with
+        #   ros2 topic list | grep oak/imu  after launch).
         Node(
             package='imu_filter_madgwick',
             executable='imu_filter_madgwick_node',
@@ -109,6 +97,7 @@ def generate_launch_description():
             output='screen',
             parameters=[PathJoinSubstitution([
                 FindPackageShare('manual_controller'), 'config', 'imu_filter.yaml'])],
+            remappings=[('imu/data_raw', '/oak/imu')],
         ),
 
         # ── RPLidar A1M8 ─────────────────────────────────────────────────────
