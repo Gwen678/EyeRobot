@@ -20,17 +20,18 @@ class OdomToPathNode(Node):
         super().__init__('odom_to_path')
         self.declare_parameter('odom_topic', '/odometry/filtered')
         self.declare_parameter('path_topic', '/ekf_path')
+        self.declare_parameter('pose2d_topic', 'pose2d_ekf')
         self.declare_parameter('path_max_len', 2000)
         odom_topic = str(self.get_parameter('odom_topic').value)
         path_topic = str(self.get_parameter('path_topic').value)
+        pose2d_topic = str(self.get_parameter('pose2d_topic').value)
         self._max_len = max(1, int(self.get_parameter('path_max_len').value))
 
         self._path = Path()
         self._pub = self.create_publisher(Path, path_topic, 10)
-        # Human-readable EKF pose: x (m), y (m), z = yaw (deg).
-        #   ros2 topic echo /pose2d_ekf
-        # x=x(m), y=y(m), z=yaw(deg)
-        self._pose2d_pub = self.create_publisher(Vector3, 'pose2d_ekf', 10)
+        # Human-readable pose: x (m), y (m), z = yaw (deg).
+        #   ros2 topic echo /pose2d_ekf   (or /pose2d_wheel for the wheel instance)
+        self._pose2d_pub = self.create_publisher(Vector3, pose2d_topic, 10)
         self.create_subscription(Odometry, odom_topic, self._cb, 10)
         self.get_logger().info(
             f'Relaying {odom_topic} -> {path_topic} as nav_msgs/Path.')

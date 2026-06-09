@@ -159,16 +159,32 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('robot_model')),
         ),
 
-        # ── EKF path for RViz (visualization only) ────────────────────────────
+        # ── Trajectory paths for RViz/Foxglove (visualization only) ──────────
+        # Two odom->Path relays so the fused and raw trajectories can be
+        # compared on the same 3D panel: /ekf_path (EKF) vs /wheel_path (wheel
+        # odometry). The wheel one always runs; the EKF one needs ekf:=true.
         Node(
             package='manual_controller',
             executable='odom_to_path',
-            name='odom_to_path',
+            name='odom_to_path_ekf',
             output='screen',
             parameters=[{
                 'odom_topic': '/odometry/filtered',
                 'path_topic': '/ekf_path',
+                'pose2d_topic': '/pose2d_ekf',
             }],
             condition=IfCondition(LaunchConfiguration('ekf')),
+        ),
+
+        Node(
+            package='manual_controller',
+            executable='odom_to_path',
+            name='odom_to_path_wheel',
+            output='screen',
+            parameters=[{
+                'odom_topic': '/diff_drive_controller/odom',
+                'path_topic': '/wheel_path',
+                'pose2d_topic': '/pose2d_wheel',
+            }],
         ),
     ])

@@ -10,8 +10,14 @@ static constexpr uint32_t kPeriodMs = 10;
 static constexpr float    kDt       = kPeriodMs / 1000.0f;
 
 
-static constexpr float kKp     =  0.1f;
-static constexpr float kKi     =  0.02f;  // integral; raise carefully for faster settle
+// Tuned against the measured plant gain: 100% duty ≈ 11 rad/s ≈ 10 000 ticks/s,
+// so ~100 ticks/s per duty unit. Kp=0.01 → proportional loop gain ≈ 1 (no duty
+// saturation below ~9 rad/s of error; the old 0.1 railed at ±100 for any error
+// over ~1 rad/s and ran the loop as chattering bang-bang). Encoder quantization
+// (1 tick / 10 ms = 100 tps) now maps to ±1 duty unit of noise instead of ±10.
+// Ki=0.04 → integral pole ≈ 4 /s (~0.25 s to absorb the steady-state duty).
+static constexpr float kKp     =  0.01f;
+static constexpr float kKi     =  0.04f;
 static constexpr float kOutMin = -100.0f;
 static constexpr float kOutMax =  100.0f;
 static constexpr float kStopSetpointEpsilonTps = 1.0f;

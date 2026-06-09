@@ -39,7 +39,9 @@ ekf_filter_node:
     # vroll/vpitch disabled: two_d_mode ignores those states, feeding them adds noise.
     # imu_filter_madgwick output: accel+gyro with orientation filled in.
     # EKF only uses angular_velocity.z (vyaw); orientation is available but not fused.
-    imu0: /oak/imu/data
+    # Madgwick output, remapped to imu/fused in eyerobot.launch.py because the
+    # depthai driver itself publishes the RAW samples on /oak/imu/data.
+    imu0: /oak/imu/fused
     imu0_config: [false, false, false,
                   false, false, false,
                   false, false, false,

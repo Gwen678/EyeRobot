@@ -1,8 +1,9 @@
 # imu_filter_madgwick parameters for OAK-D Lite BMI270.
 #
-# Input:  /oak/imu       (raw accel + gyro from depthai_ros_driver, remapped
-#                          onto imu/data_raw in eyerobot.launch.py)
-# Output: /oak/imu/data  (sensor_msgs/Imu with orientation from Madgwick)
+# Input:  /oak/imu/data   (raw accel + gyro from depthai_ros_driver, remapped
+#                           onto imu/data_raw in eyerobot.launch.py)
+# Output: /oak/imu/fused  (orientation from Madgwick; remapped away from the
+#                           default imu/data, which the driver's raw topic uses)
 #
 # Node is launched in the /oak namespace so relative topics resolve correctly.
 # Key must be /** (not the bare node name): the node runs as

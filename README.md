@@ -38,8 +38,8 @@ ros2 launch manual_controller eyerobot.launch.py ekf:=true
 ```
 
 Starts the ros2_control stack (`diff_drive_controller` — wheel odometry and the
-`odom`→`base_link` TF), the OAK-D IMU via `depthai_ros_driver` (`/oak/imu`, IMU
-only, camera streams disabled) filtered by `imu_filter_madgwick` (`/oak/imu/data`),
+`odom`→`base_link` TF), the OAK-D IMU via `depthai_ros_driver` (raw on
+`/oak/imu/data`) filtered by `imu_filter_madgwick` (fused on `/oak/imu/fused`),
 and `robot_state_publisher` for the URDF. With `ekf:=true`, `robot_localization`
 fuses wheel odometry + IMU into `/odometry/filtered` (set `enable_odom_tf: false`
 in `diff_drive_controller.yaml` so the EKF owns the `odom`→`base_link` TF).
@@ -51,8 +51,8 @@ ros2 run manual_controller manual_controller
 ```
 
 `w/s` forward/backward, `a/d` turn — published to
-`/diff_drive_controller/cmd_vel_unstamped` (ros2_control caps velocity; no
-acceleration ramp, commands apply immediately). `q/e` fans, `r/t` belt (latched — tap again to
+`/diff_drive_controller/cmd_vel_unstamped` (ros2_control applies the
+velocity/acceleration limits). `q/e` fans, `r/t` belt (latched — tap again to
 stop), `space` stops everything. `u/j`, `i/k`, `o/l` adjust max/linear/angular
 speed.
 
@@ -117,8 +117,17 @@ Open [Foxglove Studio](https://foxglove.dev) on your PC and connect to
 `ws://<jetson-ip>:8765`. The `foxglove_bridge` node starts automatically with
 the launch file.
 
-To visualize the robot model: add a **URDF** panel and set the topic to
-`/robot_description_volatile`.
+To visualize the robot model: add a **URDF** custom layer and set the topic to
+`/robot_description_volatile` — NOT `/robot_description`, which is latched
+(TRANSIENT_LOCAL) and shows "Invalid topic" in Foxglove. `urdf_relay`
+republishes it as volatile precisely for this.
+
+To see the trajectory: in the 3D panel set the display frame to `odom` and
+enable the path topics — `/wheel_path` (raw wheel odometry, always published)
+and `/ekf_path` (fused EKF estimate, needs `ekf:=true`). Driving a loop and
+comparing where the two paths end up vs the robot's true position is the
+quickest EKF-precision check. Numeric pose readouts: `/pose2d_wheel`,
+`/pose2d_ekf` (x m, y m, yaw deg).
 
 ## Visualization (RViz)
 
@@ -146,7 +155,7 @@ If RViz still stays empty, re-run after confirming the Jetson IP is correct.
 Record a static bag (robot not moving, ≥10 min):
 
 ```
-ros2 bag record -o ~/bags/static_$(date +%Y%m%d_%H%M) /oak/imu
+ros2 bag record -o ~/bags/static_$(date +%Y%m%d_%H%M) /oak/imu/data
 ```
 
 Analyse on the PC:

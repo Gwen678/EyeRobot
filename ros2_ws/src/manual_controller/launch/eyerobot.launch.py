@@ -1,9 +1,8 @@
 """Top-level EyeRobot launch: odometry stack + OAK-D IMU.
 
 IMU pipeline (replaces custom oak_imu package):
-  depthai_ros_driver  → /oak/imu  (raw accel+gyro, factory-calibrated frame)
-  imu_filter_madgwick → /oak/imu/data (orientation from Madgwick filter;
-                        subscribes to /oak/imu via remap)
+  depthai_ros_driver  → /oak/imu/data  (raw accel+gyro, factory-calibrated frame)
+  imu_filter_madgwick → /oak/imu/fused (orientation from Madgwick filter)
 
 Note: depthai_ros_driver opens the OAK-D device exclusively.  Direct depthai SDK
 access (detect_lego.py, oak_view.py) cannot run simultaneously — same as the old
@@ -57,6 +56,8 @@ def generate_launch_description():
                               description='Run SLAM Toolbox (requires lidar:=true)'),
         DeclareLaunchArgument('ekf', default_value='false',
                               description='Run robot_localization EKF fusing wheel odom + IMU'),
+        DeclareLaunchArgument('foxglove', default_value='true',
+                              description='Start foxglove_bridge on ws://<jetson-ip>:8765'),
 
         # ── Core odometry + ros2_control stack ───────────────────────────────
         IncludeLaunchDescription(
@@ -90,9 +91,12 @@ def generate_launch_description():
         # should increase counter-clockwise (yaw left = positive).  If wrong, the
         # imu_remap_node in manual_controller/imu_remap_node.py can be re-added.
         #
-        # Runs in /oak namespace: imu/data_raw → /oak/imu/data_raw, imu/data → /oak/imu/data.
-        # Remap input to whatever depthai_ros_driver actually publishes (check with
-        #   ros2 topic list | grep oak/imu  after launch).
+        # Topic wiring (driver publishes ~/imu/data → /oak/imu/data, verified in
+        # depthai-ros 2.7.5 imu.cpp — NOT /oak/imu):
+        #   input : imu/data_raw ← /oak/imu/data  (raw accel+gyro from driver)
+        #   output: imu/data     → /oak/imu/fused (remapped! the default /oak/imu/data
+        #           would collide with the driver's raw topic and self-loop)
+        # ekf.yaml imu0 must point at /oak/imu/fused.
         Node(
             package='imu_filter_madgwick',
             executable='imu_filter_madgwick_node',
@@ -101,7 +105,8 @@ def generate_launch_description():
             output='screen',
             parameters=[PathJoinSubstitution([
                 FindPackageShare('manual_controller'), 'config', 'imu_filter.yaml'])],
-            remappings=[('imu/data_raw', '/oak/imu')],
+            remappings=[('imu/data_raw', 'imu/data'),
+                        ('imu/data', 'imu/fused')],
         ),
 
         # ── RPLidar A1M8 ─────────────────────────────────────────────────────
@@ -123,6 +128,19 @@ def generate_launch_description():
             name='block_tracker',
             output='screen',
             condition=IfCondition(LaunchConfiguration('tracker')),
+        ),
+
+        # ── Foxglove bridge ───────────────────────────────────────────────────
+        # WebSocket server for Foxglove Studio on the PC (ws://<jetson-ip>:8765).
+        # urdf_relay (manual_controller.launch.py) republishes /robot_description
+        # as VOLATILE on /robot_description_volatile for the Foxglove URDF panel.
+        Node(
+            package='foxglove_bridge',
+            executable='foxglove_bridge',
+            name='foxglove_bridge',
+            output='screen',
+            parameters=[{'port': 8765}],
+            condition=IfCondition(LaunchConfiguration('foxglove')),
         ),
 
         # ── SLAM Toolbox ──────────────────────────────────────────────────────
