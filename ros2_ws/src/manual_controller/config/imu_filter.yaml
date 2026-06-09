@@ -1,11 +1,16 @@
 # imu_filter_madgwick parameters for OAK-D Lite BMI270.
 #
-# Input:  /oak/imu/data_raw  (axis-corrected accel + gyro, no orientation)
-# Output: /oak/imu/data      (sensor_msgs/Imu with orientation from Madgwick)
+# Input:  /oak/imu       (raw accel + gyro from depthai_ros_driver, remapped
+#                          onto imu/data_raw in eyerobot.launch.py)
+# Output: /oak/imu/data  (sensor_msgs/Imu with orientation from Madgwick)
 #
 # Node is launched in the /oak namespace so relative topics resolve correctly.
+# Key must be /** (not the bare node name): the node runs as
+# /oak/imu_filter_madgwick_node and a bare-name key does not match a namespaced
+# node — the file silently fails to load and use_mag falls back to its default
+# (true), leaving the filter waiting forever for imu/mag.
 
-imu_filter_madgwick_node:
+/**:
   ros__parameters:
 
     # Low gain (0.01): BMI270 has no magnetometer so yaw is unobservable from

@@ -4,6 +4,11 @@
 # bandwidth overhead (run detect_lego.py directly when perception is needed —
 # it cannot share the device with depthai_ros_driver simultaneously).
 #
+# Pipeline type must be RGB (not DEPTH): a StereoDepth node with no published
+# output trips a device-side assert ("No output of StereoDepth is
+# connected/used!") and kills the component container.  The IMU is enabled
+# independently of the pipeline type via camera.i_enable_imu.
+#
 # Verify parameter names against your installed depthai-ros version:
 #   ros2 param list /oak
 # Values here are tested against depthai_ros_driver 2.7.x (ROS 2 Humble apt).
@@ -12,15 +17,11 @@
   ros__parameters:
 
     camera:
-      i_pipeline_type: "DEPTH"  # DEPTH is the minimal type that includes IMU
+      i_pipeline_type: "RGB"   # lightest pipeline; IMU is independent of it
+      i_enable_imu: true
+      i_nn_type: "none"        # no neural network — skip default blob download
 
-    # Disable camera streams — only IMU is used.
-    left:
-      i_publish_topic: false
-    right:
-      i_publish_topic: false
-    stereo:
-      i_publish_topic: false
+    # Disable the (unused) RGB stream — only IMU is published.
     rgb:
       i_publish_topic: false
 

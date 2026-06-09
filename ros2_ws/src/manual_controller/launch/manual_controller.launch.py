@@ -67,14 +67,15 @@ def generate_launch_description():
     return LaunchDescription([
         _arg('rviz',       'false', 'Start RViz with the EyeRobot config (off by default; run on dev PC)'),
         _arg('robot_model','true',  'Publish the URDF (robot_state_publisher) for RViz RobotModel'),
-        # Teleop: run in their own terminals for a real TTY.
-        #   Driving:    ros2 run teleop_twist_keyboard teleop_twist_keyboard
-        #   Fans/belt:  ros2 run manual_controller manual_controller
-        _arg('teleop',     'false', 'Spawn fans/belt controller in an xterm'),
+        # Teleop: run in its own terminal for a real TTY.
+        #   ros2 run manual_controller manual_controller
+        # Drives wheels (wasd → /diff_drive_controller/cmd_vel_unstamped),
+        # fans (q/e) and belt (r/t); space stops everything.
+        _arg('teleop',     'false', 'Spawn the teleop controller in an xterm'),
 
         # ── Fans/belt controller ──────────────────────────────────────────────
-        _arg('fan_command_rad_s',  '8.0', 'Fan command magnitude (a/s)'),
-        _arg('belt_command_rad_s', '8.0', 'Belt command magnitude (d/f)'),
+        _arg('fan_command_rad_s',  '8.0', 'Fan command magnitude (q/e)'),
+        _arg('belt_command_rad_s', '8.0', 'Belt command magnitude (r/t)'),
         _arg('command_rate_hz',   '20.0', 'Fans/belt publish rate (Hz)'),
 
         # ── Optional EKF (robot_localization) ────────────────────────────────

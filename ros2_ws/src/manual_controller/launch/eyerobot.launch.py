@@ -1,9 +1,9 @@
 """Top-level EyeRobot launch: odometry stack + OAK-D IMU.
 
 IMU pipeline (replaces custom oak_imu package):
-  depthai_ros_driver → /oak/imu (raw, sensor frame)
-  imu_remap          → /oak/imu/data_raw (axis-corrected, REP-103 frame)
-  imu_filter_madgwick→ /oak/imu/data (orientation from Madgwick filter)
+  depthai_ros_driver  → /oak/imu  (raw accel+gyro, factory-calibrated frame)
+  imu_filter_madgwick → /oak/imu/data (orientation from Madgwick filter;
+                        subscribes to /oak/imu via remap)
 
 Note: depthai_ros_driver opens the OAK-D device exclusively.  Direct depthai SDK
 access (detect_lego.py, oak_view.py) cannot run simultaneously — same as the old
@@ -11,9 +11,13 @@ oak_imu_cube.py which also held the device open.
 
 Run in its own terminal (or tmux window) — no teleop, no RViz.
 Those need a real TTY / separate session:
-  ros2 run teleop_twist_keyboard teleop_twist_keyboard   # driving
-  ros2 run manual_controller manual_controller           # fans/belt
-  rviz2 -d <path>/eyerobot.rviz                          # on PC
+  ros2 run manual_controller manual_controller   # driving (wasd) + fans (q/e) + belt (r/t)
+  rviz2 -d <path>/eyerobot.rviz                  # on PC
+
+(teleop_twist_keyboard also works, but needs a remap — diff_drive_controller
+listens on /diff_drive_controller/cmd_vel_unstamped, not /cmd_vel:
+  ros2 run teleop_twist_keyboard teleop_twist_keyboard \\
+    --ros-args -r cmd_vel:=/diff_drive_controller/cmd_vel_unstamped)
 
 Optional flags:
   lidar:=true   Start the RPLidar A1M8. Off by default.

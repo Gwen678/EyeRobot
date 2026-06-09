@@ -46,77 +46,52 @@ else:
 
 
 msg = """
-This node takes keypresses from the keyboard and publishes them
-as Twist/TwistStamped messages. It works best with a US keyboard layout.
+EyeRobot teleop — keypresses to Twist (wheels) + Float32 (fans/belt).
 ---------------------------
-Moving around:
-   u    i    o
-   j    k    l
-   m    ,    .
+Driving:
+   w/s : forward / backward
+   a/d : turn left / turn right
+ space : STOP everything (wheels + fans + belt)
+ anything else : stop wheels
 
-For Holonomic mode (strafing), hold down the shift key:
----------------------------
-   U    I    O
-   J    K    L
-   M    <    >
+Latched toggles (tap again to stop):
+   q/e : fans forward / reverse
+   r/t : belt forward / reverse
 
-t : up (+z)
-b : down (-z)
-
-anything else : stop
-
-q/z : increase/decrease max speeds by 10%
-w/x : increase/decrease only linear speed by 10%
-e/c : increase/decrease only angular speed by 10%
-
----------------------------
-EyeRobot extras (latched toggles):
-a/s : fans  forward / reverse  (tap again to stop)
-d/f : belt  forward / reverse  (tap again to stop)
+Speed:
+   u/j : increase/decrease max speeds by 10%
+   i/k : increase/decrease only linear speed by 10%
+   o/l : increase/decrease only angular speed by 10%
 
 CTRL-C to quit
 """
 
 moveBindings = {
-    'i': (1, 0, 0, 0),
-    'o': (1, 0, 0, -1),
-    'j': (0, 0, 0, 1),
-    'l': (0, 0, 0, -1),
-    'u': (1, 0, 0, 1),
-    ',': (-1, 0, 0, 0),
-    '.': (-1, 0, 0, 1),
-    'm': (-1, 0, 0, -1),
-    'O': (1, -1, 0, 0),
-    'I': (1, 0, 0, 0),
-    'J': (0, 1, 0, 0),
-    'L': (0, -1, 0, 0),
-    'U': (1, 1, 0, 0),
-    '<': (-1, 0, 0, 0),
-    '>': (-1, -1, 0, 0),
-    'M': (-1, 1, 0, 0),
-    't': (0, 0, 1, 0),
-    'b': (0, 0, -1, 0),
+    'w': (1, 0, 0, 0),    # forward
+    's': (-1, 0, 0, 0),   # backward
+    'a': (0, 0, 0, 1),    # turn left (CCW, +yaw)
+    'd': (0, 0, 0, -1),   # turn right (CW, -yaw)
 }
 
 speedBindings = {
-    'q': (1.1, 1.1),
-    'z': (.9, .9),
-    'w': (1.1, 1),
-    'x': (.9, 1),
-    'e': (1, 1.1),
-    'c': (1, .9),
+    'u': (1.1, 1.1),
+    'j': (.9, .9),
+    'i': (1.1, 1),
+    'k': (.9, 1),
+    'o': (1, 1.1),
+    'l': (1, .9),
 }
 
 # Fans/belt latched toggles — tap to activate, tap same key again to stop.
 # +value = forward, -value = reverse; cmd_vel_bridge applies motor coupling.
 fanBindings = {
-    'a': 1.0,   # fans forward
-    's': -1.0,  # fans reverse
+    'q': 1.0,   # fans forward
+    'e': -1.0,  # fans reverse
 }
 
 beltBindings = {
-    'd': 1.0,   # belt forward
-    'f': -1.0,  # belt reverse
+    'r': 1.0,   # belt forward
+    't': -1.0,  # belt reverse
 }
 
 
@@ -158,6 +133,10 @@ def main():
     frame_id = node.declare_parameter('frame_id', '').value
     fan_speed = node.declare_parameter('fan_command_rad_s', 8.0).value
     belt_speed = node.declare_parameter('belt_command_rad_s', 8.0).value
+    # diff_drive_controller (Humble, use_stamped_vel: false) subscribes to
+    # ~/cmd_vel_unstamped, not /cmd_vel — publish straight to it.
+    cmd_vel_topic = node.declare_parameter(
+        'cmd_vel_topic', '/diff_drive_controller/cmd_vel_unstamped').value
     if not stamped and frame_id:
         raise Exception("'frame_id' can only be set when 'stamped' is True")
 
@@ -166,7 +145,7 @@ def main():
     else:
         TwistMsg = geometry_msgs.msg.Twist
 
-    pub      = node.create_publisher(TwistMsg, 'cmd_vel', 10)
+    pub      = node.create_publisher(TwistMsg, cmd_vel_topic, 10)
     pub_fans = node.create_publisher(Float32, '/cmd_fans', 10)
     pub_belt = node.create_publisher(Float32, '/cmd_belt', 10)
 
@@ -226,6 +205,13 @@ def main():
                 y = 0.0
                 z = 0.0
                 th = 0.0
+                if key == ' ':
+                    # Emergency stop: wheels (zero twist below) + fans + belt.
+                    fans_cmd = 0.0
+                    belt_cmd = 0.0
+                    pub_fans.publish(Float32(data=0.0))
+                    pub_belt.publish(Float32(data=0.0))
+                    print('STOP — wheels, fans and belt off')
                 if (key == '\x03'):
                     break
 

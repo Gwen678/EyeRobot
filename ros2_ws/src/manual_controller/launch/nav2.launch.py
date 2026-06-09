@@ -23,9 +23,10 @@ Available maps (inside the container):
 On startup AMCL initialises at (0,0,0). If the robot is elsewhere, publish an
 initial pose via Foxglove (/initialpose) or the 2D Pose Estimate tool.
 
-NOTE: full_nav:=true publishes /cmd_vel (Twist). Your firmware does not yet
-subscribe to it — you need a cmd_vel -> wheel-speed bridge before autonomous
-navigation actually moves the robot.
+NOTE: full_nav:=true publishes /cmd_vel (Twist), but diff_drive_controller
+subscribes to /diff_drive_controller/cmd_vel_unstamped. Bridge it before
+autonomous navigation actually moves the robot, e.g.:
+  ros2 run topic_tools relay /cmd_vel /diff_drive_controller/cmd_vel_unstamped
 """
 import os
 
@@ -52,7 +53,7 @@ def generate_launch_description():
                               description='Full path to the .yaml map file'),
         DeclareLaunchArgument('full_nav', default_value='false',
                               description='Add global planner + local controller '
-                                          '(requires /cmd_vel → wheel-speed bridge)'),
+                                          '(requires /cmd_vel relay to diff_drive_controller)'),
 
         # ── AMCL + map_server ─────────────────────────────────────────────────
         # nav2_bringup/localization_launch.py manages map_server + amcl via the

@@ -37,11 +37,12 @@ ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB1 -b 115200
 ros2 launch manual_controller eyerobot.launch.py ekf:=true
 ```
 
-Starts `state_estimator` (`/odom`, `odom`→`base_link` TF), `dual_odometry`
-(`/path_encoder` heading from wheels, `/path_imu` heading from IMU), the OAK-D IMU
-(`/oak/imu/data_raw`, gyro mode), and `robot_state_publisher`/`joint_state_publisher`
-for the URDF. Keep the robot **still for ~2 s** until it logs `gyro bias = …` before
-driving — the BMI270 has no on-chip fusion and bias is averaged at startup.
+Starts the ros2_control stack (`diff_drive_controller` — wheel odometry and the
+`odom`→`base_link` TF), the OAK-D IMU via `depthai_ros_driver` (`/oak/imu`, IMU
+only, camera streams disabled) filtered by `imu_filter_madgwick` (`/oak/imu/data`),
+and `robot_state_publisher` for the URDF. With `ekf:=true`, `robot_localization`
+fuses wheel odometry + IMU into `/odometry/filtered` (set `enable_odom_tf: false`
+in `diff_drive_controller.yaml` so the EKF owns the `odom`→`base_link` TF).
 
 **Terminal 3** — keyboard control (wheels + fans + belt, all in one terminal):
 
@@ -49,8 +50,11 @@ driving — the BMI270 has no on-chip fusion and bias is averaged at startup.
 ros2 run manual_controller manual_controller
 ```
 
-`w/a/s/d` drives via `/cmd_vel` → `cmd_vel_bridge` (same path as Nav2, with ramp).
-`q/e` fans, `r/t` belt, `space` stops everything.
+`w/s` forward/backward, `a/d` turn — published to
+`/diff_drive_controller/cmd_vel_unstamped` (ros2_control applies the
+velocity/acceleration limits). `q/e` fans, `r/t` belt (latched — tap again to
+stop), `space` stops everything. `u/j`, `i/k`, `o/l` adjust max/linear/angular
+speed.
 
 ### Mapping (SLAM)
 
@@ -95,7 +99,13 @@ ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true
 ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/room_8x8.yaml
 ```
 
-Nav2 publishes `/cmd_vel` which goes through `cmd_vel_bridge` to the motors.
+With `full_nav:=true`, Nav2 publishes `/cmd_vel` — but `diff_drive_controller`
+listens on `/diff_drive_controller/cmd_vel_unstamped`, so bridge it first:
+
+```
+ros2 run topic_tools relay /cmd_vel /diff_drive_controller/cmd_vel_unstamped
+```
+
 The robot has obstacle avoidance active at all times via the live local costmap.
 
 Do **not** run `slam:=true` and `nav2.launch.py` at the same time — both try to
@@ -136,7 +146,7 @@ If RViz still stays empty, re-run after confirming the Jetson IP is correct.
 Record a static bag (robot not moving, ≥10 min):
 
 ```
-ros2 bag record -o ~/bags/static_$(date +%Y%m%d_%H%M) /oak/imu/data_raw
+ros2 bag record -o ~/bags/static_$(date +%Y%m%d_%H%M) /oak/imu
 ```
 
 Analyse on the PC:
@@ -145,8 +155,9 @@ Analyse on the PC:
 python3 analyse_imu.py ~/bags/static_<name>
 ```
 
-Outputs per-axis ARW and the `_Gx/_Gy/_Gz` values to paste into
-`oak_imu/oak_imu_cube.py`. These tighten the EKF's IMU measurement noise.
+Outputs per-axis angle random walk and bias values — use them to tune the
+`imu0` covariances in `ros2_ws/src/manual_controller/config/ekf.yaml` and the
+Madgwick gain in `config/imu_filter.yaml`.
 
 ---
 
