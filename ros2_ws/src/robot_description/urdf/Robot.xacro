@@ -106,7 +106,10 @@
     <plugin>eyerobot_hardware/EyeRobotHardware</plugin>
     <param name="counts_per_output_rev">5756.0</param>
     <param name="right_feedback_sign">1.0</param>
-    <param name="left_feedback_sign">-1.0</param>
+    <!-- +1 since firmware invert_encoder=true on the left wheel (AppBus.hpp):
+         published left ticks now read positive on forward. MUST match the
+         flashed firmware — with old firmware use -1.0. -->
+    <param name="left_feedback_sign">1.0</param>
     <param name="right_fb_topic">motor_rwheel_fb</param>
     <param name="left_fb_topic">motor_lwheel_fb</param>
     <param name="right_cmd_topic">motor_rwheel_cmd</param>

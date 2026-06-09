@@ -26,7 +26,7 @@ hardware_interface::CallbackReturn EyeRobotHardware::on_init(
 
   counts_per_rev_       = std::stod(get("counts_per_output_rev", "5756.0"));
   right_feedback_sign_  = std::stod(get("right_feedback_sign",   "1.0"));
-  left_feedback_sign_   = std::stod(get("left_feedback_sign",    "-1.0"));
+  left_feedback_sign_   = std::stod(get("left_feedback_sign",    "1.0"));
   right_fb_topic_       = get("right_fb_topic",  "motor_rwheel_fb");
   left_fb_topic_        = get("left_fb_topic",   "motor_lwheel_fb");
   right_cmd_topic_      = get("right_cmd_topic", "motor_rwheel_cmd");

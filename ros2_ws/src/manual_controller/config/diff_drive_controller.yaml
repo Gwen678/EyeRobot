@@ -36,7 +36,11 @@ diff_drive_controller:
     publish_rate: 30.0
     odom_frame_id:  odom
     base_frame_id:  base_link
-    enable_odom_tf: true
+    # false: the EKF owns odom->base_link (every documented session runs
+    # ekf:=true). With true, both publish the TF and it flaps between the wheel
+    # and fused estimates. If you ever run WITHOUT ekf:=true, set this back to
+    # true or there is no odom->base_link at all.
+    enable_odom_tf: false
     pose_covariance_diagonal:  [0.002, 0.002, 0.0, 0.0, 0.0, 0.1]
     twist_covariance_diagonal: [0.01,  0.0,   0.0, 0.0, 0.0, 0.5]
 

@@ -90,10 +90,14 @@ static constexpr MotorConfig kMotorConfigs[MOTOR_COUNT] = {
       LEDC_CHANNEL_1,
       LEFT_WHEEL_ENCODER_A_PIN, LEFT_WHEEL_ENCODER_B_PIN,
       kDefaultMaxCmdRads, kWheelOpenLoopDuty, kDefaultCommandTimeoutMs,
-      /*invert_encoder=*/false, /*invert_motor=*/true },
-      // Calibrated (open-loop sweep): with its pins, +duty drove this wheel
-      // BACKWARD so invert_motor flips it to forward; the encoder already reads +
-      // on forward, so invert_encoder stays false. → negative feedback.
+      /*invert_encoder=*/true, /*invert_motor=*/true },
+      // Mirror-mounted: +duty drove this wheel BACKWARD (invert_motor) and the
+      // raw encoder counts NEGATIVE on robot-forward (proven by the host having
+      // needed left_feedback_sign=-1), so invert_encoder=true. The earlier
+      // (false,true) pair was POSITIVE feedback — forward commands railed the
+      // duty and the wheel ran away to free speed (~11 rad/s) instead of
+      // tracking. With (true,true) the published ticks read + on forward, so
+      // the host-side left_feedback_sign is now +1.
 
     { MotorID::BELT,
       MotorControlMode::OpenLoopSign,
