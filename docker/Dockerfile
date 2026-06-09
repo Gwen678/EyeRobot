@@ -31,6 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ros-humble-robot-localization \
       # OAK-D camera ROS driver (apt — no vcpkg/source build) + IMU orientation filter
       ros-humble-depthai-ros ros-humble-imu-filter-madgwick \
+      # RPLidar driver
+      ros-humble-sllidar-ros2 \
       # RViz + robot model
       ros-humble-rviz2 ros-humble-rviz-common ros-humble-rviz-default-plugins \
       ros-humble-rviz-imu-plugin \

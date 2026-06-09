@@ -39,24 +39,20 @@ def generate_launch_description():
     return LaunchDescription([
         _arg('rviz', 'false', 'Start RViz with the EyeRobot odometry config (off by default; run RViz on the dev PC for Jetson Nano deployments)'),
         _arg('robot_model', 'true', 'Publish the URDF (robot_state_publisher) for the RViz RobotModel'),
-        # Default OFF: the xterm-wrapped teleop detaches from the launch process
-        # group and survives shutdown, orphaning nodes across runs. Prefer running
-        # teleop in its own terminal (`ros2 run manual_controller manual_controller`),
-        # which gets a real TTY and dies cleanly on Ctrl-C. Set teleop:=true only
-        # if you want the convenience xterm and accept manual cleanup.
-        _arg('teleop', 'false', 'Spawn keyboard teleop in an xterm (off by default; run it in its own terminal instead)'),
+        # Teleop: run in their own terminals for a real TTY.
+        #   Driving:    ros2 run teleop_twist_keyboard teleop_twist_keyboard
+        #   Fans/belt:  ros2 run manual_controller manual_controller
+        # Both require cmd_vel_bridge:=true.
+        _arg('teleop', 'false', 'Spawn fans/belt controller in an xterm (driving always via teleop_twist_keyboard)'),
 
-        # ── Teleop (control) node ─────────────────────────────────────────────
-        _arg('command_speed_rad_s', '9.0', 'Wheel command for forward/backward keys'),
-        _arg('turn_speed_rad_s', '5.0', 'Wheel command for pivot turn keys'),
-        _arg('fan_command_rad_s', '8.0', 'Fan command magnitude (q/e)'),
+        # ── Fans/belt controller node ─────────────────────────────────────────
+        _arg('fan_command_rad_s',  '8.0', 'Fan command magnitude (q/e)'),
         _arg('belt_command_rad_s', '8.0', 'Belt command magnitude (r/t)'),
-        _arg('command_rate_hz', '20.0', 'Motor command publish rate'),
-        _arg('release_timeout_s', '0.2', 'Stop wheels if no key repeat arrives within this time'),
-        _arg('accel_rad_s2', '18.0', 'Wheel acceleration ramp rate (rad/s²); limits step per publish tick'),
+        _arg('command_rate_hz',   '20.0', 'Fans/belt command publish rate'),
+        _arg('accel_rad_s2', '18.0', 'Wheel acceleration ramp rate (rad/s²) used by cmd_vel_bridge'),
         # Direction is handled on the MCU (invert_motor/invert_encoder); host sends +forward.
         _arg('right_command_sign', '1.0', 'Host command polarity; keep +1, fix direction on the MCU'),
-        _arg('left_command_sign', '1.0', 'Host command polarity; keep +1, fix direction on the MCU'),
+        _arg('left_command_sign',  '1.0', 'Host command polarity; keep +1, fix direction on the MCU'),
 
         # ── State estimator (odometry) node ───────────────────────────────────
         _arg('counts_per_output_rev', '5756.0', 'Encoder counts per wheel (output) revolution'),
@@ -85,27 +81,17 @@ def generate_launch_description():
         _arg('imu_topic', '/oak/imu/data_raw', 'IMU topic feeding the encoder+IMU-yaw estimate'),
         _arg('imu_yaw_sign', '1.0', 'Flip to -1.0 if the IMU yaw turns opposite the robot'),
 
-        # ros2 launch does not give a node an interactive stdin, so the raw
-        # keyboard reader can't run in-process. Spawn it in its own xterm, which
-        # provides a real TTY. Set teleop:=false to run it yourself instead
-        # (`ros2 run manual_controller manual_controller`).
         Node(
             package='manual_controller',
             executable='manual_controller',
             name='manual_controller',
             output='screen',
-            prefix='xterm -title "EyeRobot teleop" -e',
+            prefix='xterm -title "EyeRobot fans/belt" -e',
             condition=IfCondition(LaunchConfiguration('teleop')),
             parameters=[{
-                'command_speed_rad_s': _f('command_speed_rad_s'),
-                'turn_speed_rad_s': _f('turn_speed_rad_s'),
-                'fan_command_rad_s': _f('fan_command_rad_s'),
+                'fan_command_rad_s':  _f('fan_command_rad_s'),
                 'belt_command_rad_s': _f('belt_command_rad_s'),
-                'command_rate_hz': _f('command_rate_hz'),
-                'release_timeout_s': _f('release_timeout_s'),
-                'accel_rad_s2': _f('accel_rad_s2'),
-                'right_command_sign': _f('right_command_sign'),
-                'left_command_sign': _f('left_command_sign'),
+                'command_rate_hz':    _f('command_rate_hz'),
             }],
         ),
         Node(
@@ -217,6 +203,7 @@ def generate_launch_description():
                 'wheel_separation_m': _f('wheel_separation_m'),
                 'right_command_sign': _f('right_command_sign'),
                 'left_command_sign':  _f('left_command_sign'),
+                'accel_rad_s2':       _f('accel_rad_s2'),
             }],
             condition=IfCondition(LaunchConfiguration('cmd_vel_bridge')),
         ),
