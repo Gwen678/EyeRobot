@@ -52,14 +52,14 @@
   <visual>
     <origin xyz="0.018502 -0.032756 0.27162" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="package://robot_description/meshes/Moteur_+_Roue_v1_Symetrie_miroir__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="package://robot_description/meshes/Moteur_+_Roue_v1_Symétrie_miroir__1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
     <origin xyz="0.018502 -0.032756 0.27162" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="package://robot_description/meshes/Moteur_+_Roue_v1_Symetrie_miroir__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="package://robot_description/meshes/Moteur_+_Roue_v1_Symétrie_miroir__1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
@@ -120,7 +120,7 @@
      so no remapping is needed. -->
 <link name="laser"/>
 <joint name="lidar_mount" type="fixed">
-  <origin xyz="0.0 0.0 0.20" rpy="0 0 0"/>
+  <origin xyz="0.280 -0.040 0.211" rpy="0 0 0"/>
   <parent link="base_link"/>
   <child link="laser"/>
 </joint>
