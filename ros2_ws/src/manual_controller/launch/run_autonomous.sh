@@ -25,8 +25,11 @@ ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true bt:=true 
 # Launching Nav2 earlier saturates the Nano's CPU during the depthai driver's
 # fragile IMU startup window and the IMU stream never comes up (observed
 # 2026-06-11; driver 2.7.x is load-sensitive at init). Keep the robot STILL.
+# The explicit message type matters: without it `ros2 topic echo` tries to
+# infer the type from a live publisher and exits non-zero immediately when
+# imu_remap hasn't started yet, instead of waiting.
 echo "Waiting for IMU calibration (first /oak/imu/data_raw message, up to 90 s)..."
-if timeout 90 ros2 topic echo --once /oak/imu/data_raw >/dev/null 2>&1; then
+if timeout 90 ros2 topic echo --once /oak/imu/data_raw sensor_msgs/msg/Imu >/dev/null 2>&1; then
   echo "IMU chain up."
 else
   # Hard abort: a mission without the IMU drifts in yaw and nobody notices a
