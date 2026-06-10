@@ -24,6 +24,21 @@ VERBOSE = True
 # block's center.
 PULLBACK_OFFSETS = (0.0, 0.25, 0.45)
 
+# ── Arena frame ──────────────────────────────────────────────────────────────
+# Mission coordinates (from fsm.py, "EXACT COORDINATES (8x8m Arena)") are
+# authored in the ARENA frame: lower-left interior corner of the 8x8 arena is
+# (0,0), x along the bottom wall, y along the left wall. The map frame is
+# whatever SLAM recorded. Offset measured from clean_room_8x8 by wall-density
+# analysis (2026-06-11): left wall interior face x=-1.4, bottom wall interior
+# face y=-6.6, residual map tilt ~1-2 deg (ignored — below AMCL noise at 8 m).
+# If the map is ever re-recorded, re-measure these two numbers.
+ARENA_ORIGIN_IN_MAP = (-1.40, -6.60)
+
+
+def arena_to_map(x, y):
+    """Arena-frame (x, y) -> map-frame (x, y)."""
+    return (x + ARENA_ORIGIN_IN_MAP[0], y + ARENA_ORIGIN_IN_MAP[1])
+
 
 def _yaw_to_quat(pose, yaw):
     """Write a planar yaw into a geometry_msgs Pose orientation."""
@@ -47,6 +62,21 @@ def _shared_tf_buffer(node):
         node.bt_tf_buffer = Buffer()
         node.bt_tf_listener = TransformListener(node.bt_tf_buffer, node)
     return node.bt_tf_buffer
+
+
+def _wait_for_server_verbose(behaviour, action_name):
+    """Block setup until the Nav2 action server exists, logging while waiting.
+
+    Nav2's lifecycle bringup takes 30-60+ s on the Jetson Nano, so a bare
+    wait_for_server() looks like a hang and overruns any finite tree-setup
+    timeout (the mission must NOT start without Nav2 anyway — see main()).
+    """
+    waited = 0
+    while not behaviour.action_client.wait_for_server(timeout_sec=5.0):
+        waited += 5
+        behaviour.logger.info(
+            f"[{behaviour.name}] waiting for '{action_name}' action server "
+            f"({waited} s — Nav2 still starting up?)")
 
 
 class WaitForLocalization(py_trees.behaviour.Behaviour):
@@ -84,11 +114,17 @@ class WaitForLocalization(py_trees.behaviour.Behaviour):
 
 
 class GoToPose(py_trees.behaviour.Behaviour):
-    """A reusable Behavior Tree leaf node that sends the robot to specific coordinates via Nav2."""
-    def __init__(self, name="Go_To_Pose", target_x=0.0, target_y=0.0):
+    """A reusable Behavior Tree leaf node that sends the robot to specific coordinates via Nav2.
+
+    target_yaw: final heading in radians (map frame). None = face along the
+    approach direction (right for flow-through collection); set it explicitly
+    when the arrival heading matters (facing the button, the drop-off, ...).
+    """
+    def __init__(self, name="Go_To_Pose", target_x=0.0, target_y=0.0, target_yaw=None):
         super().__init__(name)
         self.target_x = target_x
         self.target_y = target_y
+        self.target_yaw = target_yaw
 
         self.node = None
         self.action_client = None
@@ -105,7 +141,7 @@ class GoToPose(py_trees.behaviour.Behaviour):
             raise RuntimeError("ROS 2 node context missing.")
 
         self.action_client = ActionClient(self.node, NavigateToPose, 'navigate_to_pose')
-        self.action_client.wait_for_server()
+        _wait_for_server_verbose(self, 'navigate_to_pose')
         self.tf_buffer = _shared_tf_buffer(self.node)
 
     def _send_goal(self, pullback):
@@ -132,6 +168,11 @@ class GoToPose(py_trees.behaviour.Behaviour):
                     gy -= back * dy / dist
         elif pullback > 0.0:
             self.logger.warn(f"[{self.name}] No map->base_link TF; retrying exact target without pullback.")
+
+        # Explicit arrival heading (e.g. facing the button) beats the
+        # approach-direction default.
+        if self.target_yaw is not None:
+            yaw = self.target_yaw
 
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose.header.frame_id = "map"
@@ -246,7 +287,7 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
             raise RuntimeError("ROS 2 node context missing.")
 
         self.action_client = ActionClient(self.node, NavigateThroughPoses, 'navigate_through_poses')
-        self.action_client.wait_for_server()
+        _wait_for_server_verbose(self, 'navigate_through_poses')
         self.tf_buffer = _shared_tf_buffer(self.node)
 
     def _build_poses(self):
@@ -436,8 +477,22 @@ def wrap_with_timeout(behaviour_node, duration_seconds):
     return lenient_node
 
 # =========================================================
-# TREE COMPOSITION WITH NESTED WAYPOINTS
+# TREE COMPOSITION — mission phases mirror fsm.py's state machine
 # =========================================================
+
+# Mission poses, ARENA frame (transplanted verbatim from fsm.py's
+# "EXACT COORDINATES (8x8m Arena)"; third element = arrival yaw in radians):
+POSE_BUTTON    = (4.20, 7.50, 1.57)    # facing the button (top wall)
+POSE_DOOR      = (2.00, 7.50, 3.14)    # Zone 3 entrance
+POSE_RAMP_BASE = (7.00, 3.00, 1.57)    # bottom of the ramp
+POSE_BASE      = (0.50, 0.50, -2.35)   # drop-off point (lower-left corner)
+
+
+def _goto(name, arena_pose, timeout_s):
+    """GoToPose at an arena-frame pose, wrapped in the standard timeout/skip."""
+    x, y = arena_to_map(arena_pose[0], arena_pose[1])
+    return wrap_with_timeout(GoToPose(name, x, y, target_yaw=arena_pose[2]), timeout_s)
+
 
 def create_tree():
     # Main overall mission line
@@ -446,25 +501,25 @@ def create_tree():
     # 0. Gate: do nothing until AMCL is localized (no timeout wrapper — see class doc).
     root.add_child(WaitForLocalization())
 
-    # 1. Create a dedicated composite branch for the Button Phase
-    goto_button_branch = py_trees.composites.Sequence(name="GoToButton_Branch", memory=True)
-
-    # One flow-through route: the robot passes the intermediate poses without
-    # stopping (blocks are absorbed by the fans in passing). The timeout covers
-    # the whole route including pullback retries on infeasible poses.
-    # GoToPose remains available for single stop-at-goal moves (e.g. parking in
-    # front of the button before pushing it).
-    goto_button_branch.add_child(wrap_with_timeout(
-        GoThroughPoses("Button_Route", [(1.0, 0.0), (1.0, 1.0), (0.0, 0.0)]), 90.0))
+    # 1. Button phase: drive to the button, face it (yaw from fsm.py), push (stub).
+    root.add_child(_goto("Move_To_Button", POSE_BUTTON, 60.0))
     
-    # 2. Append the branches and actions directly to the main mission tree
-    root.add_child(goto_button_branch)
     root.add_child(wrap_with_timeout(PushButton(), 5.0))
+
+    # 2. Door phase: Zone 3 entrance; align + climb are instant-SUCCESS stubs.
+    root.add_child(_goto("Go_To_Door", POSE_DOOR, 60.0))
     root.add_child(wrap_with_timeout(AlignWithWall(), 5.0))
     root.add_child(wrap_with_timeout(ClimbDoor(), 5.0))
-    root.add_child(wrap_with_timeout(GoToStart(), 5.0))
+
+    # 3. Lego collection slots in here later: a GoThroughPoses flow-through
+    #    route over detected block positions (/eyerobot/vision/lego_markers_map):
+    #    root.add_child(wrap_with_timeout(GoThroughPoses("Collect_Route", pts), 120.0))
+
+    # 4. Ramp, then return to base and deliver (drop-off yaw from fsm.py).
+    root.add_child(_goto("Go_To_Ramp", POSE_RAMP_BASE, 60.0))
+    root.add_child(_goto("Return_To_Base", POSE_BASE, 90.0))
     root.add_child(wrap_with_timeout(Delivery(), 5.0))
-        
+
     return root
 
 
@@ -482,7 +537,13 @@ def main(args=None):
         unicode_tree_debug=False
     )
 
-    tree.setup(node_name="autonomous_controller", timeout=15.0)
+    # Infinite setup timeout: setup blocks on the Nav2 action servers, and Nav2
+    # takes 30-60+ s to activate on the Nano — a finite timeout (the old 15.0)
+    # killed the tree mid-boot with "tree setup interrupted or timed out".
+    # If Nav2 never comes up, the periodic "waiting for ... action server" logs
+    # make the hang visible and diagnosable, which beats starting a mission
+    # without navigation.
+    tree.setup(node_name="autonomous_controller", timeout=py_trees.common.Duration.INFINITE)
     
     try:
         tree.tick_tock(period_ms=50)

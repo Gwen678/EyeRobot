@@ -39,10 +39,16 @@ amcl:
     z_short: 0.05
     z_max: 0.05
     scan_topic: /scan
+    # Default start pose: 1 m interior (x and y) from the arena's lower-left
+    # corner. Arena corner = (-1.40, -6.60) in the clean_room_8x8 map frame
+    # (wall-density measurement 2026-06-11), so arena (1,1) = map (-0.40, -5.60).
+    # yaw 0.0 assumes the robot starts facing along the bottom wall (+x arena);
+    # adjust if the real start heading differs. A Foxglove "Set pose" click
+    # (/initialpose) overrides this at any time.
     set_initial_pose: true
     initial_pose:
-      x: 0.0
-      y: 0.0
+      x: -0.40
+      y: -5.60
       z: 0.0
       yaw: 0.0
 
