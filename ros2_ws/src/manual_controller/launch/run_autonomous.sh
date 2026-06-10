@@ -8,6 +8,22 @@ echo "========================================="
 echo "   STARTING EYEROBOT AUTONOMOUS STACK   "
 echo "========================================="
 
+# Pre-flight: refuse to start on top of a stale stack. A previous session that
+# died without Ctrl+C (SSH drop, killed terminal) leaves its nodes running —
+# a zombie AMCL with old params publishes map->odom and silently bypasses the
+# wait-for-initial-pose gate; a zombie oak driver blocks the camera (exclusive
+# USB access); duplicate controllers fight over the motors.
+STALE=$(ros2 node list 2>/dev/null | grep -E "amcl|bt_navigator|controller_manager|^/oak$" | sort -u)
+if [ -n "${STALE}" ]; then
+  echo "============================================================"
+  echo "  FATAL: nodes from a previous session are still running:"
+  echo "${STALE}"
+  echo "  Clean up first (safest: docker restart eyerobot on the"
+  echo "  Jetson host), then rerun this script."
+  echo "============================================================"
+  exit 1
+fi
+
 # 1. Start the micro-ROS Agent (Hardware communication)
 echo "[1/3] Launching micro-ROS Agent..."
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/esp32 -b 115200 &

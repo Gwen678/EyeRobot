@@ -160,8 +160,17 @@ def main():
     th = 0.0
     status = 0.0
 
-    fans_cmd = 0.0
-    belt_cmd = 0.0
+    # Fans/belt latched state, republished at 5 Hz by a node timer (spinner
+    # thread): the firmware zeroes any motor command not refreshed within
+    # 500 ms (comms-loss safety net), so a single publish per keypress only
+    # produces a half-second pulse instead of a latched motor.
+    latched = {'fans': 0.0, 'belt': 0.0}
+
+    def _republish_latched():
+        pub_fans.publish(Float32(data=latched['fans']))
+        pub_belt.publish(Float32(data=latched['belt']))
+
+    node.create_timer(0.2, _republish_latched)
 
     twist_msg = TwistMsg()
 
@@ -190,16 +199,26 @@ def main():
                 if (status == 14):
                     print(msg)
                 status = (status + 1) % 15
+                # Same stale-twist hazard as the fan keys: adjust the scale
+                # without re-sending the last motion command.
+                continue
             elif key in fanBindings.keys():
+                # Latched toggle: same key again = off, other key = flip
+                # direction. The timer above keeps republishing the value.
+                # Do NOT fall through to the twist publish below — that would
+                # re-send the LAST move command (stale x/th) and the robot
+                # would lurch/spin every time a fan key is tapped.
                 target = fanBindings[key] * fan_speed
-                fans_cmd = 0.0 if fans_cmd == target else target
-                print('fans: %s' % ('+' if fans_cmd > 0 else ('-' if fans_cmd < 0 else 'off')))
-                pub_fans.publish(Float32(data=fans_cmd))
+                latched['fans'] = 0.0 if latched['fans'] == target else target
+                print('fans: %s' % ('+' if latched['fans'] > 0 else ('-' if latched['fans'] < 0 else 'off')))
+                pub_fans.publish(Float32(data=latched['fans']))
+                continue
             elif key in beltBindings.keys():
                 target = beltBindings[key] * belt_speed
-                belt_cmd = 0.0 if belt_cmd == target else target
-                print('belt: %s' % ('+' if belt_cmd > 0 else ('-' if belt_cmd < 0 else 'off')))
-                pub_belt.publish(Float32(data=belt_cmd))
+                latched['belt'] = 0.0 if latched['belt'] == target else target
+                print('belt: %s' % ('+' if latched['belt'] > 0 else ('-' if latched['belt'] < 0 else 'off')))
+                pub_belt.publish(Float32(data=latched['belt']))
+                continue
             else:
                 x = 0.0
                 y = 0.0
@@ -207,8 +226,8 @@ def main():
                 th = 0.0
                 if key == ' ':
                     # Emergency stop: wheels (zero twist below) + fans + belt.
-                    fans_cmd = 0.0
-                    belt_cmd = 0.0
+                    latched['fans'] = 0.0
+                    latched['belt'] = 0.0
                     pub_fans.publish(Float32(data=0.0))
                     pub_belt.publish(Float32(data=0.0))
                     print('STOP — wheels, fans and belt off')

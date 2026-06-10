@@ -33,6 +33,11 @@ VERBOSE = True
 # block's center.
 PULLBACK_OFFSETS = (0.0, 0.25, 0.45)
 
+# Pause between navigation retries: an instant resend after an abort burns all
+# attempts in milliseconds on transient failures (e.g. Nav2's planner/costmap
+# servers still activating when the first goal lands).
+RETRY_DELAY_S = 2.0
+
 # ── Arena frame ──────────────────────────────────────────────────────────────
 # Mission coordinates (from fsm.py, "EXACT COORDINATES (8x8m Arena)") are
 # authored in the ARENA frame: lower-left interior corner of the 8x8 arena is
@@ -192,6 +197,7 @@ class GoToPose(py_trees.behaviour.Behaviour):
         self.goal_status = None
         self.tick_count = 0
         self.attempt = 0
+        self._retry_at_s = None
 
     def setup(self, **kwargs):
         """Extracts the ROS 2 node from the py_trees_ros environment setup."""
@@ -203,6 +209,9 @@ class GoToPose(py_trees.behaviour.Behaviour):
         self.action_client = ActionClient(self.node, NavigateToPose, 'navigate_to_pose')
         _wait_for_server_verbose(self, 'navigate_to_pose')
         self.tf_buffer = _shared_tf_buffer(self.node)
+
+    def _now_s(self):
+        return self.node.get_clock().now().nanoseconds * 1e-9
 
     def _send_goal(self, pullback):
         """Send the Nav2 goal, optionally pulled back toward the robot by `pullback` meters.
@@ -227,7 +236,7 @@ class GoToPose(py_trees.behaviour.Behaviour):
                     gx -= back * dx / dist
                     gy -= back * dy / dist
         elif pullback > 0.0:
-            self.logger.warn(f"[{self.name}] No map->base_link TF; retrying exact target without pullback.")
+            self.logger.warning(f"[{self.name}] No map->base_link TF; retrying exact target without pullback.")
 
         # Explicit arrival heading (e.g. facing the button) beats the
         # approach-direction default.
@@ -255,6 +264,7 @@ class GoToPose(py_trees.behaviour.Behaviour):
         """Fires every time the behavior switches from inactive to active."""
         self.tick_count = 0
         self.attempt = 0
+        self._retry_at_s = None
         self._send_goal(PULLBACK_OFFSETS[0])
 
     def _goal_response_callback(self, future):
@@ -287,10 +297,20 @@ class GoToPose(py_trees.behaviour.Behaviour):
         if self.goal_status in [GoalStatus.STATUS_ABORTED, GoalStatus.STATUS_UNKNOWN]:
             # Infeasible target (e.g. block against a wall): pull the goal back
             # toward the robot and retry before giving up on this waypoint.
+            # Retries are spaced RETRY_DELAY_S apart so a transient failure
+            # (Nav2 servers still activating) doesn't burn all attempts at once.
             if self.attempt + 1 < len(PULLBACK_OFFSETS):
+                if self._retry_at_s is None:
+                    self._retry_at_s = self._now_s() + RETRY_DELAY_S
+                    self.logger.warning(
+                        f"[{self.name}] Nav2 aborted/rejected; retrying in {RETRY_DELAY_S} s.")
+                    return Status.RUNNING
+                if self._now_s() < self._retry_at_s:
+                    return Status.RUNNING
+                self._retry_at_s = None
                 self.attempt += 1
                 offset = PULLBACK_OFFSETS[self.attempt]
-                self.logger.warn(f"[{self.name}] Nav2 aborted; retry {self.attempt} with {offset} m pullback.")
+                self.logger.warning(f"[{self.name}] retry {self.attempt} with {offset} m pullback.")
                 self._send_goal(offset)
                 return Status.RUNNING
             self.logger.error(f"[{self.name}] Nav2 failed to reach target after {self.attempt + 1} attempts.")
@@ -305,7 +325,7 @@ class GoToPose(py_trees.behaviour.Behaviour):
     def terminate(self, new_status: Status) -> None:
         """Fires automatically when the node stops running."""
         if new_status == Status.INVALID and self.goal_handle is not None:
-            self.logger.warn(f"[{self.name}] Interrupted! Canceling active navigation.")
+            self.logger.warning(f"[{self.name}] Interrupted! Canceling active navigation.")
             self.goal_handle.cancel_goal_async()
 
         self.goal_handle = None
@@ -338,6 +358,7 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
         self.pb_level = []       # per-pending-pose index into PULLBACK_OFFSETS
         self.sent_count = 0      # how many poses the active goal contains
         self.feedback_remaining = None
+        self._retry_at_s = None
 
     def setup(self, **kwargs):
         """Extracts the ROS 2 node from the py_trees_ros environment setup."""
@@ -349,6 +370,9 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
         self.action_client = ActionClient(self.node, NavigateThroughPoses, 'navigate_through_poses')
         _wait_for_server_verbose(self, 'navigate_through_poses')
         self.tf_buffer = _shared_tf_buffer(self.node)
+
+    def _now_s(self):
+        return self.node.get_clock().now().nanoseconds * 1e-9
 
     def _build_poses(self):
         """PoseStamped list for the pending waypoints.
@@ -402,12 +426,13 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
     def initialise(self) -> None:
         """Fires every time the behavior switches from inactive to active."""
         self.tick_count = 0
+        self._retry_at_s = None
         self.pending = list(self.waypoints)
         self.pb_level = [0] * len(self.pending)
         if not self.pending:
             # Empty route (e.g. dynamic planner produced nothing): fail fast
             # instead of sending Nav2 a zero-pose goal.
-            self.logger.warn(f"[{self.name}] No waypoints — nothing to do.")
+            self.logger.warning(f"[{self.name}] No waypoints — nothing to do.")
             self.goal_status = GoalStatus.STATUS_ABORTED
             return
         self._send_goal()
@@ -448,7 +473,7 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
 
         if self.pb_level[0] + 1 < len(PULLBACK_OFFSETS):
             self.pb_level[0] += 1
-            self.logger.warn(
+            self.logger.warning(
                 f"[{self.name}] Route aborted at {self.pending[0]}; retrying with "
                 f"{PULLBACK_OFFSETS[self.pb_level[0]]} m pullback.")
         else:
@@ -480,6 +505,16 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
             return Status.SUCCESS
 
         if self.goal_status in [GoalStatus.STATUS_ABORTED, GoalStatus.STATUS_UNKNOWN]:
+            # Space recovery resends RETRY_DELAY_S apart (transient Nav2
+            # failures — e.g. servers still activating — otherwise burn all
+            # pullback levels instantly).
+            if self._retry_at_s is None:
+                self._retry_at_s = self._now_s() + RETRY_DELAY_S
+                self.logger.warning(f"[{self.name}] Route aborted; recovering in {RETRY_DELAY_S} s.")
+                return Status.RUNNING
+            if self._now_s() < self._retry_at_s:
+                return Status.RUNNING
+            self._retry_at_s = None
             if self._recover_from_abort():
                 return Status.RUNNING
             self.logger.error(f"[{self.name}] No reachable poses left in route.")
@@ -494,7 +529,7 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
     def terminate(self, new_status: Status) -> None:
         """Fires automatically when the node stops running."""
         if new_status == Status.INVALID and self.goal_handle is not None:
-            self.logger.warn(f"[{self.name}] Interrupted! Canceling active navigation.")
+            self.logger.warning(f"[{self.name}] Interrupted! Canceling active navigation.")
             self.goal_handle.cancel_goal_async()
 
         self.goal_handle = None
@@ -585,33 +620,44 @@ class ResetBlockCount(py_trees.behaviour.Behaviour):
 
 
 class SetMotor(py_trees.behaviour.Behaviour):
-    """One-shot motor command: publish a Float32 to /cmd_fans or /cmd_belt.
+    """Latched motor command: set /cmd_fans or /cmd_belt to a value.
 
-    The firmware latches the value (like the teleop's q/e and r/t keys), so a
-    single publish is enough — returns SUCCESS immediately after publishing.
+    The firmware zeroes any motor command not refreshed within 500 ms (its
+    comms-loss safety net), so 'set once' must really be 'set and keep
+    republishing': a single shared 5 Hz node timer re-sends the latched value
+    of every commanded topic for the rest of the mission. The behavior itself
+    returns SUCCESS immediately after updating the latch.
     """
     def __init__(self, name, topic, value):
         super().__init__(name)
         self.topic = topic
         self.value = float(value)
         self.node = None
-        self._pub = None
 
     def setup(self, **kwargs):
         self.node = kwargs.get("node")
         if self.node is None:
             raise RuntimeError("ROS 2 node context missing.")
-        # Share one publisher per topic across all SetMotor instances.
-        pubs = getattr(self.node, "bt_motor_pubs", None)
-        if pubs is None:
-            pubs = self.node.bt_motor_pubs = {}
-        if self.topic not in pubs:
-            pubs[self.topic] = self.node.create_publisher(Float32, self.topic, 10)
-        self._pub = pubs[self.topic]
+        # Shared across all SetMotor instances: one publisher per topic, one
+        # latch dict, one republish timer on the node.
+        if not hasattr(self.node, "bt_motor_latch"):
+            self.node.bt_motor_pubs = {}
+            self.node.bt_motor_latch = {}
+            node = self.node
+
+            def _republish():
+                for topic, value in node.bt_motor_latch.items():
+                    node.bt_motor_pubs[topic].publish(Float32(data=value))
+
+            self.node.bt_motor_timer = self.node.create_timer(0.2, _republish)
+        if self.topic not in self.node.bt_motor_pubs:
+            self.node.bt_motor_pubs[self.topic] = self.node.create_publisher(
+                Float32, self.topic, 10)
 
     def update(self) -> Status:
-        self._pub.publish(Float32(data=self.value))
-        self.logger.info(f"[{self.name}] {self.topic} = {self.value}")
+        self.node.bt_motor_latch[self.topic] = self.value
+        self.node.bt_motor_pubs[self.topic].publish(Float32(data=self.value))
+        self.logger.info(f"[{self.name}] {self.topic} = {self.value} (latched)")
         return Status.SUCCESS
 
 
