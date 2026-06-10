@@ -80,6 +80,18 @@ def generate_launch_description():
                     FindPackageShare('manual_controller'), 'config', 'depthai_camera.yaml']),
                 'camera_model': 'OAK-D-LITE',
                 'name': 'oak',
+                # Attach the camera's TF tree (oak-d-base-frame → oak → ...) to
+                # the robot: oak_state_publisher then publishes
+                # base_link → oak-d-base-frame at the mount pose (same offsets
+                # as imu_link in Robot.xacro). Without this the oak frames are
+                # an island with no path to odom.
+                'parent_frame': 'base_link',
+                'cam_pos_x': '0.42',
+                'cam_pos_z': '0.135',
+                # No image_proc rectify component: RGB streams are disabled
+                # (IMU only), the rectify node would just advertise dead
+                # /oak/rgb/image_rect* topics.
+                'rectify_rgb': 'false',
             }.items(),
         ),
 

@@ -140,6 +140,17 @@
   <child link="imu_link"/>
 </joint>
 
+<!-- depthai_ros_driver stamps IMU messages with frame_id oak_imu_frame, but the
+     driver's own URDF (oak_state_publisher) does not include that frame unless
+     imu_from_descr is enabled — so robot_localization could not transform the
+     IMU data. Provide it here: same pose as imu_link (the OAK-D IS the IMU). -->
+<link name="oak_imu_frame"/>
+<joint name="oak_imu_mount" type="fixed">
+  <origin xyz="0 0 0" rpy="0 0 0"/>
+  <parent link="imu_link"/>
+  <child link="oak_imu_frame"/>
+</joint>
+
 <!-- RPLidar A1M8 — centered on robot (x=0, y=0), mounted at the top.
      Z=0.20 m is measured from the wheel-axle midpoint (base_link origin).
      ADJUST Z if the actual mount height differs — measure from axle to lidar

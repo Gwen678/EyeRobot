@@ -15,10 +15,6 @@ def _arg(name: str, default: str, description: str) -> DeclareLaunchArgument:
     return DeclareLaunchArgument(name, default_value=default, description=description)
 
 
-def _f(name: str):
-    return ParameterValue(LaunchConfiguration(name), value_type=float)
-
-
 def generate_launch_description():
     pkg_share = get_package_share_directory('manual_controller')
     rviz_config = os.path.join(pkg_share, 'rviz', 'eyerobot.rviz')
@@ -67,36 +63,16 @@ def generate_launch_description():
     return LaunchDescription([
         _arg('rviz',       'false', 'Start RViz with the EyeRobot config (off by default; run on dev PC)'),
         _arg('robot_model','true',  'Publish the URDF (robot_state_publisher) for RViz RobotModel'),
-        # Teleop: run in its own terminal for a real TTY.
+        # Teleop is NOT spawned here — it reads the keyboard, so it needs its
+        # own terminal (and the container has no xterm). Run separately:
         #   ros2 run manual_controller manual_controller
         # Drives wheels (wasd → /diff_drive_controller/cmd_vel_unstamped),
         # fans (q/e) and belt (r/t); space stops everything.
-        _arg('teleop',     'false', 'Spawn the teleop controller in an xterm'),
-
-        # ── Fans/belt controller ──────────────────────────────────────────────
-        _arg('fan_command_rad_s',  '8.0', 'Fan command magnitude (q/e)'),
-        _arg('belt_command_rad_s', '8.0', 'Belt command magnitude (r/t)'),
-        _arg('command_rate_hz',   '20.0', 'Fans/belt publish rate (Hz)'),
 
         # ── Optional EKF (robot_localization) ────────────────────────────────
         # When enabled, set enable_odom_tf: false in diff_drive_controller.yaml
         # so the EKF — not diff_drive_controller — owns the odom->base_link TF.
         _arg('ekf', 'false', 'Run robot_localization EKF fusing wheel odom + IMU'),
-
-        # ── Fans/belt controller node (optional xterm) ────────────────────────
-        Node(
-            package='manual_controller',
-            executable='manual_controller',
-            name='manual_controller',
-            output='screen',
-            prefix='xterm -title "EyeRobot fans/belt" -e',
-            condition=IfCondition(LaunchConfiguration('teleop')),
-            parameters=[{
-                'fan_command_rad_s':  _f('fan_command_rad_s'),
-                'belt_command_rad_s': _f('belt_command_rad_s'),
-                'command_rate_hz':    _f('command_rate_hz'),
-            }],
-        ),
 
         # ── ros2_control: controller manager + controllers ────────────────────
         controller_manager,
