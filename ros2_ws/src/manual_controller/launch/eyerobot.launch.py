@@ -19,10 +19,9 @@ Those need a real TTY / separate session:
   ros2 run manual_controller manual_controller   # driving (wasd) + fans (q/e) + belt (r/t)
   rviz2 -d <path>/eyerobot.rviz                  # on PC
 
-(teleop_twist_keyboard also works, but needs a remap — diff_drive_controller
-listens on /diff_drive_controller/cmd_vel_unstamped, not /cmd_vel:
-  ros2 run teleop_twist_keyboard teleop_twist_keyboard \
-    --ros-args -r cmd_vel:=/diff_drive_controller/cmd_vel_unstamped)
+(teleop_twist_keyboard also works out of the box — diff_drive_controller's
+subscription is remapped to /cmd_vel in manual_controller.launch.py, so
+anything publishing /cmd_vel, Nav2 included, drives the wheels directly.)
 
 Optional flags:
   lidar:=true   Start the RPLidar A1M8. Off by default.

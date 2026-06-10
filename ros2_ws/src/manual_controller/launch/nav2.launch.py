@@ -13,20 +13,18 @@ Full navigation stack (adds global planner + local DWB controller):
 
 Choose a map:
   ros2 launch manual_controller nav2.launch.py \\
-    map:=/eyerobot/ros2_ws/maps/map_fermee_sans_tapis.yaml
+    map:=/eyerobot/ros2_ws/maps/room_8x8.yaml
 
 Available maps (inside the container):
-  /eyerobot/ros2_ws/maps/map.yaml
-  /eyerobot/ros2_ws/maps/map_fermee_sans_tapis.yaml
-  /eyerobot/ros2_ws/maps/map_ouverte_sans_tapis.yaml
+  /eyerobot/ros2_ws/maps/clean_room_8x8.yaml  (default — GIMP-cleaned, corrected origin)
+  /eyerobot/ros2_ws/maps/room_8x8.yaml        (original SLAM output, origin baseline)
 
 On startup AMCL initialises at (0,0,0). If the robot is elsewhere, publish an
 initial pose via Foxglove (/initialpose) or the 2D Pose Estimate tool.
 
-NOTE: full_nav:=true publishes /cmd_vel (Twist), but diff_drive_controller
-subscribes to /diff_drive_controller/cmd_vel_unstamped. Bridge it before
-autonomous navigation actually moves the robot, e.g.:
-  ros2 run topic_tools relay /cmd_vel /diff_drive_controller/cmd_vel_unstamped
+NOTE: full_nav:=true publishes /cmd_vel (Twist); diff_drive_controller's
+subscription is remapped to /cmd_vel in manual_controller.launch.py, so Nav2
+drives the wheels directly — no relay needed.
 """
 import os
 
@@ -43,7 +41,7 @@ def generate_launch_description():
     nav2_share = get_package_share_directory('nav2_bringup')
 
     params_file = os.path.join(mc_share, 'config', 'nav2_params.yaml')
-    default_map  = '/eyerobot/ros2_ws/maps/map.yaml'
+    default_map  = '/eyerobot/ros2_ws/maps/clean_room_8x8.yaml'
 
     localization_launch = os.path.join(nav2_share, 'launch', 'localization_launch.py')
     navigation_launch   = os.path.join(nav2_share, 'launch', 'navigation_launch.py')

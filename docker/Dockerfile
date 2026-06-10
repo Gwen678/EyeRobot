@@ -29,6 +29,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # Nav2 + SLAM + state-estimation EKF (wheel odom + IMU fusion)
       ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-slam-toolbox \
       ros-humble-robot-localization \
+      # topic_tools relay: bridges Nav2's /cmd_vel to diff_drive_controller's
+      # /diff_drive_controller/cmd_vel_unstamped (run_autonomous.sh step 4)
+      ros-humble-topic-tools \
       # ros2_control — controller manager + diff_drive_controller
       ros-humble-ros2-control ros-humble-ros2-controllers \
       # OAK-D camera ROS driver (apt — no vcpkg/source build) + IMU orientation filter

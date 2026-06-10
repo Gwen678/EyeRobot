@@ -68,8 +68,8 @@ in `diff_drive_controller.yaml` so the EKF owns the `odom`→`base_link` TF).
 ros2 run manual_controller manual_controller
 ```
 
-`w/s` forward/backward, `a/d` turn — published to
-`/diff_drive_controller/cmd_vel_unstamped` (ros2_control applies the
+`w/s` forward/backward, `a/d` turn — published to `/cmd_vel`, which is
+remapped straight into `diff_drive_controller` (ros2_control applies the
 velocity/acceleration limits). `q/e` fans, `r/t` belt (latched — tap again to
 stop), `space` stops everything. `u/j`, `i/k`, `o/l` adjust max/linear/angular
 speed.
@@ -109,8 +109,9 @@ bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh
 
 It starts, in order: micro-ROS agent → `eyerobot.launch.py lidar:=true
 ekf:=true bt:=true` (the behavior tree is part of the launch file) → Nav2 with
-`maps/clean_room_8x8.yaml` and `full_nav:=true` → the `/cmd_vel` →
-`/diff_drive_controller/cmd_vel_unstamped` relay. The behavior tree arms
+`maps/clean_room_8x8.yaml` and `full_nav:=true`. Nav2's `/cmd_vel` reaches
+`diff_drive_controller` directly (its subscription is remapped to `/cmd_vel` —
+no relay node). The behavior tree arms
 itself: it waits for the Nav2 action servers, then for AMCL localization —
 **the mission starts the moment you set the initial pose in Foxglove** (see
 the sanity check below), because mission coordinates are map-frame and nothing
@@ -149,14 +150,11 @@ also starts the planner/controller/waypoint servers the BT's actions need):
 ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/clean_room_8x8.yaml full_nav:=true
 ```
 
-**Terminal 4** — bridge: Nav2 publishes `/cmd_vel`, but `diff_drive_controller`
-listens on `/diff_drive_controller/cmd_vel_unstamped`:
+(No relay terminal needed: `diff_drive_controller`'s subscription is remapped
+to `/cmd_vel` in `manual_controller.launch.py`, so Nav2, teleop, and anything
+else publishing `/cmd_vel` drive the wheels directly.)
 
-```
-ros2 run topic_tools relay /cmd_vel /diff_drive_controller/cmd_vel_unstamped
-```
-
-**Terminal 5** — behavior tree (or skip it and drive manually / send Nav2
+**Terminal 4** — behavior tree (or skip it and drive manually / send Nav2
 goals from Foxglove). Either add `bt:=true` to the Terminal 2 launch instead,
 or run it standalone:
 

@@ -133,10 +133,10 @@ def main():
     frame_id = node.declare_parameter('frame_id', '').value
     fan_speed = node.declare_parameter('fan_command_rad_s', 8.0).value
     belt_speed = node.declare_parameter('belt_command_rad_s', 8.0).value
-    # diff_drive_controller (Humble, use_stamped_vel: false) subscribes to
-    # ~/cmd_vel_unstamped, not /cmd_vel — publish straight to it.
-    cmd_vel_topic = node.declare_parameter(
-        'cmd_vel_topic', '/diff_drive_controller/cmd_vel_unstamped').value
+    # diff_drive_controller's ~/cmd_vel_unstamped subscription is remapped to
+    # /cmd_vel in manual_controller.launch.py, so teleop and Nav2 share one
+    # topic and drive the controller directly (no topic_tools relay).
+    cmd_vel_topic = node.declare_parameter('cmd_vel_topic', '/cmd_vel').value
     if not stamped and frame_id:
         raise Exception("'frame_id' can only be set when 'stamped' is True")
 

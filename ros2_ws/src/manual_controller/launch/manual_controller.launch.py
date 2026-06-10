@@ -40,6 +40,10 @@ def generate_launch_description():
             PathJoinSubstitution([
                 FindPackageShare('manual_controller'), 'config', 'diff_drive_controller.yaml']),
         ],
+        # diff_drive_controller subscribes ~/cmd_vel_unstamped, which resolves
+        # to /diff_drive_controller/cmd_vel_unstamped. Remap it to /cmd_vel so
+        # Nav2 and teleop drive the controller directly (no topic_tools relay).
+        remappings=[('/diff_drive_controller/cmd_vel_unstamped', '/cmd_vel')],
         output='screen',
     )
 
@@ -66,7 +70,7 @@ def generate_launch_description():
         # Teleop is NOT spawned here — it reads the keyboard, so it needs its
         # own terminal (and the container has no xterm). Run separately:
         #   ros2 run manual_controller manual_controller
-        # Drives wheels (wasd → /diff_drive_controller/cmd_vel_unstamped),
+        # Drives wheels (wasd → /cmd_vel, remapped into diff_drive_controller),
         # fans (q/e) and belt (r/t); space stops everything.
 
         # ── Optional EKF (robot_localization) ────────────────────────────────

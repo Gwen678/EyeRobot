@@ -26,7 +26,7 @@ class StrategyFSM(Node):
         self.POSE_RAMP_BASE = self.create_pose(7.00, 3.00, 1.57) # Bottom of the ramp
         
         # --- PUBLISHERS & SUBSCRIBERS ---
-        self.cmd_pub = self.create_publisher(Twist, '/diff_drive_controller/cmd_vel_unstamped', 10)
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)  # remapped into diff_drive_controller
         self.nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         
         # Replace Vector3 with the exact message type from your vision script
