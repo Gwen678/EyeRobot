@@ -24,18 +24,23 @@ sleep 3
 # 3. Launch Navigation 2 Stack (AMCL Localization + Global/Local Costmaps)
 echo "[3/4] Launching Nav2 Server..."
 ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/room_8x8.yaml full_nav:=true &
-sleep 4
+sleep 2
 
 # 4. Bridge the Nav2 velocity commands to the hardware controller
 echo "[4/4] Bridging velocity command topics..."
 ros2 run topic_tools relay /cmd_vel /diff_drive_controller/cmd_vel_unstamped &
-sleep 5
+sleep 2
 
 echo "========================================="
 echo " SYSTEM READY. Launching Behavior Tree... "
 echo "========================================="
 
 # 5. Execute your Behavior Tree Engine in the foreground
+echo "========================================="
+echo "  [WAITING] Stack initialization complete."
+echo "  Press [ENTER] when ready to start the autonomous mission."
+echo "========================================="
+read -p ""
 python3 /eyerobot/ros2_ws/src/autonomous_controller/BehavioralTree.py
 
 # If the behavior tree finishes naturally, trigger the trap to clean up the backend
