@@ -21,6 +21,15 @@ static constexpr float kKi     =  0.04f;
 static constexpr float kOutMin = -100.0f;
 static constexpr float kOutMax =  100.0f;
 static constexpr float kStopSetpointEpsilonTps = 1.0f;
+// Slowest speed the drivetrain can actually sustain. Nonzero setpoints below
+// it are floored to it (sign-preserving): the bottom of the host-side accel
+// ramp otherwise commands speeds the wheel physically cannot do, which reads
+// as launch latency. Verified on hardware: 1.0 rad/s turns steadily (with the
+// breakaway feedforward active). Re-measure if it changes:
+//   ros2 topic pub -r 20 /motor_rwheel_cmd std_msgs/msg/Float32 "{data: X}"
+// lowering X until the wheel no longer turns steadily.
+static constexpr float kMinWheelRads = 1.0f;
+
 // Feedforward model, command frame. kDutyPerTps: ~100% duty ≈ 11 rad/s ≈
 // 10 000 tps free speed → ~0.01 duty per tps. kBreakawayDuty: duty needed to
 // start the wheel turning under robot load — TUNE on hardware: too low brings
@@ -160,7 +169,18 @@ void MotorTask::run()
         float duty   = 0.0f;
         bool  stop   = false;
         if (closed_loop) {
-            const float setpoint_tps = _command_rads * encoder_cfg::kTicksPerRad;
+            float setpoint_tps = _command_rads * encoder_cfg::kTicksPerRad;
+            // Floor sub-threshold commands to the minimum sustainable speed —
+            // commanded intent becomes immediate motion instead of a stalled
+            // hum at a duty the wheel can't move at. Zero stays zero (stop).
+            if (!is_stop_setpoint(setpoint_tps)) {
+                const float min_tps = kMinWheelRads * encoder_cfg::kTicksPerRad;
+                if (setpoint_tps > 0.0f && setpoint_tps < min_tps) {
+                    setpoint_tps = min_tps;
+                } else if (setpoint_tps < 0.0f && setpoint_tps > -min_tps) {
+                    setpoint_tps = -min_tps;
+                }
+            }
             // Commanded direction flipped: drop integral built up for the old
             // direction so the reversal isn't sluggish unwinding it.
             if (setpoint_tps * prev_setpoint_tps < 0.0f) {

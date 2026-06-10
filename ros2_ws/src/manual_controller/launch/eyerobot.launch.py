@@ -103,11 +103,29 @@ def generate_launch_description():
         # should increase counter-clockwise (yaw left = positive).  If wrong, the
         # imu_remap_node in manual_controller/imu_remap_node.py can be re-added.
         #
+        # imu_remap: sign correction (gyro/accel y,z negated — the BMI270 is
+        # mounted 180° about X) + startup gyro-bias subtraction. Keep the robot
+        # STILL for ~2 s after launch until it logs "gyro bias = ...".
+        # Sign handling lives here, in the data: rolling oak_imu_frame by pi in
+        # the URDF did not flip the yaw rate the EKF integrates (verified on
+        # hardware), so TF-level correction was abandoned.
+        Node(
+            package='manual_controller',
+            executable='imu_remap',
+            name='imu_remap',
+            output='screen',
+            parameters=[{
+                'input_topic':  '/oak/imu/data',     # raw from depthai driver
+                'output_topic': '/oak/imu/data_raw', # REP-103, bias-corrected
+                'frame_id':     'imu_link',
+            }],
+        ),
+
         # Topic wiring (driver publishes ~/imu/data → /oak/imu/data, verified in
         # depthai-ros 2.7.5 imu.cpp — NOT /oak/imu):
-        #   input : imu/data_raw ← /oak/imu/data  (raw accel+gyro from driver)
-        #   output: imu/data     → /oak/imu/fused (remapped! the default /oak/imu/data
-        #           would collide with the driver's raw topic and self-loop)
+        #   input : imu/data_raw = /oak/imu/data_raw (from imu_remap above)
+        #   output: imu/data     → /oak/imu/fused (remapped! the default
+        #           /oak/imu/data would collide with the driver's raw topic)
         # ekf.yaml imu0 must point at /oak/imu/fused.
         Node(
             package='imu_filter_madgwick',
@@ -117,8 +135,7 @@ def generate_launch_description():
             output='screen',
             parameters=[PathJoinSubstitution([
                 FindPackageShare('manual_controller'), 'config', 'imu_filter.yaml'])],
-            remappings=[('imu/data_raw', 'imu/data'),
-                        ('imu/data', 'imu/fused')],
+            remappings=[('imu/data', 'imu/fused')],
         ),
 
         # ── RPLidar A1M8 ─────────────────────────────────────────────────────

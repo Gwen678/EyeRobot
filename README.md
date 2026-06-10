@@ -8,8 +8,8 @@ below are just the commands to connect and run.
 
 | Port | Device |
 |------|--------|
-| `/dev/ttyUSB0` | RPLidar A1M8 |
-| `/dev/ttyUSB1` | micro-ROS ESP32 |
+| `/dev/ttyUSB1` | RPLidar A1M8 |
+| `/dev/ttyUSB0` | micro-ROS ESP32 |
 
 ## Connect
 
@@ -38,9 +38,12 @@ ros2 launch manual_controller eyerobot.launch.py ekf:=true
 ```
 
 Starts the ros2_control stack (`diff_drive_controller` — wheel odometry and the
-`odom`→`base_link` TF), the OAK-D IMU via `depthai_ros_driver` (raw on
-`/oak/imu/data`) filtered by `imu_filter_madgwick` (fused on `/oak/imu/fused`),
-and `robot_state_publisher` for the URDF. With `ekf:=true`, `robot_localization`
+`odom`→`base_link` TF), the OAK-D IMU chain — `depthai_ros_driver` (raw on
+`/oak/imu/data`) → `imu_remap` (axis signs + gyro bias, `/oak/imu/data_raw`) →
+`imu_filter_madgwick` (fused on `/oak/imu/fused`) — and `robot_state_publisher`
+for the URDF. **Keep the robot still for ~2 s after launch** until `imu_remap`
+logs `gyro bias = …`: the gyro bias is averaged at startup and subtracted from
+then on. With `ekf:=true`, `robot_localization`
 fuses wheel odometry + IMU into `/odometry/filtered` (set `enable_odom_tf: false`
 in `diff_drive_controller.yaml` so the EKF owns the `odom`→`base_link` TF).
 

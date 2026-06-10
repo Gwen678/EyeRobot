@@ -36,4 +36,7 @@
       # anything else aborts the container with a map .at() error.
       i_sync_method: "LINEAR_INTERPOLATE_ACCEL"
       i_get_base_device_timestamp: false
-      i_update_ros_base_time_on_ros_msg: false
+      # Re-sync the device→ROS time base on every message: with false, IMU
+      # stamps drift behind the wheel-odom stamps and robot_localization
+      # discards any IMU measurement older than the last processed odom update.
+      i_update_ros_base_time_on_ros_msg: true
