@@ -133,6 +133,15 @@ def generate_launch_description():
             executable='cmd_vel_bridge',
             name='cmd_vel_bridge',
             output='screen',
+            parameters=[{
+                # Physical direction calibration (2026-06-11): positive
+                # /cmd_fans must SUCK blocks in (BT Fans_On, teleop 'q');
+                # with the default +1 signs the fans ran inverted. Flipping
+                # both keeps the mirrored-mount coupling (lfan = -rfan) and
+                # automatically fixes the discharge too (-FAN_SPEED = blow out).
+                'rfan_command_sign': -1.0,
+                'lfan_command_sign': -1.0,
+            }],
         ),
 
         # ── Foxglove: relay /robot_description TRANSIENT_LOCAL → VOLATILE ─────
