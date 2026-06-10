@@ -46,6 +46,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # Foxglove bridge — WebSocket server so Foxglove Studio on the PC can
       # subscribe to all topics without any DDS crossing (SSH tunnel port 8765).
       ros-humble-foxglove-bridge \
+      ros-humble-py-trees-ros-interfaces \
+      ros-humble-py-trees-ros \
  && rm -rf /var/lib/apt/lists/*
 
 # ── Python deps (proven set) ─────────────────────────────────────────────────
