@@ -98,36 +98,116 @@ Check that the saved `.yaml` shows `resolution: 0.05`. If it shows `0.005` the m
 came from a stale publisher — close all terminals, restart only the SLAM launch, and
 save again.
 
-### Localization + Navigation (AMCL + Nav2)
+### Autonomous mission (one command)
+
+The whole stack — agent, sensors, Nav2, cmd_vel bridge, behavior tree — from a
+single script (run in one container terminal):
+
+```
+bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh
+```
+
+It starts, in order: micro-ROS agent → `eyerobot.launch.py lidar:=true
+ekf:=true bt:=true` (the behavior tree is part of the launch file) → Nav2 with
+`maps/clean_room_8x8.yaml` and `full_nav:=true` → the `/cmd_vel` →
+`/diff_drive_controller/cmd_vel_unstamped` relay. The behavior tree arms
+itself: it waits for the Nav2 action servers, then for AMCL localization —
+**the mission starts the moment you set the initial pose in Foxglove** (see
+the sanity check below), because mission coordinates are map-frame and nothing
+works unlocalized. Ctrl+C tears everything down.
+
+The behavior tree (`autonomous_controller` package,
+`src/autonomous_controller/autonomous_controller/behavioral_tree.py`) sends
+one `NavigateThroughPoses` route: the robot flows through the waypoints
+**without stopping** (blocks are absorbed by the front fans in passing). If
+Nav2 aborts on an unreachable pose (e.g. a block against a wall, inside the
+inflation radius), the BT pulls that pose back along its approach line
+(0.25 m, then 0.45 m) and resends the rest of the route; a pose that keeps
+failing is dropped so one bad block never kills the mission. Waypoints are
+currently **test placeholders** — edit `create_tree()` for the real arena
+coordinates (then rebuild: `colcon build --packages-select autonomous_controller`).
+
+### Fallback: the same stack, terminal by terminal
 
 Requires a pre-built map. Run eyerobot.launch.py **without** `slam:=true`, then
 start Nav2 in a separate terminal.
 
-**Terminal 1** — micro-ROS agent
+**Terminal 1** — micro-ROS agent (same as above)
 
-**Terminal 2** — full stack with lidar (no SLAM — AMCL owns map→odom):
+**Terminal 2** — full stack with lidar (no SLAM — AMCL owns map→odom). Add
+`lego:=true` if the mission needs the lego vision node
+(`/eyerobot/vision/lego_target` + map-frame markers):
 
 ```
 ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true
 ```
 
-**Terminal 3** — Nav2 (AMCL localization + planner/controller):
+**Terminal 3** — Nav2 (AMCL localization + planner/controller; `full_nav:=true`
+also starts the planner/controller/waypoint servers the BT's actions need):
 
 ```
-ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/room_8x8.yaml
+ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/clean_room_8x8.yaml full_nav:=true
 ```
 
-With `full_nav:=true`, Nav2 publishes `/cmd_vel` — but `diff_drive_controller`
-listens on `/diff_drive_controller/cmd_vel_unstamped`, so bridge it first:
+**Terminal 4** — bridge: Nav2 publishes `/cmd_vel`, but `diff_drive_controller`
+listens on `/diff_drive_controller/cmd_vel_unstamped`:
 
 ```
 ros2 run topic_tools relay /cmd_vel /diff_drive_controller/cmd_vel_unstamped
 ```
 
+**Terminal 5** — behavior tree (or skip it and drive manually / send Nav2
+goals from Foxglove). Either add `bt:=true` to the Terminal 2 launch instead,
+or run it standalone:
+
+```
+ros2 run autonomous_controller behavior_tree
+```
+
+Both ways it arms itself: the mission starts once AMCL receives its initial
+pose from Foxglove.
+
 The robot has obstacle avoidance active at all times via the live local costmap.
 
 Do **not** run `slam:=true` and `nav2.launch.py` at the same time — both try to
 publish `map→odom` and will conflict.
+
+### AMCL sanity check (do this once per map before trusting navigation)
+
+Verifies that the map yaml's `origin`/`resolution` match the image and that AMCL
+can localize on it. Especially needed for `clean_room_8x8.yaml`, whose origin was
+derived by pixel-correlating the GIMP-cleaned image against the original map.
+
+1. Start the stack as above (Terminals 1–3) with the map you want to validate.
+2. In Foxglove's 3D panel set the display frame to `map`, enable the `/map`
+   topic and the `/scan` topic.
+3. Give AMCL its initial guess: click **Set pose** (the pose-estimate tool in
+   the 3D panel toolbar, publishes `/initialpose`), then click-drag on the map
+   at the robot's real position, dragging in its facing direction.
+4. The laser scan should snap onto the map walls within a second or two.
+   Drive forward ~1 m and rotate in place — the scan must stay glued to the
+   walls while the robot moves.
+
+Reading the result:
+
+- **Scan aligns and tracks** → map image + resolution are good, AMCL works.
+- **Scan stays offset and AMCL never corrects it** → AMCL isn't localizing:
+  it didn't receive the initial pose, or map→odom isn't being published
+  (check `ros2 topic echo /amcl_pose` updates while driving).
+- **Scan walls are scaled (too big/small) vs map walls** → wrong `resolution`
+  (see the 0.05 vs 0.005 stale-publisher trap above).
+- **Scan matches some walls but geometry disagrees** → the map image itself no
+  longer matches the room; rebuild the map.
+
+Note this check **cannot** detect a wrong yaml `origin`: the map renderer and
+AMCL both place the grid using the same origin, so an origin error shifts the
+displayed map and the pose estimate together and the scan still lands on the
+walls. A wrong origin only bites coordinates authored *outside* this yaml —
+hardcoded mission waypoints, saved lego positions, numeric `initial_pose`
+params (for `clean_room_8x8.yaml` those were authored in the original
+`room_8x8` frame, which its corrected origin is meant to reproduce). To
+validate the origin: drive the robot to a known landmark, `ros2 topic echo
+/amcl_pose`, and compare against that landmark's expected map coordinate.
 
 ## Visualization (Foxglove)
 

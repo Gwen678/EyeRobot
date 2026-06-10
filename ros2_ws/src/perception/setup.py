@@ -22,7 +22,9 @@ setup(
     entry_points={
         'console_scripts': [
             'detect_lego = perception.detect_lego:main',
-            'lego_vision_node = perception.lego_vision_node:main',  # ← ajouté
+            # lego_vision_node removed: the SDK-based variant could not run
+            # alongside depthai_ros_driver (exclusive device access) — use
+            # manual_controller/lego_vision_node.py (lego:=true) instead.
         ],
     },
 )

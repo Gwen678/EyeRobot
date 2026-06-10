@@ -1,0 +1,10 @@
+image: clean_room_8x8.pgm
+mode: trinary
+resolution: 0.05
+# Origin derived from room_8x8.yaml by cross-correlating wall pixels:
+# the cleaned canvas (481x459) is shifted dx=+3 px, dy=-3 px and 66 rows
+# taller than the original (476x393), so origin moves by (-0.15, -3.45) m.
+origin: [-7.67, -15.85, 0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25
