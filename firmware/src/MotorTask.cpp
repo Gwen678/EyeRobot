@@ -21,6 +21,11 @@ static constexpr float kKi     =  0.04f;
 static constexpr float kOutMin = -100.0f;
 static constexpr float kOutMax =  100.0f;
 static constexpr float kStopSetpointEpsilonTps = 1.0f;
+// Active braking releases below this measured speed (~0.33 rad/s): braking to
+// a perfect 0 would leave the integrator fighting stiction and measurement
+// quantization (1 tick / 10 ms = 100 tps), causing creep/twitch at standstill.
+// Friction handles the last fraction of a rad/s.
+static constexpr float kBrakeReleaseTps = 300.0f;
 
 // Open-loop sign control (fans/belt) turns ANY nonzero command into full duty,
 // so a single corrupted/duplicated best-effort sample would become a full-power
@@ -157,11 +162,19 @@ void MotorTask::run()
             prev_setpoint_tps = setpoint_tps;
 
             if (is_stop_setpoint(setpoint_tps)) {
-                // Commanded stop → hard stop (motor coasts). No active braking:
-                // regulating to 0 turned brief command dropouts into a fast
-                // spin/brake oscillation. The wheel coasting to rest is fine.
-                _pi.reset();
-                stop = true;
+                // Commanded stop → active braking: regulate to 0 while the
+                // wheel still moves (reverse torque ∝ remaining speed), then
+                // release and coast once (nearly) stationary so the integrator
+                // can't hold torque against stiction at standstill. The old
+                // hard-coast-only behaviour guarded against a spin/brake
+                // oscillation that came from the broken loop (bang-bang gains
+                // + inverted left feedback), both fixed since.
+                if (std::abs(measured_tps) < kBrakeReleaseTps) {
+                    _pi.reset();
+                    stop = true;
+                } else {
+                    duty = _pi.update(0.0f, measured_tps, kDt);
+                }
             } else {
                 duty = _pi.update(setpoint_tps, measured_tps, kDt);
             }

@@ -144,9 +144,14 @@
      driver's own URDF (oak_state_publisher) does not include that frame unless
      imu_from_descr is enabled — so robot_localization could not transform the
      IMU data. Provide it here: same pose as imu_link (the OAK-D IS the IMU). -->
+<!-- rpy = (pi,0,0): the OAK-D's IMU frame is rolled 180 deg vs REP-103 — its
+     +z gyro reads NEGATIVE on a counter-clockwise (left) robot turn. Verified
+     on hardware: with rpy 0 the EKF turned right when the robot turned left.
+     Equivalent to the old imu_remap_node gyro_signs [1,-1,-1]; encoding it in
+     the frame lets robot_localization rotate the rates instead. -->
 <link name="oak_imu_frame"/>
 <joint name="oak_imu_mount" type="fixed">
-  <origin xyz="0 0 0" rpy="0 0 0"/>
+  <origin xyz="0 0 0" rpy="3.141592653589793 0 0"/>
   <parent link="imu_link"/>
   <child link="oak_imu_frame"/>
 </joint>
