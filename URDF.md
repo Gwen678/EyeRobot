@@ -20,12 +20,21 @@ In the 3D panel, *Custom layers → Add URDF*, and set **Topic** to:
 /robot_description_volatile
 ```
 
-Why not `/robot_description`? `robot_state_publisher` publishes it **latched**
-(TRANSIENT_LOCAL durability), which foxglove_bridge does not deliver to a live
-WebSocket client — the panel shows *"Invalid topic"*. The `urdf_relay` node
-(started by the launch file) republishes the same string as VOLATILE on
-`/robot_description_volatile`, re-sending it at 1 Hz so panels opened *after*
-launch still receive it.
+Why not `/robot_description`? Two reasons:
+
+1. **It contains the wrong robot.** The depthai driver's `oak_state_publisher`
+   *also* publishes its camera-only URDF on `/robot_description`, and with two
+   latched publishers the last writer wins — the camera driver boots last, so
+   that topic ends up holding a white OAK-D box instead of the robot. The
+   robot's own description lives on `/eyerobot/robot_description` (remapped in
+   `manual_controller.launch.py`).
+2. Latched (TRANSIENT_LOCAL) delivery to live WebSocket clients is unreliable.
+
+The `urdf_relay` node (started by the launch file) republishes the robot's
+description as VOLATILE on `/robot_description_volatile`, re-sending it at
+1 Hz so panels opened *after* launch still receive it. (Enabling
+`/robot_description` *additionally* is fine — it renders the camera box at
+its mounted pose.)
 
 ## 3. Meshes: tell Foxglove where the package lives
 

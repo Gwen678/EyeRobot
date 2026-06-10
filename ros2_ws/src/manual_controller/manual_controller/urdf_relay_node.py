@@ -24,8 +24,16 @@ class UrdfRelayNode(Node):
             history=HistoryPolicy.KEEP_LAST,
         )
 
-        self._pub = self.create_publisher(String, '/robot_description_volatile', pub_qos)
-        self.create_subscription(String, '/robot_description', self._cb, sub_qos)
+        # Input is the ROBOT's dedicated description topic — NOT /robot_description,
+        # which the depthai oak_state_publisher also publishes (camera URDF) and
+        # whose last-writer-wins latching had this relay re-broadcasting the
+        # camera model instead of the robot.
+        self.declare_parameter('input_topic',  '/eyerobot/robot_description')
+        self.declare_parameter('output_topic', '/robot_description_volatile')
+        in_t  = str(self.get_parameter('input_topic').value)
+        out_t = str(self.get_parameter('output_topic').value)
+        self._pub = self.create_publisher(String, out_t, pub_qos)
+        self.create_subscription(String, in_t, self._cb, sub_qos)
         # VOLATILE has no replay: a single publish only reaches subscribers that
         # already exist, and foxglove_bridge subscribes lazily when a Studio
         # panel opens. Re-publish the cached URDF at 1 Hz so late joiners get it.

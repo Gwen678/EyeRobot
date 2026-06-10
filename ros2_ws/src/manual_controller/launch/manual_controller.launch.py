@@ -88,12 +88,17 @@ def generate_launch_description():
         # robot_state_publisher converts joint states (from joint_state_broadcaster)
         # into link TFs; it does NOT conflict with odom->base_link (owned by
         # diff_drive_controller or the EKF).
+        # robot_description is remapped to a dedicated topic: the depthai
+        # driver's oak_state_publisher ALSO publishes a (camera-only) URDF on
+        # /robot_description, and with two latched publishers the last writer
+        # wins — Foxglove was rendering the camera instead of the robot.
         Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
             name='robot_state_publisher',
             output='screen',
             parameters=[{'robot_description': robot_description}],
+            remappings=[('robot_description', '/eyerobot/robot_description')],
             condition=IfCondition(LaunchConfiguration('robot_model')),
         ),
 

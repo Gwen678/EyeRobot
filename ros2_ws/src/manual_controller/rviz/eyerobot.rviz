@@ -111,7 +111,7 @@ Visualization Manager:
       Class: rviz_default_plugins/RobotModel
       Description Source: Topic
       Description Topic:
-        Value: /robot_description
+        Value: /eyerobot/robot_description
       Enabled: true
       Name: RobotModel
       Visual Enabled: true

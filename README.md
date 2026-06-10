@@ -135,10 +135,11 @@ Open [Foxglove Studio](https://foxglove.dev) on your PC and connect to
 `ws://<jetson-ip>:8765`. The `foxglove_bridge` node starts automatically with
 the launch file.
 
-To visualize the robot model: add a **URDF** custom layer and set the topic to
-`/robot_description_volatile` — NOT `/robot_description`, which is latched
-(TRANSIENT_LOCAL) and shows "Invalid topic" in Foxglove. `urdf_relay`
-republishes it as volatile precisely for this.
+To visualize the robot model: display the topic `/robot_description_volatile`
+(URDF custom layer, or the topic row in newer Foxglove) — NOT
+`/robot_description`: that topic is shared with the depthai driver's
+camera-only URDF (last latched writer wins, and the camera boots last), so it
+shows an OAK-D box instead of the robot. Details + mesh setup: `URDF.md`.
 
 To see the trajectory: in the 3D panel set the display frame to `odom` and
 enable the path topics — `/wheel_path` (raw wheel odometry, always published)
