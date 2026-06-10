@@ -145,7 +145,7 @@ def main(args=None):
         tree.tick_tock(period_ms=50)
         rclpy.spin(tree.node)
     except KeyboardInterrupt:
-        tree.node.get_logger().info('Arrêt du contrôleur.')
+        tree.node.get_logger().info('Stopping the behavior tree due to user interruption.')
     finally:
         tree.shutdown()
         rclpy.shutdown()

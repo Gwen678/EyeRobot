@@ -210,7 +210,7 @@ class AutonomousControllerNode(Node):
 
 
 
-def main(args=None) -> None: #TO be checked
+def main(args=None) -> None: 
     rclpy.init(args=args)
     node = AutonomousControllerNode()
     
