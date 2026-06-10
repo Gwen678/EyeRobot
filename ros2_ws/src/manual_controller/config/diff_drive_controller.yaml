@@ -20,12 +20,15 @@ diff_drive_controller:
     # Velocity + acceleration limits.
     # max_velocity: 9 rad/s * 0.06 m = 0.54 m/s linear; 0.54 / 0.165 = 3.27 rad/s angular.
     # max_acceleration: reach max in 1 s (0.5 s felt too aggressive on hardware).
+    # min_acceleration asymmetric: stops ramp down in ~0.36 s so the firmware's
+    # active braking actually engages. Humble caveat: the same limit governs
+    # reverse launches, so backing up starts harder than driving off forward.
     linear.x.has_velocity_limits:    true
     linear.x.max_velocity:           0.54
     linear.x.min_velocity:          -0.54
     linear.x.has_acceleration_limits: true
     linear.x.max_acceleration:       0.54
-    linear.x.min_acceleration:      -0.54
+    linear.x.min_acceleration:      -1.5
 
     angular.z.has_velocity_limits:    true
     angular.z.max_velocity:           3.27
@@ -34,8 +37,10 @@ diff_drive_controller:
     angular.z.max_acceleration:       3.27
     angular.z.min_acceleration:      -3.27
 
-    # Stop the robot if no /cmd_vel arrives within this window.
-    cmd_vel_timeout: 0.5
+    # Stop the robot if no /cmd_vel arrives within this window. Also the delay
+    # between the last teleop keypress and the stop starting — keep it above
+    # the keyboard auto-repeat interval or held-key driving stutters.
+    cmd_vel_timeout: 0.25
 
     # Odometry — same covariances as state_estimator_node.py.
     publish_rate: 30.0

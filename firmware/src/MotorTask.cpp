@@ -21,6 +21,13 @@ static constexpr float kKi     =  0.04f;
 static constexpr float kOutMin = -100.0f;
 static constexpr float kOutMax =  100.0f;
 static constexpr float kStopSetpointEpsilonTps = 1.0f;
+// Feedforward model, command frame. kDutyPerTps: ~100% duty ≈ 11 rad/s ≈
+// 10 000 tps free speed → ~0.01 duty per tps. kBreakawayDuty: duty needed to
+// start the wheel turning under robot load — TUNE on hardware: too low brings
+// back the delayed-launch symptom, too high makes the slowest crawl jumpy.
+static constexpr float kDutyPerTps    = 0.01f;
+static constexpr float kBreakawayDuty = 15.0f;
+
 // Active braking releases below this measured speed (~0.33 rad/s): braking to
 // a perfect 0 would leave the integrator fighting stiction and measurement
 // quantization (1 tick / 10 ms = 100 tps), causing creep/twitch at standstill.
@@ -176,7 +183,17 @@ void MotorTask::run()
                     duty = _pi.update(0.0f, measured_tps, kDt);
                 }
             } else {
-                duty = _pi.update(setpoint_tps, measured_tps, kDt);
+                // Feedforward + PI trim. Without feedforward the integrator has
+                // to wind the duty up from 0 past the gearbox breakaway on
+                // every launch: the wheel sits still (PWM LED ramping) and then
+                // jumps off with the accumulated integral — visible as
+                // "nothing, nothing, full speed". Seed the duty with the known
+                // plant model instead and let the PI correct the residual.
+                const float dir = (setpoint_tps > 0.0f) ? 1.0f : -1.0f;
+                duty = dir * kBreakawayDuty
+                     + kDutyPerTps * setpoint_tps
+                     + _pi.update(setpoint_tps, measured_tps, kDt);
+                duty = clamp_abs(duty, 100.0f);
             }
         } else {
             duty = open_loop_duty_from_command(_command_rads, _cfg.open_loop_duty_percent);
