@@ -12,7 +12,11 @@
 
 ekf_filter_node:
   ros__parameters:
-    frequency: 30.0
+    # 30 Hz is NOT achievable on the Nano with the RGBD camera streams running:
+    # measured EKF cycle times 36-71 ms ("Failed to meet update rate" spam,
+    # 2026-06-11). 20 Hz (50 ms budget) fits the ~45 ms average; drop to 15 if
+    # warnings persist. 20 Hz odom->base_link TF matches Nav2's controller rate.
+    frequency: 20.0
     sensor_timeout: 0.2
     two_d_mode: true
     publish_tf: true

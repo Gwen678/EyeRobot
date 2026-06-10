@@ -34,15 +34,26 @@
       i_align_depth: true
 
     imu:
-      i_acc_freq: 200                          # Hz — matches oak_imu_cube.py --rate 200
-      i_gyro_freq: 200
+      # 100 Hz (down from 200, 2026-06-11): with RGBD streams running, the Nano
+      # can't sustain the EKF at even 20 Hz while it chews 200 IMU msgs/s —
+      # halving the rate halves the EKF's per-cycle measurement work. 100 Hz is
+      # still 5x the EKF rate; no practical accuracy loss (yaw rate only).
+      i_acc_freq: 100
+      i_gyro_freq: 100
       i_message_type: "IMU"                    # sensor_msgs/Imu
       i_publish_topic: true
       i_batch_report_threshold: 1              # minimal batching for low latency
       i_max_batch_reports: 10
       # Valid values: COPY, LINEAR_INTERPOLATE_GYRO, LINEAR_INTERPOLATE_ACCEL —
       # anything else aborts the container with a map .at() error.
-      i_sync_method: "LINEAR_INTERPOLATE_ACCEL"
+      # MUST stay COPY on depthai-ros 2.7.0–2.7.4: the LINEAR_INTERPOLATE_*
+      # paths have memory corruption with the 6-axis BMI270 (no rotation/mag
+      # queues) that silently discards ALL IMU output under stereo load —
+      # publisher exists, zero messages, no errors. This is why the IMU "died"
+      # when the pipeline switched RGB→RGBD (2026-06-10/11 debugging session).
+      # github.com/luxonis/depthai-ros/issues/330, fixed in 2.7.5 (PR #357) —
+      # interpolation may be restored after upgrading the driver in the image.
+      i_sync_method: "COPY"
       i_get_base_device_timestamp: false
       # Re-sync the device→ROS time base on every message: with false, IMU
       # stamps drift behind the wheel-odom stamps and robot_localization

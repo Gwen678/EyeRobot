@@ -221,6 +221,16 @@ To visualize the robot model: display the topic `/robot_description_volatile`
 camera-only URDF (last latched writer wins, and the camera boots last), so it
 shows an OAK-D box instead of the robot. Details + mesh setup: `URDF.md`.
 
+To send Nav2 goals: in the 3D panel settings → **Publish**, change the *Pose*
+topic from its `/move_base_simple/goal` default to **`/goal_pose`** (one-time;
+*Pose estimate* already defaults to `/initialpose`). With Nav2 up
+(`full_nav:=true` + relay) and AMCL localized, use the publish-pose tool and
+click-drag on the map (click = position, drag = heading) — `bt_navigator`
+turns `/goal_pose` into a NavigateToPose action by itself. Publishing from
+Foxglove needs the bridge's `clientPublish` capability (already enabled in
+eyerobot.launch.py). Don't send manual goals while the `bt:=true` mission is
+running — they preempt each other.
+
 To see the trajectory: in the 3D panel set the display frame to `odom` and
 enable the path topics — `/wheel_path` (raw wheel odometry, always published)
 and `/ekf_path` (fused EKF estimate, needs `ekf:=true`). Driving a loop and
