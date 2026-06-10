@@ -29,6 +29,7 @@ setup(
             'block_tracker = manual_controller.block_tracker_node:main',
             'urdf_relay = manual_controller.urdf_relay_node:main',
             'imu_remap = manual_controller.imu_remap_node:main',
+            'lego_vision_node = manual_controller.lego_vision_node:main',
         ],
     },
 )

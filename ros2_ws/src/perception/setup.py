@@ -10,7 +10,6 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        # Deployed models (also runnable from the source tree).
         ('share/' + package_name + '/models', ['best.pt', 'best.blob']),
     ],
     install_requires=['setuptools'],
@@ -22,13 +21,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            # The only real ROS 2 node. The others are standalone web/dev tools:
-            #   python3 -m perception.oak_view      (Oak-D camera web viewer)
-            #   python3 -m perception.lidar_web     (RPLidar web viewer)
-            #   python3 -m perception.map_view      (map viewer)
-            #   python3 -m perception.auto_label    (YOLO auto-labeler)
-            #   python3 -m perception.check_labels  (label sanity check)
             'detect_lego = perception.detect_lego:main',
+            'lego_vision_node = perception.lego_vision_node:main',  # ← ajouté
         ],
     },
 )

@@ -15,7 +15,7 @@ Those need a real TTY / separate session:
 
 (teleop_twist_keyboard also works, but needs a remap — diff_drive_controller
 listens on /diff_drive_controller/cmd_vel_unstamped, not /cmd_vel:
-  ros2 run teleop_twist_keyboard teleop_twist_keyboard \\
+  ros2 run teleop_twist_keyboard teleop_twist_keyboard \
     --ros-args -r cmd_vel:=/diff_drive_controller/cmd_vel_unstamped)
 
 Optional flags:
@@ -24,12 +24,10 @@ Optional flags:
   ekf:=true     Run robot_localization EKF fusing wheel odom + IMU.
                 Also set enable_odom_tf: false in diff_drive_controller.yaml
                 so the EKF — not diff_drive_controller — owns odom→base_link TF.
+  lego:=true    Start the ROS-native Lego vision detector node.
 
-Full mapping session:
-  ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true
-
-Save map after driving:
-  ros2 run nav2_map_server map_saver_cli -f ~/map
+Full mapping session with vision:
+  ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true lego:=true
 """
 import os
 
@@ -52,9 +50,6 @@ def generate_launch_description():
                               description='Start block tracker FSM'),
         DeclareLaunchArgument('lidar', default_value='false',
                               description='Start the RPLidar A1M8'),
-        # /dev/rplidar is the udev symlink (docker/99-eyerobot-usb.rules) that
-        # tracks the lidar regardless of ttyUSB enumeration order. Fall back to
-        # lidar_port:=/dev/ttyUSBn if the rules are not installed yet.
         DeclareLaunchArgument('lidar_port', default_value='/dev/rplidar',
                               description='RPLidar serial device'),
         DeclareLaunchArgument('slam', default_value='false',
@@ -63,6 +58,9 @@ def generate_launch_description():
                               description='Run robot_localization EKF fusing wheel odom + IMU'),
         DeclareLaunchArgument('foxglove', default_value='true',
                               description='Start foxglove_bridge on ws://<jetson-ip>:8765'),
+        # Added Lego Vision Node argument
+        DeclareLaunchArgument('lego', default_value='false',
+                              description='Start the Lego vision detector node'),
 
         # ── Core odometry + ros2_control stack ───────────────────────────────
         IncludeLaunchDescription(
@@ -74,8 +72,6 @@ def generate_launch_description():
         ),
 
         # ── IMU pipeline: depthai_ros_driver → remap → Madgwick ──────────────
-        # depthai_ros_driver: opens the OAK-D Lite and publishes raw IMU on /oak/imu.
-        # Camera streams are disabled in depthai_camera.yaml (IMU only).
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
@@ -85,53 +81,25 @@ def generate_launch_description():
                     FindPackageShare('manual_controller'), 'config', 'depthai_camera.yaml']),
                 'camera_model': 'OAK-D-LITE',
                 'name': 'oak',
-                # Attach the camera's TF tree (oak-d-base-frame → oak → ...) to
-                # the robot: oak_state_publisher then publishes
-                # base_link → oak-d-base-frame at the mount pose (same offsets
-                # as imu_link in Robot.xacro). Without this the oak frames are
-                # an island with no path to odom.
                 'parent_frame': 'base_link',
                 'cam_pos_x': '0.42',
                 'cam_pos_z': '0.135',
-                # No image_proc rectify component: RGB streams are disabled
-                # (IMU only), the rectify node would just advertise dead
-                # /oak/rgb/image_rect* topics.
                 'rectify_rgb': 'false',
             }.items(),
         ),
 
-        # imu_filter_madgwick: fuses depthai_ros_driver accel+gyro into orientation.
-        # depthai_ros_driver already applies the device factory calibration (IMU→camera
-        # extrinsics), so no manual axis remap is needed.  Verify on first boot:
-        #   ros2 topic echo /oak/imu --once
-        # while the robot is flat: accel_z should be ~+9.81 m/s² and angular_velocity.z
-        # should increase counter-clockwise (yaw left = positive).  If wrong, the
-        # imu_remap_node in manual_controller/imu_remap_node.py can be re-added.
-        #
-        # imu_remap: sign correction (gyro/accel y,z negated — the BMI270 is
-        # mounted 180° about X) + startup gyro-bias subtraction. Keep the robot
-        # STILL for ~2 s after launch until it logs "gyro bias = ...".
-        # Sign handling lives here, in the data: rolling oak_imu_frame by pi in
-        # the URDF did not flip the yaw rate the EKF integrates (verified on
-        # hardware), so TF-level correction was abandoned.
         Node(
             package='manual_controller',
             executable='imu_remap',
             name='imu_remap',
             output='screen',
             parameters=[{
-                'input_topic':  '/oak/imu/data',     # raw from depthai driver
-                'output_topic': '/oak/imu/data_raw', # REP-103, bias-corrected
+                'input_topic':  '/oak/imu/data',
+                'output_topic': '/oak/imu/data_raw',
                 'frame_id':     'imu_link',
             }],
         ),
 
-        # Topic wiring (driver publishes ~/imu/data → /oak/imu/data, verified in
-        # depthai-ros 2.7.5 imu.cpp — NOT /oak/imu):
-        #   input : imu/data_raw = /oak/imu/data_raw (from imu_remap above)
-        #   output: imu/data     → /oak/imu/fused (remapped! the default
-        #           /oak/imu/data would collide with the driver's raw topic)
-        # ekf.yaml imu0 must point at /oak/imu/fused.
         Node(
             package='imu_filter_madgwick',
             executable='imu_filter_madgwick_node',
@@ -144,8 +112,6 @@ def generate_launch_description():
         ),
 
         # ── RPLidar A1M8 ─────────────────────────────────────────────────────
-        # Default /dev/rplidar = udev symlink (docker/99-eyerobot-usb.rules);
-        # raw ttyUSBn names swap with USB enumeration order.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(lidar_share, 'launch', 'rplidar_a1_launch.py')),
@@ -165,10 +131,16 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('tracker')),
         ),
 
+        # ── Lego vision detector node ──────────────────────────────────────────
+        Node(
+            package='manual_controller',
+            executable='lego_vision_node',
+            name='lego_detector_node',
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('lego')),
+        ),
+
         # ── Foxglove bridge ───────────────────────────────────────────────────
-        # WebSocket server for Foxglove Studio on the PC (ws://<jetson-ip>:8765).
-        # urdf_relay (manual_controller.launch.py) republishes /robot_description
-        # as VOLATILE on /robot_description_volatile for the Foxglove URDF panel.
         Node(
             package='foxglove_bridge',
             executable='foxglove_bridge',
