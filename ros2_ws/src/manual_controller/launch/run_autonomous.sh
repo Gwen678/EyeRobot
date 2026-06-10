@@ -13,6 +13,15 @@ echo "========================================="
 # a zombie AMCL with old params publishes map->odom and silently bypasses the
 # wait-for-initial-pose gate; a zombie oak driver blocks the camera (exclusive
 # USB access); duplicate controllers fight over the motors.
+# The micro-ROS agent is not a ROS graph node (it's a serial bridge), so check
+# for it by process: a zombie agent holding /dev/esp32 makes the new one loop
+# on connect/disconnect forever.
+if pgrep -f micro_ros_agent >/dev/null 2>&1; then
+  echo "FATAL: a micro_ros_agent is already running (stale session?)."
+  echo "  pkill -f micro_ros_agent   — then rerun this script."
+  exit 1
+fi
+
 STALE=$(ros2 node list 2>/dev/null | grep -E "amcl|bt_navigator|controller_manager|^/oak$" | sort -u)
 if [ -n "${STALE}" ]; then
   echo "============================================================"

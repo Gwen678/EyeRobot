@@ -62,7 +62,10 @@ RUN pip3 install --no-cache-dir \
       numpy==1.26.4 pillow flask \
       depthai==2.25.1.0 blobconverter==1.4.3 \
  && if [ "${WITH_PERCEPTION}" = "1" ]; then \
-      pip3 install --no-cache-dir ultralytics ; \
+      # "numpy<2" repeated here on purpose: ultralytics' resolver otherwise
+      # upgrades numpy to 2.x, which segfaults the apt cv_bridge (compiled
+      # against the NumPy 1.x C API — "_ARRAY_API not found").
+      pip3 install --no-cache-dir ultralytics "numpy<2" ; \
     else \
       echo "Skipping perception (ultralytics). Set WITH_PERCEPTION=1 to include it." ; \
     fi
