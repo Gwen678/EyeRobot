@@ -26,10 +26,20 @@ class UrdfRelayNode(Node):
 
         self._pub = self.create_publisher(String, '/robot_description_volatile', pub_qos)
         self.create_subscription(String, '/robot_description', self._cb, sub_qos)
+        # VOLATILE has no replay: a single publish only reaches subscribers that
+        # already exist, and foxglove_bridge subscribes lazily when a Studio
+        # panel opens. Re-publish the cached URDF at 1 Hz so late joiners get it.
+        self._cached: String | None = None
+        self.create_timer(1.0, self._tick)
         self.get_logger().info('URDF relay ready — republishing on /robot_description_volatile')
 
     def _cb(self, msg: String) -> None:
+        self._cached = msg
         self._pub.publish(msg)
+
+    def _tick(self) -> None:
+        if self._cached is not None:
+            self._pub.publish(self._cached)
 
 
 def main(args=None) -> None:

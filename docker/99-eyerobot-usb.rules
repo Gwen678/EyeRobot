@@ -1,0 +1,27 @@
+# EyeRobot udev rules — stable device names for the ESP32 and RPLidar.
+#
+# /dev/ttyUSB0 and /dev/ttyUSB1 are assigned by enumeration order, so the
+# ESP32 and the lidar swap depending on plug-in order or boot timing. These
+# rules pin symlinks /dev/esp32 and /dev/rplidar to the physical devices.
+#
+# Values measured on the robot (udevadm, 2026-06-10) — the two devices use
+# different USB-UART chips, so vendor/product IDs alone identify them:
+#   RPLidar A1M8: Silicon Labs CP2102, 10c4:ea60, serial "0001"
+#   ESP32 board:  WCH CH340, 1a86:7523 (CH340s carry no serial)
+#
+# Install (on the JETSON HOST, not in the container — the container
+# bind-mounts the host /dev, so the symlinks appear inside automatically):
+#   sudo cp docker/99-eyerobot-usb.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger
+# then unplug/replug both devices (or reboot) and verify:
+#   ls -l /dev/esp32 /dev/rplidar
+#
+# MODE 0666 avoids dialout-group permission issues inside the container.
+# See UDEV.md for the full guide.
+
+# RPLidar A1M8 (CP2102 USB-UART)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="rplidar", MODE="0666"
+
+# micro-ROS ESP32 (CH340 USB-UART)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="esp32", MODE="0666"

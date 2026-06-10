@@ -4,12 +4,25 @@ ESP32 (motors, micro-ROS) + first-gen Jetson Nano running ROS 2 Humble in Docker
 Firmware is pre-flashed and the container image + workspace are already built —
 below are just the commands to connect and run.
 
-## USB port mapping
+## USB devices
 
-| Port | Device |
-|------|--------|
-| `/dev/ttyUSB1` | RPLidar A1M8 |
-| `/dev/ttyUSB0` | micro-ROS ESP32 |
+| Stable name | Device | Fallback |
+|-------------|--------|----------|
+| `/dev/rplidar` | RPLidar A1M8 | `/dev/ttyUSB1` (enumeration-dependent!) |
+| `/dev/esp32` | micro-ROS ESP32 | `/dev/ttyUSB0` (enumeration-dependent!) |
+
+The stable names come from udev rules (`docker/99-eyerobot-usb.rules`, values
+already measured for this robot's hardware — CP2102 lidar, CH340 ESP32).
+One-time install on the **Jetson host** (not the container; the container
+bind-mounts `/dev` so the symlinks appear inside):
+
+```
+sudo cp docker/99-eyerobot-usb.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+Unplug/replug both devices, then verify: `ls -l /dev/esp32 /dev/rplidar`.
+Full guide (and what to do if the hardware changes): `UDEV.md`.
 
 ## Connect
 
@@ -25,11 +38,13 @@ Drops you into the container shell. Run it again in a new terminal for each node
 
 ### Odometry only (no lidar)
 
-**Terminal 1** — micro-ROS agent (motors/encoders ↔ ROS, ESP32 on ttyUSB1):
+**Terminal 1** — micro-ROS agent (motors/encoders ↔ ROS):
 
 ```
-ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB1 -b 115200
+ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/esp32 -b 115200
 ```
+
+(`/dev/esp32` needs the udev rules above; otherwise use the current `ttyUSBn`.)
 
 **Terminal 2** — full stack (odometry + IMU + URDF/TF):
 
@@ -174,3 +189,5 @@ Madgwick gain in `config/imu_filter.yaml`.
 ---
 
 Build/image details: `docker/README.md`. Firmware: `firmware/DOCS.md`.
+Stable USB names setup: `UDEV.md`. Robot model in Foxglove: `URDF.md`.
+Codebase review (defects, architecture, package verdicts): `ANALYSIS.md`.

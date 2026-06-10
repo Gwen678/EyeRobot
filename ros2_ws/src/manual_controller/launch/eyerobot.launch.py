@@ -51,7 +51,12 @@ def generate_launch_description():
         DeclareLaunchArgument('tracker', default_value='false',
                               description='Start block tracker FSM'),
         DeclareLaunchArgument('lidar', default_value='false',
-                              description='Start RPLidar A1M8 on ttyUSB0'),
+                              description='Start the RPLidar A1M8'),
+        # /dev/rplidar is the udev symlink (docker/99-eyerobot-usb.rules) that
+        # tracks the lidar regardless of ttyUSB enumeration order. Fall back to
+        # lidar_port:=/dev/ttyUSBn if the rules are not installed yet.
+        DeclareLaunchArgument('lidar_port', default_value='/dev/rplidar',
+                              description='RPLidar serial device'),
         DeclareLaunchArgument('slam', default_value='false',
                               description='Run SLAM Toolbox (requires lidar:=true)'),
         DeclareLaunchArgument('ekf', default_value='false',
@@ -139,12 +144,13 @@ def generate_launch_description():
         ),
 
         # ── RPLidar A1M8 ─────────────────────────────────────────────────────
-        # ttyUSB0: lidar.  ttyUSB1: micro-ROS ESP32.
+        # Default /dev/rplidar = udev symlink (docker/99-eyerobot-usb.rules);
+        # raw ttyUSBn names swap with USB enumeration order.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(lidar_share, 'launch', 'rplidar_a1_launch.py')),
             launch_arguments={
-                'serial_port': '/dev/ttyUSB0',
+                'serial_port': LaunchConfiguration('lidar_port'),
                 'frame_id': 'laser',
             }.items(),
             condition=IfCondition(LaunchConfiguration('lidar')),
