@@ -39,6 +39,10 @@ Optional flags:
                 for the navigate_through_poses server and then for AMCL
                 localization (set the initial pose in Foxglove) before
                 starting the mission.
+  bt_mission:=full|zone1|zone3|zone4   Mission variant (default full):
+                zone1 = blocks only (no button/ramp), discharge at base per
+                ~5-block sweep chunk; zone3 = button+door then zone 3 blocks;
+                zone4 = ramp then zone 4 blocks, no button; full = everything.
 
 Full mapping session with vision:
   ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true lego:=true
@@ -82,6 +86,8 @@ def generate_launch_description():
                               description='Start the Lego vision detector node'),
         DeclareLaunchArgument('bt', default_value='false',
                               description='Start the mission behavior tree (needs Nav2 running)'),
+        DeclareLaunchArgument('bt_mission', default_value='full',
+                              description='Mission variant: full | zone1 | zone3 | zone4'),
 
         # ── Core odometry + ros2_control stack ───────────────────────────────
         IncludeLaunchDescription(
@@ -199,6 +205,7 @@ def generate_launch_description():
             executable='behavior_tree',
             name='behavior_tree',
             output='screen',
+            arguments=['--mission', LaunchConfiguration('bt_mission')],
             condition=IfCondition(LaunchConfiguration('bt')),
         ),
 

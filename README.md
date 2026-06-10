@@ -104,29 +104,56 @@ The whole stack — agent, sensors, Nav2, cmd_vel bridge, behavior tree — from
 single script (run in one container terminal):
 
 ```
-bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh
+bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh [mission]
 ```
 
-It starts, in order: micro-ROS agent → `eyerobot.launch.py lidar:=true
-ekf:=true bt:=true` (the behavior tree is part of the launch file) → Nav2 with
-`maps/clean_room_8x8.yaml` and `full_nav:=true`. Nav2's `/cmd_vel` reaches
-`diff_drive_controller` directly (its subscription is remapped to `/cmd_vel` —
-no relay node). The behavior tree arms
-itself: it waits for the Nav2 action servers, then for AMCL localization —
-**the mission starts the moment you set the initial pose in Foxglove** (see
-the sanity check below), because mission coordinates are map-frame and nothing
-works unlocalized. Ctrl+C tears everything down.
+`[mission]` selects the BT variant (default `full`): `zone1` = blocks only
+(no button, no ramp); `zone3` = button + door phase, then zone 3 blocks;
+`zone4` = ramp then zone 4 blocks, no button; `full` = everything. All
+variants turn the fans on before the first motion and end with an
+unconditional unload at base. Standalone equivalent:
+`ros2 run autonomous_controller behavior_tree --mission zone1`.
 
-The behavior tree (`autonomous_controller` package,
-`src/autonomous_controller/autonomous_controller/behavioral_tree.py`) sends
-one `NavigateThroughPoses` route: the robot flows through the waypoints
-**without stopping** (blocks are absorbed by the front fans in passing). If
-Nav2 aborts on an unreachable pose (e.g. a block against a wall, inside the
-inflation radius), the BT pulls that pose back along its approach line
-(0.25 m, then 0.45 m) and resends the rest of the route; a pose that keeps
-failing is dropped so one bad block never kills the mission. Waypoints are
-currently **test placeholders** — edit `create_tree()` for the real arena
-coordinates (then rebuild: `colcon build --packages-select autonomous_controller`).
+It starts, in order: micro-ROS agent → wait for the IMU chain (aborts the
+whole stack loudly if no IMU after 90 s) → `eyerobot.launch.py lidar:=true
+ekf:=true lego:=true bt:=true` (vision + behavior tree are part of the launch)
+→ Nav2 with `maps/clean_room_8x8.yaml` and `full_nav:=true`. Nav2's `/cmd_vel`
+reaches `diff_drive_controller` directly (its subscription is remapped to
+`/cmd_vel` — no relay node). The behavior tree arms itself: it waits for the
+Nav2 action servers (30–60 s on the Nano, logged every 5 s), then for AMCL
+localization — **the mission starts the moment you set the initial pose in
+Foxglove** (see the sanity check below); until then it idles. AMCL's default
+start pose is currently disabled for testing (`set_initial_pose: false` in
+`nav2_params_custom.yaml`; the measured arena-corner+1m pose is in the file,
+flip to `true` for match day). Ctrl+C tears everything down.
+
+**How the BT collects blocks** (`autonomous_controller` package,
+`autonomous_controller/behavioral_tree.py`):
+
+- The lego vision node publishes map-frame detections on
+  `/eyerobot/vision/lego_markers_map`; the BT's `BlockMemory` accumulates
+  them (dedup at 0.30 m) and **drops any block the robot drives within
+  0.35 m of** — with the roomba intake, driving over a block IS collecting
+  it, so this doubles as the on-board block counter.
+- Each collection round: if blocks are known, flow through the ≤5 nearest
+  (`NavigateThroughPoses` — **no stopping**, fans absorb in passing);
+  otherwise drive the next predefined sweep chunk (`ZONE*_SWEEP_CHUNKS`,
+  still placeholder routes), which collects blindly and lets the camera
+  discover blocks for the next round.
+- After each round, the robot returns to base to discharge (fans reversed +
+  belt on, 5 s) **only if ≥5 blocks were collected** since the last unload;
+  otherwise it keeps collecting. The mission epilogue always unloads.
+- If Nav2 aborts on an unreachable pose (block against a wall, inside the
+  inflation radius), the BT pulls that pose back along its approach line
+  (0.25 m, then 0.45 m) and resends the rest of the route; a pose that keeps
+  failing is dropped so one bad block never kills the mission.
+
+Mission poses (button, door, ramp, base) live in `behavioral_tree.py` in the
+**arena frame** (lower-left arena corner = (0,0), from fsm.py) and are
+converted via `arena_to_map()` — the offset `ARENA_ORIGIN_IN_MAP=(-1.40,-6.60)`
+was measured from the clean map; re-measure it if the map is re-recorded.
+The BT is symlink-installed: editing it (or any config/launch file) takes
+effect on relaunch without a rebuild.
 
 ### Fallback: the same stack, terminal by terminal
 
@@ -135,12 +162,12 @@ start Nav2 in a separate terminal.
 
 **Terminal 1** — micro-ROS agent (same as above)
 
-**Terminal 2** — full stack with lidar (no SLAM — AMCL owns map→odom). Add
-`lego:=true` if the mission needs the lego vision node
-(`/eyerobot/vision/lego_target` + map-frame markers):
+**Terminal 2** — full stack with lidar (no SLAM — AMCL owns map→odom).
+`lego:=true` runs the vision node — required for the BT's vision-planned
+block routes (without it the BT falls back to the predefined sweeps):
 
 ```
-ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true
+ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true lego:=true
 ```
 
 **Terminal 3** — Nav2 (AMCL localization + planner/controller; `full_nav:=true`
@@ -155,11 +182,11 @@ to `/cmd_vel` in `manual_controller.launch.py`, so Nav2, teleop, and anything
 else publishing `/cmd_vel` drive the wheels directly.)
 
 **Terminal 4** — behavior tree (or skip it and drive manually / send Nav2
-goals from Foxglove). Either add `bt:=true` to the Terminal 2 launch instead,
-or run it standalone:
+goals from Foxglove). Either add `bt:=true bt_mission:=<mission>` to the
+Terminal 2 launch instead, or run it standalone:
 
 ```
-ros2 run autonomous_controller behavior_tree
+ros2 run autonomous_controller behavior_tree --mission zone1
 ```
 
 Both ways it arms itself: the mission starts once AMCL receives its initial

@@ -13,12 +13,21 @@ echo "[1/3] Launching micro-ROS Agent..."
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/esp32 -b 115200 &
 sleep 2
 
+# Mission variant: first script argument (default full).
+#   ./run_autonomous.sh zone1   -> blocks only, no button/ramp
+#   ./run_autonomous.sh zone3   -> button + door, then zone 3 blocks
+#   ./run_autonomous.sh zone4   -> ramp, then zone 4 blocks (no button)
+MISSION="${1:-full}"
+
 # 2. Launch Core Sensors, Odometry, Hardware Controllers and the Behavior Tree.
 # bt:=true starts the autonomous_controller behavior_tree node; it waits for
 # the Nav2 action servers (step 3) and then for AMCL localization, so the
 # mission does NOT start until you set the initial pose in Foxglove (Set pose).
-echo "[2/3] Launching eyerobot core (LiDAR + EKF + behavior tree)..."
-ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true bt:=true &
+# lego:=true: the vision node feeds /eyerobot/vision/lego_markers_map, which
+# the BT's BlockMemory consumes to plan collection routes over real blocks
+# (sweep chunks remain the fallback while no blocks are detected yet).
+echo "[2/3] Launching eyerobot core (LiDAR + EKF + vision + behavior tree, mission: ${MISSION})..."
+ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true lego:=true bt:=true bt_mission:="${MISSION}" &
 
 # Wait for the IMU chain to be fully up (imu_remap publishes its first message
 # only after the camera boots ~40 s and the 400-sample gyro calibration ends).

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import math
 
 import rclpy
@@ -10,9 +11,17 @@ from py_trees.common import Status
 from tf2_ros import Buffer, TransformListener
 
 # ROS 2 Navigation Messages
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PointStamped
 from nav2_msgs.action import NavigateToPose, NavigateThroughPoses
 from action_msgs.msg import GoalStatus
+from std_msgs.msg import Float32
+
+# Intake actuation (cmd_vel_bridge forwards these to the motor topics).
+# 8.0 rad/s matches the teleop defaults (fan/belt_command_rad_s).
+FAN_SPEED = 8.0
+BELT_SPEED = 8.0
+DISCHARGE_SECONDS = 5.0
+DISCHARGE_BLOCK_COUNT = 5   # go unload at base once this many blocks were collected
 
 VERBOSE = True
 
@@ -62,6 +71,57 @@ def _shared_tf_buffer(node):
         node.bt_tf_buffer = Buffer()
         node.bt_tf_listener = TransformListener(node.bt_tf_buffer, node)
     return node.bt_tf_buffer
+
+
+class BlockMemory:
+    """Accumulates lego detections from /eyerobot/vision/lego_markers_map.
+
+    Detections within MERGE_RADIUS of a known block are the same block (the
+    vision node re-publishes tracked blocks every frame). A block the robot
+    has passed within EAT_RADIUS of is removed — with the roomba intake,
+    driving over a block IS collecting it. This makes block counts real:
+    "collect 5 then discharge" counts actual known blocks, not guesses.
+    """
+    MERGE_RADIUS = 0.30
+    EAT_RADIUS = 0.35
+
+    def __init__(self, node, tf_buffer):
+        self.node = node
+        self.tf_buffer = tf_buffer
+        self.blocks = []  # [(x, y)] map frame
+        self.collected_since_discharge = 0  # drives the discharge-at-5 trigger
+        node.create_subscription(
+            PointStamped, '/eyerobot/vision/lego_markers_map', self._on_detection, 10)
+        node.create_timer(0.5, self._prune_eaten)
+
+    def _on_detection(self, msg):
+        p = (msg.point.x, msg.point.y)
+        for b in self.blocks:
+            if math.hypot(b[0] - p[0], b[1] - p[1]) < self.MERGE_RADIUS:
+                return
+        self.blocks.append(p)
+        self.node.get_logger().info(
+            f"[blocks] new block at map ({p[0]:.2f}, {p[1]:.2f}) — {len(self.blocks)} known")
+
+    def _prune_eaten(self):
+        robot = _robot_xy(self.tf_buffer)
+        if robot is None:
+            return
+        kept = [b for b in self.blocks
+                if math.hypot(b[0] - robot[0], b[1] - robot[1]) > self.EAT_RADIUS]
+        eaten = len(self.blocks) - len(kept)
+        if eaten:
+            self.collected_since_discharge += eaten
+            self.node.get_logger().info(
+                f"[blocks] collected {eaten} block(s) — {len(kept)} known left, "
+                f"{self.collected_since_discharge} on board since last discharge")
+        self.blocks = kept
+
+
+def _shared_block_memory(node, tf_buffer):
+    if not hasattr(node, "bt_block_memory"):
+        node.bt_block_memory = BlockMemory(node, tf_buffer)
+    return node.bt_block_memory
 
 
 def _wait_for_server_verbose(behaviour, action_name):
@@ -344,6 +404,12 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
         self.tick_count = 0
         self.pending = list(self.waypoints)
         self.pb_level = [0] * len(self.pending)
+        if not self.pending:
+            # Empty route (e.g. dynamic planner produced nothing): fail fast
+            # instead of sending Nav2 a zero-pose goal.
+            self.logger.warn(f"[{self.name}] No waypoints — nothing to do.")
+            self.goal_status = GoalStatus.STATUS_ABORTED
+            return
         self._send_goal()
 
     def _feedback_callback(self, feedback_msg):
@@ -435,6 +501,141 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
         self.goal_status = None
 
 
+class PlanBlockRoute(py_trees.behaviour.Behaviour):
+    """Snapshot up to `max_blocks` nearest vision-detected blocks into a route.
+
+    Greedy nearest-neighbor ordering from the robot's current position; the
+    result lands on the shared node as `bt_planned_route` for GoThroughPlanned.
+    FAILURE when no blocks are known (lets a Selector fall back to a sweep).
+    """
+    def __init__(self, name, max_blocks=5):
+        super().__init__(name)
+        self.max_blocks = max_blocks
+        self.node = None
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+        if self.node is None:
+            raise RuntimeError("ROS 2 node context missing.")
+        self.tf_buffer = _shared_tf_buffer(self.node)
+        self.memory = _shared_block_memory(self.node, self.tf_buffer)
+
+    def update(self) -> Status:
+        blocks = list(self.memory.blocks)
+        if not blocks:
+            self.logger.info(f"[{self.name}] no blocks known — falling back.")
+            return Status.FAILURE
+        pos = _robot_xy(self.tf_buffer) or blocks[0]
+        route = []
+        while blocks and len(route) < self.max_blocks:
+            blocks.sort(key=lambda b: math.hypot(b[0] - pos[0], b[1] - pos[1]))
+            nxt = blocks.pop(0)
+            route.append(nxt)
+            pos = nxt
+        self.node.bt_planned_route = route
+        self.logger.info(f"[{self.name}] route over {len(route)} block(s): "
+                         + ", ".join(f"({x:.2f},{y:.2f})" for x, y in route))
+        return Status.SUCCESS
+
+
+class GoThroughPlanned(GoThroughPoses):
+    """GoThroughPoses whose route comes from PlanBlockRoute at activation time."""
+    def initialise(self) -> None:
+        self.waypoints = [tuple(p) for p in getattr(self.node, 'bt_planned_route', [])]
+        super().initialise()
+
+
+class HoldEnoughBlocks(py_trees.behaviour.Behaviour):
+    """SUCCESS once >= DISCHARGE_BLOCK_COUNT blocks were collected since the
+    last discharge — gates the trip back to base so a 2-block round doesn't
+    waste match time on an unload detour."""
+    def __init__(self, name, threshold=DISCHARGE_BLOCK_COUNT):
+        super().__init__(name)
+        self.threshold = threshold
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+        if self.node is None:
+            raise RuntimeError("ROS 2 node context missing.")
+        self.memory = _shared_block_memory(self.node, _shared_tf_buffer(self.node))
+
+    def update(self) -> Status:
+        n = self.memory.collected_since_discharge
+        if n >= self.threshold:
+            self.logger.info(f"[{self.name}] {n} blocks on board — going to discharge.")
+            return Status.SUCCESS
+        self.logger.info(f"[{self.name}] only {n}/{self.threshold} on board — keep collecting.")
+        return Status.FAILURE
+
+
+class ResetBlockCount(py_trees.behaviour.Behaviour):
+    """Zero the on-board counter after a discharge."""
+    def __init__(self, name="Reset_Block_Count"):
+        super().__init__(name)
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+        if self.node is None:
+            raise RuntimeError("ROS 2 node context missing.")
+        self.memory = _shared_block_memory(self.node, _shared_tf_buffer(self.node))
+
+    def update(self) -> Status:
+        self.memory.collected_since_discharge = 0
+        return Status.SUCCESS
+
+
+class SetMotor(py_trees.behaviour.Behaviour):
+    """One-shot motor command: publish a Float32 to /cmd_fans or /cmd_belt.
+
+    The firmware latches the value (like the teleop's q/e and r/t keys), so a
+    single publish is enough — returns SUCCESS immediately after publishing.
+    """
+    def __init__(self, name, topic, value):
+        super().__init__(name)
+        self.topic = topic
+        self.value = float(value)
+        self.node = None
+        self._pub = None
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+        if self.node is None:
+            raise RuntimeError("ROS 2 node context missing.")
+        # Share one publisher per topic across all SetMotor instances.
+        pubs = getattr(self.node, "bt_motor_pubs", None)
+        if pubs is None:
+            pubs = self.node.bt_motor_pubs = {}
+        if self.topic not in pubs:
+            pubs[self.topic] = self.node.create_publisher(Float32, self.topic, 10)
+        self._pub = pubs[self.topic]
+
+    def update(self) -> Status:
+        self._pub.publish(Float32(data=self.value))
+        self.logger.info(f"[{self.name}] {self.topic} = {self.value}")
+        return Status.SUCCESS
+
+
+class Wait(py_trees.behaviour.Behaviour):
+    """RUNNING for a fixed duration, then SUCCESS (e.g. discharge dwell time)."""
+    def __init__(self, name, duration_s):
+        super().__init__(name)
+        self.duration_s = duration_s
+        self.node = None
+        self._t0 = None
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+        if self.node is None:
+            raise RuntimeError("ROS 2 node context missing.")
+
+    def initialise(self):
+        self._t0 = self.node.get_clock().now()
+
+    def update(self) -> Status:
+        elapsed = (self.node.get_clock().now() - self._t0).nanoseconds * 1e-9
+        return Status.SUCCESS if elapsed >= self.duration_s else Status.RUNNING
+
+
 # =========================================================
 # Placeholder downstream mechanisms
 # =========================================================
@@ -487,6 +688,22 @@ POSE_DOOR      = (2.00, 7.50, 3.14)    # Zone 3 entrance
 POSE_RAMP_BASE = (7.00, 3.00, 1.57)    # bottom of the ramp
 POSE_BASE      = (0.50, 0.50, -2.35)   # drop-off point (lower-left corner)
 
+# Collection sweep routes per zone, ARENA frame. PLACEHOLDERS — replace with
+# the real block-rich sweep lines per zone (or, later, a vision-driven route
+# from /eyerobot/vision/lego_markers_map). Each chunk approximates a 5-block
+# load: there is NO intake counter yet, so "5 blocks collected" is modeled as
+# "one sweep chunk done" -> return to base and discharge.
+ZONE1_SWEEP_CHUNKS = [
+    [(1.5, 1.5), (3.5, 1.5), (3.5, 3.0)],   # TODO real zone 1 sweep, part 1
+    [(1.5, 3.0), (1.5, 4.5), (3.5, 4.5)],   # TODO real zone 1 sweep, part 2
+]
+ZONE3_SWEEP_CHUNKS = [
+    [(1.0, 6.5), (3.5, 6.5)],               # TODO real zone 3 sweep (behind the door)
+]
+ZONE4_SWEEP_CHUNKS = [
+    [(6.0, 4.5), (6.0, 6.5)],               # TODO real zone 4 sweep (past the ramp)
+]
+
 
 def _goto(name, arena_pose, timeout_s):
     """GoToPose at an arena-frame pose, wrapped in the standard timeout/skip."""
@@ -494,38 +711,132 @@ def _goto(name, arena_pose, timeout_s):
     return wrap_with_timeout(GoToPose(name, x, y, target_yaw=arena_pose[2]), timeout_s)
 
 
-def create_tree():
-    # Main overall mission line
-    root = py_trees.composites.Sequence(name="Mission_Principale", memory=True)
+def _discharge_at_base(tag):
+    """Drive to the base and unload: belt on + fans reversed, dwell, restore."""
+    seq = py_trees.composites.Sequence(name=f"Discharge_{tag}", memory=True)
+    seq.add_child(_goto(f"Discharge_{tag}_Goto_Base", POSE_BASE, 90.0))
+    seq.add_child(SetMotor(f"Discharge_{tag}_Fans_Reverse", '/cmd_fans', -FAN_SPEED))
+    seq.add_child(SetMotor(f"Discharge_{tag}_Belt_On", '/cmd_belt', BELT_SPEED))
+    seq.add_child(Wait(f"Discharge_{tag}_Dwell", DISCHARGE_SECONDS))
+    seq.add_child(SetMotor(f"Discharge_{tag}_Belt_Off", '/cmd_belt', 0.0))
+    seq.add_child(SetMotor(f"Discharge_{tag}_Fans_Forward", '/cmd_fans', FAN_SPEED))
+    seq.add_child(ResetBlockCount(f"Discharge_{tag}_Reset_Count"))
+    return seq
 
-    # 0. Gate: do nothing until AMCL is localized (no timeout wrapper — see class doc).
-    root.add_child(WaitForLocalization())
 
-    # 1. Button phase: drive to the button, face it (yaw from fsm.py), push (stub).
+def _discharge_if_full(tag):
+    """Discharge only when >= DISCHARGE_BLOCK_COUNT blocks are on board;
+    otherwise skip (FailureIsSuccess) and keep collecting."""
+    seq = py_trees.composites.Sequence(name=f"Maybe_Discharge_{tag}", memory=True)
+    seq.add_child(HoldEnoughBlocks(f"{tag}_Hold_{DISCHARGE_BLOCK_COUNT}"))
+    seq.add_child(_discharge_at_base(tag))
+    return py_trees.decorators.FailureIsSuccess(
+        child=seq, name=f"Maybe_Discharge_{tag}_Skippable")
+
+
+def _with_timeout(behaviour_node, duration_seconds):
+    """Timeout WITHOUT FailureIsSuccess — for children inside a Selector, where
+    a failure must fall through to the next option instead of faking success."""
+    return py_trees.decorators.Timeout(
+        child=behaviour_node, duration=duration_seconds,
+        name=f"{behaviour_node.name}_Timeout")
+
+
+def _collect_zone(zone_tag, chunks):
+    """Collect blocks: vision-planned routes first, sweep chunks as fallback.
+
+    Each round: if vision (BlockMemory) knows blocks, flow through the <=5
+    nearest and discharge at base — real counting, the memory drops blocks the
+    robot drove over. If no blocks are known yet, drive the next predefined
+    sweep chunk instead (which both collects blindly and lets the camera
+    discover blocks for the next round). One extra vision-only round runs
+    after the sweeps to mop up late discoveries. A round with nothing to do
+    fails its Selector and skips its discharge (FailureIsSuccess keeps the
+    mission going).
+    """
+    seq = py_trees.composites.Sequence(name=f"Collect_{zone_tag}", memory=True)
+    rounds = len(chunks) + 1
+    for i in range(1, rounds + 1):
+        source = py_trees.composites.Selector(name=f"{zone_tag}_R{i}_Source", memory=True)
+
+        vision = py_trees.composites.Sequence(name=f"{zone_tag}_R{i}_Vision", memory=True)
+        vision.add_child(PlanBlockRoute(f"{zone_tag}_R{i}_Plan"))
+        vision.add_child(_with_timeout(GoThroughPlanned(f"{zone_tag}_R{i}_Blocks"), 120.0))
+        source.add_child(vision)
+
+        if i <= len(chunks):
+            pts = [arena_to_map(x, y) for x, y in chunks[i - 1]]
+            source.add_child(_with_timeout(GoThroughPoses(f"{zone_tag}_Sweep_{i}", pts), 120.0))
+
+        round_seq = py_trees.composites.Sequence(name=f"{zone_tag}_Round_{i}", memory=True)
+        round_seq.add_child(source)
+        # Unload only when the intake actually holds DISCHARGE_BLOCK_COUNT
+        # blocks (counted by BlockMemory as the robot drives over them).
+        round_seq.add_child(_discharge_if_full(f"{zone_tag}_{i}"))
+        seq.add_child(py_trees.decorators.FailureIsSuccess(
+            child=round_seq, name=f"{zone_tag}_Round_{i}_Skippable"))
+    return seq
+
+
+def _button_phase(root):
+    """Button + door entry (the part zone1/zone4 missions skip)."""
     root.add_child(_goto("Move_To_Button", POSE_BUTTON, 60.0))
-    
     root.add_child(wrap_with_timeout(PushButton(), 5.0))
-
-    # 2. Door phase: Zone 3 entrance; align + climb are instant-SUCCESS stubs.
     root.add_child(_goto("Go_To_Door", POSE_DOOR, 60.0))
     root.add_child(wrap_with_timeout(AlignWithWall(), 5.0))
     root.add_child(wrap_with_timeout(ClimbDoor(), 5.0))
 
-    # 3. Lego collection slots in here later: a GoThroughPoses flow-through
-    #    route over detected block positions (/eyerobot/vision/lego_markers_map):
-    #    root.add_child(wrap_with_timeout(GoThroughPoses("Collect_Route", pts), 120.0))
 
-    # 4. Ramp, then return to base and deliver (drop-off yaw from fsm.py).
-    root.add_child(_goto("Go_To_Ramp", POSE_RAMP_BASE, 60.0))
-    root.add_child(_goto("Return_To_Base", POSE_BASE, 90.0))
+def create_tree(mission="full"):
+    """Mission selector (--mission CLI flag / bt_mission launch argument):
+
+    full   button + zone 3 + ramp + zone 4 + final discharge
+    zone1  blocks only: sweep zone 1, discharge at base per chunk (no button/ramp)
+    zone3  button + door phase, then zone 3 collection
+    zone4  no button: ramp, then zone 4 collection
+    All modes: fans ON before the first motion; AMCL localization gates the start.
+    """
+    root = py_trees.composites.Sequence(name=f"Mission_{mission}", memory=True)
+
+    # 0. Common prologue: localized first, then fans spinning BEFORE any motion
+    #    (blocks must be absorbable from the very first meter).
+    root.add_child(WaitForLocalization())
+    root.add_child(SetMotor("Fans_On", '/cmd_fans', FAN_SPEED))
+
+    if mission == "zone1":
+        root.add_child(_collect_zone("Zone1", ZONE1_SWEEP_CHUNKS))
+    elif mission == "zone3":
+        _button_phase(root)
+        root.add_child(_collect_zone("Zone3", ZONE3_SWEEP_CHUNKS))
+    elif mission == "zone4":
+        root.add_child(_goto("Go_To_Ramp", POSE_RAMP_BASE, 60.0))
+        root.add_child(_collect_zone("Zone4", ZONE4_SWEEP_CHUNKS))
+    else:  # full
+        _button_phase(root)
+        root.add_child(_collect_zone("Zone3", ZONE3_SWEEP_CHUNKS))
+        root.add_child(_goto("Go_To_Ramp", POSE_RAMP_BASE, 60.0))
+        root.add_child(_collect_zone("Zone4", ZONE4_SWEEP_CHUNKS))
+
+    # Epilogue: back to base and unload UNCONDITIONALLY (whatever partial load
+    # is on board), then stop the intake.
+    root.add_child(_discharge_at_base("Final"))
     root.add_child(wrap_with_timeout(Delivery(), 5.0))
+    root.add_child(SetMotor("Fans_Off", '/cmd_fans', 0.0))
 
     return root
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    tree_root = create_tree()
+    # --mission selects the tree composition; ROS args pass through untouched.
+    parser = argparse.ArgumentParser(description="EyeRobot mission behavior tree")
+    parser.add_argument('--mission', default='full',
+                        choices=['full', 'zone1', 'zone3', 'zone4'],
+                        help="Mission variant (see create_tree docstring)")
+    cli, ros_argv = parser.parse_known_args(args)
+
+    rclpy.init(args=ros_argv)
+    print(f"=== Mission mode: {cli.mission} ===")
+    tree_root = create_tree(cli.mission)
     
     if VERBOSE:
         print("\n--- BEHAVIOR TREE STRUCTURE ---")
