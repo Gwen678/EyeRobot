@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor  # Pour utiliser tous les cœurs CPU
+from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Point, PointStamped
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
 from collections import OrderedDict
-import message_filters
 from tf2_ros import Buffer, TransformListener
 import tf2_geometry_msgs
 from rclpy.time import Time
 
 # ==========================================
-# 1. TRACKER (Keeps track of Lego IDs)
+# 1. TRACKER (Gestion des IDs des Legos)
 # ==========================================
 class CentroidTracker:
     def __init__(self, maxDisappeared=15, maxDistance=100):
@@ -79,7 +80,7 @@ class CentroidTracker:
         return self.objects
 
 # ==========================================
-# 2. MAIN ROS 2 NODE (Subscriber Version)
+# 2. NOEUD ROS 2 DE VISION (Multi-Threadé)
 # ==========================================
 class LegoDetectorNode(Node):
     def __init__(self):
@@ -89,34 +90,38 @@ class LegoDetectorNode(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
+        # Groupe de communication parallèle
+        self.cb_group = ReentrantCallbackGroup()
+
         # Publishers
         self.image_pub_ = self.create_publisher(Image, '/eyerobot/camera/annotated_image', 10)
         self.target_pub_ = self.create_publisher(Point, '/eyerobot/vision/lego_target', 10)
         self.map_target_pub_ = self.create_publisher(PointStamped, '/eyerobot/vision/lego_markers_map', 10)
 
         self.tracker = CentroidTracker()
-
-        # Filtre couleur Vert Lego
         self.LOWER_COLOR = np.array([35, 100, 50])
         self.UPPER_COLOR = np.array([85, 255, 255])
 
-        # Synchronisation des flux de la caméra (Plus de conflit USB !)
-        self.rgb_sub = message_filters.Subscriber(self, Image, '/oak/rgb/image_raw')
-        self.depth_sub = message_filters.Subscriber(self, Image, '/oak/stereo/image_raw')
-        self.ts = message_filters.ApproximateTimeSynchronizer([self.rgb_sub, self.depth_sub], 10, 0.5)
-        self.ts.registerCallback(self.sync_callback)
+        # Mémoire tampon pour la profondeur (Zéro Latence, Zéro CPU)
+        self.latest_depth_frame = None
 
-        self.get_logger().info("Nœud de vision branché sur les flux ROS. Prêt !")
+        # Abonnements indépendants et parallèles
+        self.create_subscription(Image, '/oak/stereo/image_raw', self.depth_callback, 10, callback_group=self.cb_group)
+        self.create_subscription(Image, '/oak/rgb/image_raw', self.rgb_callback, 10, callback_group=self.cb_group)
 
-    def sync_callback(self, rgb_msg, depth_msg):
-        # Conversion des messages ROS en matrices OpenCV
+        self.get_logger().info("🚀 Nœud Multi-Threadé branché et protégé contre les Timeouts !")
+
+    def depth_callback(self, msg):
+        # On stocke l'image de profondeur dès qu'elle arrive
+        self.latest_depth_frame = self.bridge.imgmsg_to_cv2(msg, "16UC1")
+
+    def rgb_callback(self, rgb_msg):
+        # Si on n'a pas encore reçu de carte de profondeur, on attend la suivante
+        if self.latest_depth_frame is None:
+            return
+
         frame = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
-        depth = self.bridge.imgmsg_to_cv2(depth_msg, "16UC1")
-
-        # --- CORRECTION DE L'IMAGE À L'ENVERS ---
-        # Les lignes ci-dessous sont commentées pour laisser l'image à l'endroit :
-        # frame = cv2.flip(frame, -1)
-        # depth = cv2.flip(depth, -1)
+        depth = self.latest_depth_frame.copy()
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, self.LOWER_COLOR, self.UPPER_COLOR)
@@ -129,7 +134,6 @@ class LegoDetectorNode(Node):
                 x, y, w, h = cv2.boundingRect(cnt)
                 cx, cy = int(x + w/2), int(y + h/2)
 
-                # Sécurité dimensions index image
                 if 0 <= cy < depth.shape[0] and 0 <= cx < depth.shape[1]:
                     d = np.median(depth[max(0, cy-2):cy+3, max(0, cx-2):cx+3]) / 1000.0
 
@@ -154,15 +158,14 @@ class LegoDetectorNode(Node):
                 closest_lego_dist = pz
                 closest_lego_pt = pt
 
-            # Préparation de la transformation spatiale
             stamped = PointStamped()
             stamped.header.frame_id = "oak_rgb_camera_optical_frame"
-            stamped.header.stamp = Time(seconds=0, nanoseconds=0).to_msg() # HACK TIME 0
+            stamped.header.stamp = Time(seconds=0, nanoseconds=0).to_msg() # Hack temps 0
             stamped.point = pt
 
             try:
-                map_pt = self.tf_buffer.transform(stamped, "map", timeout=rclpy.duration.Duration(seconds=0.1))
-                map_pt.header.stamp = rgb_msg.header.stamp # Redonne le temps actuel pour Foxglove
+                map_pt = self.tf_buffer.transform(stamped, "map", timeout=rclpy.duration.Duration(seconds=0.05))
+                map_pt.header.stamp = rgb_msg.header.stamp
                 self.map_target_pub_.publish(map_pt)
             except Exception:
                 pass
@@ -175,8 +178,13 @@ class LegoDetectorNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = LegoDetectorNode()
+    
+    # Configuration de l'exécuteur multi-cœurs (4 threads en parallèle)
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
+    
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
