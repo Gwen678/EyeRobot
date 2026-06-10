@@ -22,6 +22,26 @@ if pgrep -f micro_ros_agent >/dev/null 2>&1; then
   exit 1
 fi
 
+# OAK IMU probe: the BMI270 occasionally fails to enumerate at device boot
+# (known flaky init on this chip) and the only cure is a camera power-cycle.
+# Catch it here in ~5 s instead of waiting for the 90 s IMU timeout below.
+# Side benefit: opening/closing the device makes the OAK reboot its firmware,
+# so this doubles as a warm reset before the driver attaches.
+echo "Probing OAK IMU..."
+IMU_TYPE=$(python3 -c "import depthai as dai; d = dai.Device(); print(d.getConnectedIMU())" 2>/dev/null | tail -1)
+if [ -z "${IMU_TYPE}" ] || [ "${IMU_TYPE}" = "NONE" ]; then
+  echo "============================================================"
+  echo "  FATAL: OAK probe failed (returned '${IMU_TYPE}')."
+  echo "  Either the IMU did not enumerate, the camera is wedged from"
+  echo "  an abruptly killed session, or another process owns it"
+  echo "  (detect_lego.py / block_tracker use the OAK directly)."
+  echo "  Fix: close other camera scripts; unplug the camera USB,"
+  echo "  wait 5 s, replug; rerun this script."
+  echo "============================================================"
+  exit 1
+fi
+echo "OAK IMU: ${IMU_TYPE}"
+
 STALE=$(ros2 node list 2>/dev/null | grep -E "amcl|bt_navigator|controller_manager|^/oak$" | sort -u)
 if [ -n "${STALE}" ]; then
   echo "============================================================"
