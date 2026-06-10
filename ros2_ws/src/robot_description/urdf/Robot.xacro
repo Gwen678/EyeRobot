@@ -43,7 +43,7 @@
   </collision>
 </link>
 
-<link name="Moteur_+_Roue_v1_Symetrie_miroir__1">
+<link name="left_wheel_link">
   <inertial>
     <origin xyz="5.182027081260254e-07 3.7287997872448297e-06 -0.021890971794159053" rpy="0 0 0"/>
     <mass value="4.893607945468814"/>
@@ -52,19 +52,19 @@
   <visual>
     <origin xyz="0.018502 -0.032756 0.27162" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="package://robot_description/meshes/Moteur_+_Roue_v1_Symétrie_miroir__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="package://robot_description/meshes/wheel_mirrored.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
     <origin xyz="0.018502 -0.032756 0.27162" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="package://robot_description/meshes/Moteur_+_Roue_v1_Symétrie_miroir__1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="package://robot_description/meshes/wheel_mirrored.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
 
-<link name="Moteur_+_Roue_v3_1">
+<link name="right_wheel_link">
   <inertial>
     <origin xyz="-9.7522353499635e-07 3.924730006502064e-06 0.02189068703142081" rpy="0 0 0"/>
     <mass value="4.893487253767867"/>
@@ -73,14 +73,14 @@
   <visual>
     <origin xyz="0.019268 -0.035986 -0.021086" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="package://robot_description/meshes/Moteur_+_Roue_v3_1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="package://robot_description/meshes/wheel.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
     <origin xyz="0.019268 -0.035986 -0.021086" rpy="0 0 0"/>
     <geometry>
-      <mesh filename="package://robot_description/meshes/Moteur_+_Roue_v3_1.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="package://robot_description/meshes/wheel.stl" scale="0.001 0.001 0.001"/>
     </geometry>
   </collision>
 </link>
@@ -88,14 +88,14 @@
 <joint name="left_wheel_joint" type="continuous">
   <origin xyz="-0.018502 0.032756 -0.27162" rpy="0 0 0"/>
   <parent link="chassis"/>
-  <child link="Moteur_+_Roue_v1_Symetrie_miroir__1"/>
+  <child link="left_wheel_link"/>
   <axis xyz="0.0 0.0 1.0"/>
 </joint>
 
 <joint name="right_wheel_joint" type="continuous">
   <origin xyz="-0.019268 0.035986 0.021086" rpy="0 0 0"/>
   <parent link="chassis"/>
-  <child link="Moteur_+_Roue_v3_1"/>
+  <child link="right_wheel_link"/>
   <axis xyz="0.0 0.0 1.0"/>
 </joint>
 
@@ -129,10 +129,10 @@
 
 <!-- IMU (OAK-D) mount, relative to base_link (the axle center). Offsets are from
      CAD, measured from the wheel-axle midpoint: 0.42 m forward (X), 0.135 m up (Z),
-     centered on width (Y = 0). Translation is placement only — it does NOT affect
-     orientation fusion (we fuse roll/pitch/yaw-rate, not linear accel). The camera
-     is mounted level (no tilt), so rpy = 0: its REP-103-remapped axes align with
-     base_link and a level robot reports ~0 roll/pitch (in complementary mode). -->
+     centered on width (Y = 0). NOTE: the physical camera is TILTED ~58° from
+     vertical (looking at the floor) — imu_remap_node measures that tilt from
+     gravity at startup and rotates the IMU data into this level, body-aligned
+     frame, so imu_link stays rpy = 0 here and the data matches it. -->
 <link name="imu_link"/>
 <joint name="imu_mount" type="fixed">
   <origin xyz="0.42 0 0.135" rpy="0 0 0"/>

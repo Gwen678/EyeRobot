@@ -165,7 +165,7 @@ cd ros2_ws && colcon build --packages-select robot_description manual_controller
 otherwise stop the Jetson's topics from reaching the PC: campus WiFi blocking DDS
 discovery multicast, and both machines sharing `docker0` at `172.17.0.1` (DDS sends
 data to its own docker bridge, so topics list but `echo` is empty). It writes
-WiFi-only DDS profiles for both ends. `run_eyerobot.sh` does the same automatically.
+WiFi-only DDS profiles for both ends.
 If RViz still stays empty, re-run after confirming the Jetson IP is correct.
 
 ## IMU calibration (Allan variance)
@@ -191,3 +191,4 @@ Madgwick gain in `config/imu_filter.yaml`.
 Build/image details: `docker/README.md`. Firmware: `firmware/DOCS.md`.
 Stable USB names setup: `UDEV.md`. Robot model in Foxglove: `URDF.md`.
 Codebase review (defects, architecture, package verdicts): `ANALYSIS.md`.
+2026-06-10 overhaul session (motor control, IMU tilt fix, validation): `CHANGELOG-2026-06-10.md`.
