@@ -185,10 +185,11 @@ def generate_launch_description():
                 # (measure axle midpoint -> camera, meters).
                 'publish_camera_tf': True,
                 # Camera body frame to express the IMU extrinsic in: the
-                # URDF's ${base_frame} ('oak-d_frame'), the direct child of
-                # oak_mount. NOT 'oak-d-base-frame' — that name only exists
-                # when the driver's parent_frame is left at its default.
-                'camera_base_frame': 'oak-d_frame',
+                # driver's camera.launch.py sets base_frame = the camera
+                # NAME, so with name 'oak' the body frame is literally
+                # 'oak' (direct child of oak_mount). NOT 'oak-d-base-frame'
+                # (default-parent ghost) and NOT 'oak-d_frame'.
+                'camera_base_frame': 'oak',
                 'mount_x': 0.42,
                 'mount_y': 0.0,
                 'mount_z': 0.135,
