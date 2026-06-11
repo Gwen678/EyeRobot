@@ -27,7 +27,7 @@ from rclpy.qos import (qos_profile_sensor_data, QoSProfile,
 FAN_SPEED = 8.0
 BELT_SPEED = 8.0
 DISCHARGE_SECONDS = 5.0
-DISCHARGE_BLOCK_COUNT = 10  # go unload at base once this many blocks were collected
+DISCHARGE_BLOCK_COUNT = 3   # go unload at base once this many blocks were collected
 
 VERBOSE = True
 
