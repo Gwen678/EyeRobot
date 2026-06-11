@@ -41,12 +41,10 @@ Optional flags:
                 initializes at the base pose (nav2_params.yaml
                 set_initial_pose) — place the robot there; Foxglove Set-pose
                 is only needed when starting elsewhere.
-  bt_mission:=full|zone1|zone3|zone4   Mission variant (default full).
-                Each zone flag is a partial run of the full flow:
-                zone1 = zone 1 collection + unload only (no button, no ramp);
-                zone3 = full minus the ramp/zone-4 leg;
-                zone4 = full minus the button/door/zone-3 leg.
-                Zone 1 cleanup + final unload close every mission.
+  bt_mission:=loop|test_center   Mission variant (default loop).
+                loop = endless search/collect/unload cycle (turn right, find
+                blocks, flow through them, unload at base every 10 blocks);
+                test_center = Nav2 smoke test, one goal at the arena center.
 
 Full mapping session with vision:
   ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true lego:=true
@@ -58,12 +56,29 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+
+from manual_controller.nn_config import write_yolo_configs, CAMERA_YAML_PATH
+
+
+def _yolo_active(context):
+    """The NN camera pipeline runs only when vision is on AND flavour is yolo."""
+    return (context.launch_configurations.get('lego', 'false').lower() == 'true'
+            and context.launch_configurations.get('detector') == 'yolo')
+
+
+def _maybe_write_yolo_configs(context):
+    """lego:=true detector:=yolo -> generate the NN json + camera yaml.
+    Confidence/input size are constants in nn_config.py, not flags."""
+    if not _yolo_active(context):
+        return []
+    write_yolo_configs()
+    return []
 
 
 def generate_launch_description():
@@ -87,11 +102,21 @@ def generate_launch_description():
         DeclareLaunchArgument('foxglove', default_value='true',
                               description='Start foxglove_bridge on ws://<jetson-ip>:8765'),
         DeclareLaunchArgument('lego', default_value='false',
-                              description='Start the Lego vision detector node'),
+                              description='Start the block vision detector node'),
+        DeclareLaunchArgument('detector', default_value='yolo',
+                              description='Block detector flavour (with lego:=true): '
+                                          'yolo = onboard OAK NN (yolo_vision_node), '
+                                          'hsv = host-side colour segmentation (lego_vision_node). '
+                                          'detector:=yolo also switches the camera to the NN pipeline. '
+                                          'Confidence/input size: constants in nn_config.py.'),
+
+        # lego:=true detector:=yolo -> write /tmp NN json + camera yaml
+        # before the camera include below resolves its params_file.
+        OpaqueFunction(function=_maybe_write_yolo_configs),
         DeclareLaunchArgument('bt', default_value='false',
                               description='Start the mission behavior tree (needs Nav2 running)'),
-        DeclareLaunchArgument('bt_mission', default_value='full',
-                              description='Mission variant: full | zone1 | zone3 | zone4 | '
+        DeclareLaunchArgument('bt_mission', default_value='loop',
+                              description='Mission variant: loop (endless collect cycle) | '
                                           'test_center (Nav2 smoke test: one goal at the arena center)'),
 
         # ── Core odometry + ros2_control stack ───────────────────────────────
@@ -112,8 +137,15 @@ def generate_launch_description():
                 PathJoinSubstitution([
                     FindPackageShare('depthai_ros_driver'), 'launch', 'camera.launch.py'])),
             launch_arguments={
-                'params_file': PathJoinSubstitution([
-                    FindPackageShare('manual_controller'), 'config', 'depthai_camera.yaml']),
+                # lego:=true detector:=yolo -> the generated /tmp yaml (NN
+                # pipeline, preview sized to the blob); otherwise the
+                # production camera yaml.
+                'params_file': PythonExpression([
+                    "'", CAMERA_YAML_PATH, "' if ('",
+                    LaunchConfiguration('lego'), "'.lower() == 'true' and '",
+                    LaunchConfiguration('detector'), "' == 'yolo') else '",
+                    os.path.join(get_package_share_directory('manual_controller'),
+                                 'config', 'depthai_camera.yaml'), "'"]),
                 'camera_model': 'OAK-D-LITE',
                 'name': 'oak',
                 # Camera TF tree hangs under 'oak_mount' with ZERO offsets:
@@ -206,7 +238,23 @@ def generate_launch_description():
             executable='lego_vision_node',
             name='lego_detector_node',
             output='screen',
-            condition=IfCondition(LaunchConfiguration('lego')),
+            condition=IfCondition(PythonExpression([
+                "'", LaunchConfiguration('lego'), "'.lower() == 'true' and '",
+                LaunchConfiguration('detector'), "' == 'hsv'"])),
+        ),
+
+        # Onboard-YOLO bridge: the OAK runs the block model on its VPU
+        # (camera yaml above enables the spatial NN); this node only converts
+        # /oak/nn/spatial_detections to the same /eyerobot/vision/* topics,
+        # so BlockMemory/BT are detector-agnostic.
+        Node(
+            package='manual_controller',
+            executable='yolo_vision_node',
+            name='lego_detector_node',
+            output='screen',
+            condition=IfCondition(PythonExpression([
+                "'", LaunchConfiguration('lego'), "'.lower() == 'true' and '",
+                LaunchConfiguration('detector'), "' == 'yolo'"])),
         ),
 
         # ── Mission behavior tree ─────────────────────────────────────────────

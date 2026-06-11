@@ -85,24 +85,27 @@ fi
 rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_* 2>/dev/null
 ros2 daemon stop >/dev/null 2>&1   # daemon caches transports; restarts lazily
 
-# Pre-compile lego_vision_node: the node crashes mid-run on import/syntax errors
-# (numpy ABI mismatch, missing dep after a pip update) which wedges the OAK USB
-# session and looks like an IMU failure on the next run. Catch it here in <2 s.
-LEGO_SRC=/eyerobot/ros2_ws/src/manual_controller/manual_controller/lego_vision_node.py
-echo "Pre-checking lego_vision_node..."
-if ! python3 -m py_compile "${LEGO_SRC}" 2>&1; then
-  echo "FATAL: lego_vision_node.py has a syntax error — fix it before running."
+# Pre-compile the vision nodes: a node that crashes mid-run on import/syntax
+# errors (numpy ABI mismatch, missing dep after a pip update) wedges the OAK
+# USB session and looks like an IMU failure on the next run. Catch it in <2 s.
+VISION_DIR=/eyerobot/ros2_ws/src/manual_controller/manual_controller
+echo "Pre-checking vision nodes..."
+if ! python3 -m py_compile "${VISION_DIR}/lego_vision_node.py" \
+                           "${VISION_DIR}/yolo_vision_node.py" \
+                           "${VISION_DIR}/nn_config.py" 2>&1; then
+  echo "FATAL: a vision node has a syntax error — fix it before running."
   exit 1
 fi
 if ! python3 -c "
 import sys
 sys.path.insert(0, '/eyerobot/ros2_ws/install/manual_controller/lib/python3.10/site-packages')
-import cv2, numpy, ultralytics, depthai
+import cv2, numpy, depthai
 from cv_bridge import CvBridge
 from tf2_ros import Buffer
-print('lego_vision_node imports OK')
+from vision_msgs.msg import Detection3DArray
+print('vision node imports OK')
 " 2>&1; then
-  echo "FATAL: lego_vision_node.py import check failed (see above). Fix the dep, then rerun."
+  echo "FATAL: vision node import check failed (see above). Fix the dep, then rerun."
   exit 1
 fi
 
@@ -111,20 +114,19 @@ echo "[1/3] Launching micro-ROS Agent..."
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/esp32 -b 115200 &
 sleep 2
 
-# Mission variant: first script argument (default full).
-#   ./run_autonomous.sh zone1   -> blocks only, no button/ramp
-#   ./run_autonomous.sh zone3   -> button + door, then zone 3 blocks
-#   ./run_autonomous.sh zone4   -> ramp, then zone 4 blocks (no button)
-MISSION="${1:-full}"
+# Mission: 'loop' (default) = endless search/collect/unload cycle.
+#   ./run_autonomous.sh test_center   -> Nav2 smoke test (one goal, arena center)
+MISSION="${1:-loop}"
 
 # 2. Launch Core Sensors, Odometry, Hardware Controllers and the Behavior Tree.
-# bt:=true starts the autonomous_controller behavior_tree node; it waits for
-# the Nav2 action servers (step 3) and then for AMCL localization, so the
-# mission does NOT start until you set the initial pose in Foxglove (Set pose).
-# lego:=true: the vision node feeds /eyerobot/vision/lego_markers_map, which
-# the BT's BlockMemory consumes to plan collection routes over real blocks
-# (sweep chunks remain the fallback while no blocks are detected yet).
-echo "[2/3] Launching eyerobot core (LiDAR + EKF + vision + behavior tree, mission: ${MISSION})..."
+# Everything hardcoded ON: lidar + EKF + onboard-YOLO vision + BT. No SLAM —
+# Nav2 (step 3) localizes against the saved map. bt:=true starts the behavior
+# tree; it waits for the Nav2 action servers and AMCL localization, and AMCL
+# self-initializes at the base pose (nav2_params.yaml set_initial_pose), so
+# the mission starts on its own — place the robot at the base marker.
+# detector defaults to yolo: the OAK runs the block model on its own VPU and
+# yolo_vision_node feeds /eyerobot/vision/lego_markers_map for BlockMemory.
+echo "[2/3] Launching eyerobot core (LiDAR + EKF + YOLO vision + behavior tree, mission: ${MISSION})..."
 ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true lego:=true bt:=true bt_mission:="${MISSION}" &
 
 # Wait for the IMU chain to be fully up (imu_remap publishes its first message
@@ -160,8 +162,10 @@ sleep 2
 # to /cmd_vel in manual_controller.launch.py, so Nav2 drives it directly.)
 
 echo "==========================================================="
-echo " SYSTEM READY. Set the AMCL initial pose in Foxglove to"
-echo " start the mission (the behavior tree is waiting for it)."
+echo " SYSTEM READY. AMCL self-initializes at the base pose —"
+echo " with the robot at the base marker the mission starts on"
+echo " its own once Nav2 is active. (Robot elsewhere? Foxglove"
+echo " Set-pose to relocalize.)"
 echo "==========================================================="
 
 # Keep the whole stack (agent, sensors, BT, Nav2, relay) running until Ctrl+C.

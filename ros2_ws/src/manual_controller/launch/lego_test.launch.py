@@ -36,10 +36,7 @@ Flags:
   detector:=hsv|yolo   which detector (default hsv)
   foxglove:=false      skip the Foxglove bridge (e.g. already running)
 """
-import json
 import os
-
-import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -50,73 +47,15 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Pyth
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
-# depthai_camera_yolo.yaml points nn.i_nn_config_path here; both files are
-# written at launch so the blob path tracks the perception install space and
-# the preview size tracks yolo_input.
-NN_CONFIG_PATH = "/tmp/eyerobot_yolo_nn.json"
-CAMERA_YAML_PATH = "/tmp/eyerobot_camera_yolo.yaml"
+from manual_controller.nn_config import write_yolo_configs, CAMERA_YAML_PATH
 
 
 def _write_nn_config(context):
     """Generate the NN config JSON + camera yaml for detector:=yolo.
-
-    The driver aborts unless the RGB preview size equals the blob's input
-    size exactly (nn.i_disable_resize), so both files must agree — they are
-    derived here from the single yolo_input argument: 640 for the bundled
-    best.blob, 416 for a blob exported from the duplo_yolov8n_416 run.
-    """
+    Confidence/input size are constants in nn_config.py, not flags."""
     if context.launch_configurations.get('detector') != 'yolo':
         return []
-    blob = os.path.join(get_package_share_directory('perception'), 'models', 'best.blob')
-    if not os.path.isfile(blob):
-        raise RuntimeError(
-            f"YOLO blob not found at {blob} — build the perception package "
-            "(colcon build --packages-select perception)")
-    conf = float(context.launch_configurations.get('yolo_conf', '0.7'))
-    size = int(context.launch_configurations.get('yolo_input', '640'))
-
-    # Decode profile — ours, one set of values for any modern YOLO head:
-    #  - anchors/masks EMPTY: both candidate blobs (YOLOv6n 640, YOLOv8n 416)
-    #    are anchor-free architectures, so anchor lists (e.g. the tiny-YOLOv4
-    #    set floating around SDK examples) are decoder no-ops at best.
-    #  - iou 0.5: standard NMS; suppresses the duplicate boxes a looser 0.7
-    #    would let through on tight block clusters.
-    #  - confidence via yolo_conf: tuned against OUR blocks/lighting on the
-    #    bench, not inherited from someone else's eval.
-    config = {
-        "model": {"zoo": "path", "model_name": blob},
-        "nn_config": {
-            "output_format": "detection",
-            "NN_family": "YOLO",
-            "input_size": f"{size}x{size}",
-            "confidence_threshold": conf,
-            "NN_specific_metadata": {
-                "classes": 1,
-                "coordinates": 4,
-                "anchors": [],
-                "anchor_masks": {},
-                "iou_threshold": 0.5,
-                "confidence_threshold": conf,
-            },
-        },
-        "mappings": {"labels": ["block"]},
-    }
-    with open(NN_CONFIG_PATH, 'w') as f:
-        json.dump(config, f, indent=2)
-
-    # Camera yaml: the packaged depthai_camera_yolo.yaml with the preview
-    # size rewritten to match the blob (single source of truth for the
-    # pipeline/IMU settings stays the packaged file).
-    base = os.path.join(get_package_share_directory('manual_controller'),
-                        'config', 'depthai_camera_yolo.yaml')
-    with open(base) as f:
-        params = yaml.safe_load(f)
-    rgb = params['/**']['ros__parameters']['rgb']
-    rgb['i_preview_size'] = size
-    rgb['i_preview_width'] = size
-    rgb['i_preview_height'] = size
-    with open(CAMERA_YAML_PATH, 'w') as f:
-        yaml.safe_dump(params, f)
+    write_yolo_configs()
     return []
 
 
@@ -126,13 +65,9 @@ def generate_launch_description():
     is_yolo = IfCondition(PythonExpression(["'", detector, "' == 'yolo'"]))
 
     return LaunchDescription([
-        DeclareLaunchArgument('detector', default_value='hsv',
-                              description='Block detector: hsv (host) or yolo (onboard OAK NN)'),
-        DeclareLaunchArgument('yolo_conf', default_value='0.7',
-                              description='YOLO confidence threshold (detector:=yolo only)'),
-        DeclareLaunchArgument('yolo_input', default_value='640',
-                              description='YOLO blob input size: 640 (current v6 best.blob) '
-                                          'or 416 (our compiled duplo_yolov8n_416 model)'),
+        DeclareLaunchArgument('detector', default_value='yolo',
+                              description='Block detector: yolo (onboard OAK NN) or hsv (host). '
+                                          'Confidence/input size: constants in nn_config.py.'),
         DeclareLaunchArgument('foxglove', default_value='true',
                               description='Start foxglove_bridge on ws://<jetson-ip>:8765'),
 
