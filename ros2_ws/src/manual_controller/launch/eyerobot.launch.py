@@ -184,6 +184,11 @@ def generate_launch_description():
                 # with the gravity-measured rotation; translation set here
                 # (measure axle midpoint -> camera, meters).
                 'publish_camera_tf': True,
+                # Camera body frame to express the IMU extrinsic in: the
+                # URDF's ${base_frame} ('oak-d_frame'), the direct child of
+                # oak_mount. NOT 'oak-d-base-frame' — that name only exists
+                # when the driver's parent_frame is left at its default.
+                'camera_base_frame': 'oak-d_frame',
                 'mount_x': 0.42,
                 'mount_y': 0.0,
                 'mount_z': 0.135,

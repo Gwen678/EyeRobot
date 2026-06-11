@@ -145,7 +145,12 @@ class ImuRemapNode(Node):
         # (its TF lookup fails) — exactly what we want from uncalibrated data.
         self.declare_parameter('publish_camera_tf', True)
         self.declare_parameter('camera_mount_frame', 'oak_mount')
-        self.declare_parameter('camera_base_frame', 'oak-d-base-frame')
+        # The driver URDF chain is parent -> ${base_frame} -> cameras/imu,
+        # with base_frame defaulting to 'oak-d_frame'. ('oak-d-base-frame'
+        # is only the DEFAULT PARENT name — with parent_frame overridden to
+        # oak_mount it never exists; the old default here pointed at that
+        # ghost and the mount TF silently never published, 2026-06-11.)
+        self.declare_parameter('camera_base_frame', 'oak-d_frame')
         self.declare_parameter('mount_x', 0.42)   # base_link -> camera, meters
         self.declare_parameter('mount_y', 0.0)
         self.declare_parameter('mount_z', 0.135)

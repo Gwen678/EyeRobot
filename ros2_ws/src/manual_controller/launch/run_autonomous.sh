@@ -150,6 +150,62 @@ else
   cleanup 1   # ordered shutdown — same path as Ctrl+C (exits for us)
 fi
 
+# 2b. Readiness gates BEFORE Nav2: each intermittent-boot failure mode gets
+# a named wait + hard abort, so "sometimes it works" becomes "it either
+# works or tells you exactly which link of the chain died this boot".
+
+echo "Waiting for wheel odometry (/diff_drive_controller/odom, up to 30 s)..."
+if ! timeout 30 ros2 topic echo --once /diff_drive_controller/odom nav_msgs/msg/Odometry >/dev/null 2>&1; then
+  echo "============================================================"
+  echo "  FATAL: no wheel odometry after 30 s."
+  echo "  Chain: micro-ROS agent <-> ESP32 <-> controller_manager."
+  echo "  Check the agent log (connect/disconnect loop = replug ESP32)."
+  echo "============================================================"
+  cleanup 1
+fi
+echo "Wheel odometry up."
+
+echo "Waiting for lidar (/scan, up to 30 s)..."
+if ! timeout 30 ros2 topic echo --once /scan sensor_msgs/msg/LaserScan >/dev/null 2>&1; then
+  echo "============================================================"
+  echo "  FATAL: no /scan after 30 s. RPLidar did not come up"
+  echo "  (check /dev/rplidar + the rplidar node log), AMCL would"
+  echo "  never localize. Aborting."
+  echo "============================================================"
+  cleanup 1
+fi
+echo "Lidar up."
+
+# Camera mount TF: published by imu_remap after gravity calibration + the
+# driver's URDF extrinsic. Without it EVERY map-frame detection is dropped
+# and the BT searches in circles forever — refuse to proceed blind.
+echo "Waiting for the camera mount TF (base_link -> oak_mount, up to 45 s)..."
+if ! timeout 45 python3 -c "
+import rclpy, rclpy.time
+from rclpy.node import Node
+from tf2_ros import Buffer, TransformListener
+import time, sys
+rclpy.init()
+n = Node('mount_tf_probe')
+buf = Buffer(); TransformListener(buf, n)
+deadline = time.time() + 44
+while time.time() < deadline:
+    rclpy.spin_once(n, timeout_sec=0.2)
+    if buf.can_transform('base_link', 'oak_mount', rclpy.time.Time()):
+        sys.exit(0)
+sys.exit(1)
+" >/dev/null 2>&1; then
+  echo "============================================================"
+  echo "  FATAL: camera mount TF never published. The imu_remap log"
+  echo "  says why ('camera mount TF pending: <reason>'):"
+  echo "    - gravity calibration unfinished -> robot/fans moved"
+  echo "    - driver extrinsic missing      -> camera TF chain issue"
+  echo "  Vision cannot project to the map without it. Aborting."
+  echo "============================================================"
+  cleanup 1
+fi
+echo "Camera mount TF up — vision chain complete."
+
 # 3. Launch Navigation 2 Stack (AMCL Localization + Global/Local Costmaps)
 echo "[3/3] Launching Nav2 Server..."
 # clean_room_8x8: GIMP-cleaned map with origin corrected to match the original
@@ -157,6 +213,34 @@ echo "[3/3] Launching Nav2 Server..."
 # planner/controller and publishes /cmd_vel for the BT's navigation goals.
 ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/clean_room_8x8.yaml full_nav:=true &
 sleep 2
+
+# 3b. Nav2 readiness: AMCL must produce the map frame (it self-initializes
+# from the yaml pose). A boot where this fails = lifecycle activation died
+# (bond timeout under load) — restarting Nav2 alone usually cures it.
+echo "Waiting for localization (map -> base_link TF, up to 90 s)..."
+if ! timeout 90 python3 -c "
+import rclpy, rclpy.time
+from rclpy.node import Node
+from tf2_ros import Buffer, TransformListener
+import time, sys
+rclpy.init()
+n = Node('map_tf_probe')
+buf = Buffer(); TransformListener(buf, n)
+deadline = time.time() + 89
+while time.time() < deadline:
+    rclpy.spin_once(n, timeout_sec=0.2)
+    if buf.can_transform('map', 'base_link', rclpy.time.Time()):
+        sys.exit(0)
+sys.exit(1)
+" >/dev/null 2>&1; then
+  echo "============================================================"
+  echo "  FATAL: no map -> base_link TF after 90 s: AMCL/map_server"
+  echo "  never activated (lifecycle bond death under load?)."
+  echo "  Check: ros2 node list | grep -E 'amcl|map_server'"
+  echo "============================================================"
+  cleanup 1
+fi
+echo "Localization up. Mission starts on its own."
 
 # (No cmd_vel relay needed: diff_drive_controller's subscription is remapped
 # to /cmd_vel in manual_controller.launch.py, so Nav2 drives it directly.)

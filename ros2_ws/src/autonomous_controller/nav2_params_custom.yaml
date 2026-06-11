@@ -253,14 +253,22 @@ waypoint_follower:
       enabled: true
       waypoint_pause_duration: 200
 
+# bond_timeout 30 s (default 4.0): the Nano's CPU spikes during camera/NN
+# warm-up and EKF load starve the bond heartbeats; with the default the
+# lifecycle manager declares healthy servers dead and DEACTIVATES the stack
+# mid-boot or mid-mission (observed 2026-06-11: bt_navigator rejecting all
+# goals after a load spike). 30 s rides out any realistic spike — a server
+# that is genuinely dead for 30 s has crashed visibly anyway.
 lifecycle_manager_localization:
   ros__parameters:
     use_sim_time: false
     autostart: true
+    bond_timeout: 30.0
     node_names: ["map_server", "amcl"]
 
 lifecycle_manager_navigation:
   ros__parameters:
     use_sim_time: false
     autostart: true
+    bond_timeout: 30.0
     node_names: ["controller_server", "planner_server", "behavior_server", "bt_navigator", "waypoint_follower"]
