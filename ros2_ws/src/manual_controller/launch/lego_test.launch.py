@@ -62,6 +62,7 @@ def _write_nn_config(context):
         raise RuntimeError(
             f"YOLO blob not found at {blob} — build the perception package "
             "(colcon build --packages-select perception)")
+    conf = float(context.launch_configurations.get('yolo_conf', '0.7'))
     config = {
         "model": {"zoo": "path", "model_name": blob},
         "nn_config": {
@@ -72,14 +73,14 @@ def _write_nn_config(context):
             # from DEPLOY_OAK.md. Keep in sync with depthai_camera_yolo.yaml
             # (rgb.i_preview_* / nn.i_disable_resize).
             "input_size": "640x640",
-            "confidence_threshold": 0.7,     # DEPLOY_OAK.md eval sweep
+            "confidence_threshold": conf,    # yolo_conf launch arg, default 0.7
             "NN_specific_metadata": {
                 "classes": 1,
                 "coordinates": 4,
                 "anchors": [],               # YOLOv8 is anchor-free
                 "anchor_masks": {},
                 "iou_threshold": 0.5,
-                "confidence_threshold": 0.7,
+                "confidence_threshold": conf,
             },
         },
         "mappings": {"labels": ["block"]},
@@ -97,6 +98,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('detector', default_value='hsv',
                               description='Block detector: hsv (host) or yolo (onboard OAK NN)'),
+        DeclareLaunchArgument('yolo_conf', default_value='0.7',
+                              description='YOLO confidence threshold (detector:=yolo only)'),
         DeclareLaunchArgument('foxglove', default_value='true',
                               description='Start foxglove_bridge on ws://<jetson-ip>:8765'),
 
