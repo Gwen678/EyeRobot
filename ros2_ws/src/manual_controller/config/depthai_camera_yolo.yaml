@@ -27,13 +27,23 @@
       # resolved into the perception package's install space.
       i_nn_config_path: "/tmp/eyerobot_yolo_nn.json"
       i_enable_passthrough: false
+      # The bundled perception/best.blob takes 640x640 input (it is NOT the
+      # 416 deploy model DEPLOY_OAK.md describes — it predates that training
+      # run). The driver aborts unless the preview matches the blob exactly:
+      # "Current network input size is too large to resize ... set
+      # rgb.i_preview_width/height: 640 and nn.i_disable_resize: true".
+      # If the blob is regenerated at 416, flip these back together with
+      # input_size in lego_test.launch.py's _write_nn_config.
+      i_disable_resize: true
 
     rgb:
       i_publish_topic: true
       i_fps: 5.0
       i_width: 640
       i_height: 480
-      i_preview_size: 416       # NN input stream (square, center-cropped)
+      i_preview_size: 640       # older driver API (square preview)
+      i_preview_width: 640      # newer driver API — both kept in sync
+      i_preview_height: 640
 
     stereo:
       i_publish_topic: true

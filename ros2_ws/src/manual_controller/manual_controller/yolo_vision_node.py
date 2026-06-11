@@ -26,7 +26,7 @@ import threading
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, CameraInfo
+from sensor_msgs.msg import Image, CameraInfo, CompressedImage
 from geometry_msgs.msg import Point, PointStamped
 from vision_msgs.msg import Detection3DArray
 from cv_bridge import CvBridge
@@ -46,7 +46,12 @@ class YoloVisionBridge(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
+        # Raw + JPEG annotated feeds — raw bgr8 (~0.9 MB/frame) exceeds the
+        # WiFi link to Foxglove and lags seconds behind; view /compressed
+        # from the PC.
         self.image_pub_ = self.create_publisher(Image, '/eyerobot/camera/annotated_image', 10)
+        self.image_jpeg_pub_ = self.create_publisher(
+            CompressedImage, '/eyerobot/camera/annotated_image/compressed', 10)
         self.target_pub_ = self.create_publisher(Point, '/eyerobot/vision/lego_target', 10)
         self.map_target_pub_ = self.create_publisher(PointStamped, '/eyerobot/vision/lego_markers_map', 10)
 
@@ -115,7 +120,9 @@ class YoloVisionBridge(Node):
                     throttle_duration_sec=5.0)
 
     def rgb_callback(self, rgb_msg):
-        if self.image_pub_.get_subscription_count() == 0:
+        raw_wanted = self.image_pub_.get_subscription_count() > 0
+        jpeg_wanted = self.image_jpeg_pub_.get_subscription_count() > 0
+        if not (raw_wanted or jpeg_wanted):
             return
         with self._det_lock:
             dets = list(self._latest_dets)
@@ -128,7 +135,17 @@ class YoloVisionBridge(Node):
                 cv2.circle(frame, (u, v), 10, (255, 0, 255), 2)
                 cv2.putText(frame, f"block {score:.2f} [{z:.2f}m]", (u + 12, v),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
-        self.image_pub_.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+        if raw_wanted:
+            msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
+            msg.header = rgb_msg.header
+            self.image_pub_.publish(msg)
+        if jpeg_wanted:
+            jpeg = CompressedImage()
+            jpeg.header = rgb_msg.header
+            jpeg.format = "jpeg"
+            jpeg.data = cv2.imencode(
+                '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])[1].tobytes()
+            self.image_jpeg_pub_.publish(jpeg)
 
 
 def main(args=None):

@@ -67,7 +67,11 @@ def _write_nn_config(context):
         "nn_config": {
             "output_format": "detection",
             "NN_family": "YOLO",
-            "input_size": "416x416",
+            # The bundled blob is a 640x640 export (driver verified — it
+            # aborts on any other preview size), NOT the 416 deploy model
+            # from DEPLOY_OAK.md. Keep in sync with depthai_camera_yolo.yaml
+            # (rgb.i_preview_* / nn.i_disable_resize).
+            "input_size": "640x640",
             "confidence_threshold": 0.7,     # DEPLOY_OAK.md eval sweep
             "NN_specific_metadata": {
                 "classes": 1,

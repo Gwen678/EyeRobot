@@ -4,7 +4,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor  # Pour utiliser tous les cœurs CPU
 from rclpy.callback_groups import ReentrantCallbackGroup
-from sensor_msgs.msg import Image, CameraInfo
+from sensor_msgs.msg import Image, CameraInfo, CompressedImage
 from geometry_msgs.msg import Point, PointStamped
 from cv_bridge import CvBridge
 import cv2
@@ -94,8 +94,14 @@ class LegoDetectorNode(Node):
         # Groupe de communication parallèle
         self.cb_group = ReentrantCallbackGroup()
 
-        # Publishers
+        # Publishers. The annotated feed exists in raw and JPEG: raw bgr8 is
+        # ~0.9 MB/frame (4.6 MB/s at 5 fps) — more than the WiFi link to
+        # Foxglove sustains, so its queue backs up and the view lags seconds
+        # behind. View the /compressed topic from the PC; raw stays for
+        # on-Jetson tools.
         self.image_pub_ = self.create_publisher(Image, '/eyerobot/camera/annotated_image', 10)
+        self.image_jpeg_pub_ = self.create_publisher(
+            CompressedImage, '/eyerobot/camera/annotated_image/compressed', 10)
         self.target_pub_ = self.create_publisher(Point, '/eyerobot/vision/lego_target', 10)
         self.map_target_pub_ = self.create_publisher(PointStamped, '/eyerobot/vision/lego_markers_map', 10)
 
@@ -125,6 +131,23 @@ class LegoDetectorNode(Node):
         self.create_subscription(CameraInfo, '/oak/rgb/camera_info', self.camera_info_callback, 10, callback_group=self.cb_group)
 
         self.get_logger().info("🚀 Nœud Multi-Threadé branché et protégé contre les Timeouts !")
+
+    def _annotated_wanted(self):
+        return (self.image_pub_.get_subscription_count() > 0
+                or self.image_jpeg_pub_.get_subscription_count() > 0)
+
+    def _publish_annotated(self, frame, header):
+        if self.image_pub_.get_subscription_count() > 0:
+            msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
+            msg.header = header
+            self.image_pub_.publish(msg)
+        if self.image_jpeg_pub_.get_subscription_count() > 0:
+            jpeg = CompressedImage()
+            jpeg.header = header
+            jpeg.format = "jpeg"
+            jpeg.data = cv2.imencode(
+                '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])[1].tobytes()
+            self.image_jpeg_pub_.publish(jpeg)
 
     def camera_info_callback(self, msg):
         # K = [fx 0 cx; 0 fy cy; 0 0 1] — calibrated values replace the 470 px
@@ -173,14 +196,14 @@ class LegoDetectorNode(Node):
         # can be tested on its own — just no 3D projection / target / map
         # output, since those need depth.
         if depth is None:
-            if self.image_pub_.get_subscription_count() > 0:
+            if self._annotated_wanted():
                 for cnt in contours:
                     if 100 < cv2.contourArea(cnt) < 15000:
                         x, y, w, h = cv2.boundingRect(cnt)
                         cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 255), 2)
                         cv2.putText(frame, "no depth", (x, y-10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
-                self.image_pub_.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+                self._publish_annotated(frame, rgb_msg.header)
             return
 
         dets = []
@@ -232,9 +255,9 @@ class LegoDetectorNode(Node):
         closest_lego_pt = None
 
         # Annotated image only when someone (Foxglove) is actually watching:
-        # drawing + bgr8 reserialization at 10 fps costs real Nano CPU and the
-        # data is debug-only. Zero subscribers -> zero overhead.
-        publish_annotated = self.image_pub_.get_subscription_count() > 0
+        # drawing + reserialization costs real Nano CPU and the data is
+        # debug-only. Zero subscribers -> zero overhead.
+        publish_annotated = self._annotated_wanted()
 
         for objID, data in tracked.items():
             cx, cy, px, py, pz, x, y, w, h = data
@@ -281,7 +304,7 @@ class LegoDetectorNode(Node):
             self.target_pub_.publish(closest_lego_pt)
 
         if publish_annotated:
-            self.image_pub_.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+            self._publish_annotated(frame, rgb_msg.header)
 
 def main(args=None):
     rclpy.init(args=args)
