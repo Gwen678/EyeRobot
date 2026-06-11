@@ -35,6 +35,12 @@
       # describes; 416 = a re-exported duplo_yolov8n_416 blob) and feeds the
       # driver the generated /tmp/eyerobot_camera_yolo.yaml.
       i_disable_resize: true
+      # Publish the NN's ACTUAL input frames on /oak/nn/passthrough.
+      # Diagnostic: a detection whose 2D bbox and 3D spatial position
+      # point-mirror each other (seen 2026-06-11) suggests the preview fed
+      # to the NN is 180-degree rotated vs image_raw — this stream shows the
+      # truth. Costs bandwidth; set back to false once resolved.
+      i_enable_passthrough: true
 
     rgb:
       i_publish_topic: true

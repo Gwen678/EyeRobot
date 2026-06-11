@@ -107,6 +107,10 @@ single script (run in one container terminal):
 bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh [mission]
 ```
 
+cd ../docker && ./build_ws.sh
+
+cd ../ros2_ws && source install/setup.bash
+
 `[mission]` selects the BT variant (default `full`): `zone1` = blocks only
 (no button, no ramp); `zone3` = button + door phase, then zone 3 blocks;
 `zone4` = ramp then zone 4 blocks, no button; `full` = everything. All

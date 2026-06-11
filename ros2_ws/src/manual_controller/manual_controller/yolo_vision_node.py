@@ -87,8 +87,12 @@ class YoloVisionBridge(Node):
                 continue
             res = det.results[0]
             pos = res.pose.pose.position
-            # DepthAI y-up -> optical y-down; x and z already match.
-            x, y, z = pos.x, -pos.y, pos.z
+            # Positions are used AS-IS in the optical frame — verified on
+            # hardware against a reference stack that consumes
+            # detection.position unflipped with correct map markers. An
+            # earlier y-flip here (assuming DepthAI y-up) mirrored the
+            # projected circles vertically — empirically wrong, removed.
+            x, y, z = pos.x, pos.y, pos.z
             if z <= 0.05:        # no depth association on this detection
                 continue
             # The driver also fills the (abused) 3D bbox with the 2D pixel
@@ -144,16 +148,19 @@ class YoloVisionBridge(Node):
                 cv2.circle(frame, (u, v), 10, (255, 0, 255), 2)
                 cv2.putText(frame, f"block {score:.2f} [{z:.2f}m]", (u + 12, v),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
-            # Yellow rectangle: the NN's own 2D box (NN-input pixel coords,
-            # rescaled square-input -> 640x480 image). If yellow boxes sit on
-            # garbage while real blocks go unmarked, the network/decode is
-            # wrong; if yellow disagrees with magenta, the spatial/projection
-            # path is wrong.
+            # Yellow rectangle: the NN's own 2D box (NN-input pixel coords).
+            # Mapping square-preview -> 4:3 image: both are center crops of
+            # the same sensor sharing the full vertical FOV, so one uniform
+            # scale (h/nn_size) plus a horizontal offset centers the square
+            # inside the wider image. If yellow boxes sit on garbage while
+            # real blocks go unmarked, the network/decode is wrong; if
+            # yellow disagrees with magenta, the spatial/projection path is.
             bcx, bcy, bw_, bh_ = bb
-            sx, sy = w / 640.0, h / 640.0
+            s = h / 640.0
+            xoff = (w - 640.0 * s) / 2.0
             cv2.rectangle(frame,
-                          (int((bcx - bw_ / 2) * sx), int((bcy - bh_ / 2) * sy)),
-                          (int((bcx + bw_ / 2) * sx), int((bcy + bh_ / 2) * sy)),
+                          (int((bcx - bw_ / 2) * s + xoff), int((bcy - bh_ / 2) * s)),
+                          (int((bcx + bw_ / 2) * s + xoff), int((bcy + bh_ / 2) * s)),
                           (0, 255, 255), 2)
         if raw_wanted:
             msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
