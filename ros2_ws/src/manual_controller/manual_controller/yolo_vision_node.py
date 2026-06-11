@@ -67,6 +67,14 @@ class YoloVisionBridge(Node):
 
         self.create_subscription(Detection3DArray, '/oak/nn/spatial_detections',
                                  self.detections_callback, 10)
+        # Ground-truth debug view: raw bboxes drawn directly on the NN's own
+        # input frames (/oak/nn/passthrough, i_enable_passthrough) — no
+        # coordinate mapping at all, so what you see is exactly what the
+        # network saw and claimed. JPEG only; costs nothing unsubscribed.
+        self.nn_debug_pub_ = self.create_publisher(
+            CompressedImage, '/eyerobot/camera/nn_debug/compressed', 10)
+        self.create_subscription(Image, '/oak/nn/passthrough',
+                                 self.passthrough_callback, 10)
         self.create_subscription(CameraInfo, '/oak/rgb/camera_info',
                                  self.camera_info_callback, 10)
         self.create_subscription(Image, '/oak/rgb/image_raw',
@@ -128,6 +136,28 @@ class YoloVisionBridge(Node):
                 self.get_logger().warn(
                     f"map TF unavailable, detection dropped: {e}",
                     throttle_duration_sec=5.0)
+
+    def passthrough_callback(self, msg):
+        if self.nn_debug_pub_.get_subscription_count() == 0:
+            return
+        with self._det_lock:
+            dets = list(self._latest_dets)
+        frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+        for _x, _y, z, score, bb in dets:
+            bcx, bcy, bw_, bh_ = bb
+            cv2.rectangle(frame,
+                          (int(bcx - bw_ / 2), int(bcy - bh_ / 2)),
+                          (int(bcx + bw_ / 2), int(bcy + bh_ / 2)),
+                          (0, 255, 255), 2)
+            cv2.putText(frame, f"{score:.2f} [{z:.2f}m]",
+                        (int(bcx - bw_ / 2), int(bcy - bh_ / 2) - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+        jpeg = CompressedImage()
+        jpeg.header = msg.header
+        jpeg.format = "jpeg"
+        jpeg.data = cv2.imencode(
+            '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])[1].tobytes()
+        self.nn_debug_pub_.publish(jpeg)
 
     def rgb_callback(self, rgb_msg):
         raw_wanted = self.image_pub_.get_subscription_count() > 0
