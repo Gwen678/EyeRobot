@@ -109,18 +109,24 @@ controller_server:
       # in-place rotation equivalent: 0.044 * 2 / 0.33 m separation = 0.27 rad/s.
       # Fast profile (2026-06-11): ceilings at the diff_drive limiter cap
       # (12 rad/s wheels = 0.72 m/s / 4.36 rad/s — motors are the real limit
-      # beyond ~9 rad/s). FLOOR at 5 rad/s wheels (0.30 m/s): DWB samples
-      # only [0.30, 0.72] forward, so it cannot choose to crawl — while
-      # translating, the robot commits. In-place rotation (RotateToGoal)
-      # is unaffected; expect wider cornering arcs and goal overshoot
-      # (absorbed by xy tolerance + the 0.35 m eat radius).
+      # beyond ~9 rad/s). FORWARD FLOOR 0.30 m/s = 5 rad/s wheels, which
+      # also clears the firmware friction point (duty = 15% breakaway +
+      # 0.01/tps -> ~50% duty = ~3.9 rad/s wheels = 0.23 m/s rolling): DWB
+      # samples only [0.30, 0.72] forward — it cannot command speeds the
+      # friction eats, and it cannot crawl. Expect wider cornering arcs and
+      # goal overshoot (absorbed by xy tolerance + the 0.35 m eat radius).
       min_vel_x: 0.30
       max_vel_x: 0.72
       min_vel_theta: -4.36
       max_vel_theta: 4.36
       min_speed_xy: 0.30
       max_speed_xy: 0.72
-      min_speed_theta: 0.27
+      # In-place rotation floor from the firmware duty model (MotorTask.cpp:
+      # duty = 15% breakaway + 0.01/tps): ~50% duty = the practical
+      # break-scrub-friction point = ~3.9 rad/s wheels. For rotation,
+      # wheel = omega * (0.33/2)/0.06 = omega * 2.75 -> omega >= 1.4 rad/s.
+      # Below this the robot hums in place without actually turning.
+      min_speed_theta: 1.4
       acc_lim_x: 0.72
       acc_lim_theta: 4.36
       decel_lim_x: -1.5

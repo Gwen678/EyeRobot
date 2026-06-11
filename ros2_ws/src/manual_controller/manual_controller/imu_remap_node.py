@@ -205,14 +205,32 @@ class ImuRemapNode(Node):
         driver's static extrinsic imu -> camera-body, which may arrive a few
         seconds after us. Retries each tick until both exist.
         """
-        if self._mount_tf_done or self._g_sensor is None or self._imu_frame is None:
+        if self._mount_tf_done:
+            return
+        # Name the blocker while waiting: a silent retry loop here is
+        # indistinguishable from a healthy wait, and downstream it looks
+        # like "vision detects but no map detections ever arrive".
+        if self._imu_frame is None:
+            self.get_logger().warning(
+                'camera mount TF pending: no IMU message received yet',
+                throttle_duration_sec=10.0)
+            return
+        if self._g_sensor is None:
+            self.get_logger().warning(
+                'camera mount TF pending: gravity calibration not finished '
+                '(robot must be STILL on flat ground)',
+                throttle_duration_sec=10.0)
             return
         cam_frame = self.get_parameter('camera_base_frame').value
         try:
             t = self._tf_buffer.lookup_transform(
                 cam_frame, self._imu_frame, rclpy.time.Time())
-        except Exception:
-            return   # driver static TF not received yet — retry next second
+        except Exception as e:
+            self.get_logger().warning(
+                f'camera mount TF pending: driver extrinsic {cam_frame} <- '
+                f'{self._imu_frame} not in TF yet ({e})',
+                throttle_duration_sec=10.0)
+            return
         q = t.transform.rotation
         # Up-vector measured in the IMU frame, expressed in the camera body
         # frame via the factory extrinsic.

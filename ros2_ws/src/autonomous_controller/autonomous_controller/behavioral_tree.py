@@ -203,11 +203,26 @@ class BlockMemory:
         self.arena_map = _shared_arena_map(node)
         self.blocks = []  # [(x, y)] map frame
         self.collected_since_discharge = 0  # drives the discharge trigger
+        self._detections_seen = 0
         node.create_subscription(
             PointStamped, '/eyerobot/vision/lego_markers_map', self._on_detection, 10)
         # Foxglove visualization: known blocks as green cubes on /bt/blocks.
         self.marker_pub = node.create_publisher(MarkerArray, '/bt/blocks', 10)
         node.create_timer(0.5, self._prune_eaten)
+        node.create_timer(10.0, self._liveness_check)
+
+    def _liveness_check(self):
+        # "No blocks known" can mean two very different things; make the bad
+        # one loud. Zero messages EVER on lego_markers_map = the vision
+        # bridge is not producing map-frame detections at all (mount TF /
+        # AMCL down, or the detector sees nothing) — the BT searching
+        # forever is a symptom, not the disease.
+        if self._detections_seen == 0:
+            self.node.get_logger().warning(
+                "[blocks] NO detections have EVER arrived on "
+                "/eyerobot/vision/lego_markers_map — check the vision node "
+                "('map TF unavailable'?) and 'ros2 topic hz' that topic.",
+                throttle_duration_sec=30.0)
 
     def _reject(self, p, why):
         # Throttled: the vision node re-publishes tracked blocks at frame
@@ -217,6 +232,7 @@ class BlockMemory:
             throttle_duration_sec=5.0)
 
     def _on_detection(self, msg):
+        self._detections_seen += 1
         p = (msg.point.x, msg.point.y)
         if not (self.Z_RANGE[0] <= msg.point.z <= self.Z_RANGE[1]):
             self._reject(p, f"z={msg.point.z:+.2f} not on the floor")
@@ -1278,6 +1294,11 @@ def _collect_round():
     find.add_child(PlanBlockRoute("Plan_Known_Blocks"))
     search = py_trees.composites.Sequence(name="Round_Search", memory=True)
     search.add_child(_with_timeout(TurnRight("Turn_45_Scan", angle_deg=45.0), 15.0))
+    # STOP and give the camera time to actually see the new heading before
+    # deciding there is nothing there: 5 fps + detection + TF latency means
+    # an instant re-check is ALWAYS empty — without this pause the tree
+    # turned 45 degrees forever, blind between turns.
+    search.add_child(Wait("Camera_Settle", 2.0))
     search.add_child(PlanBlockRoute("Plan_After_Turn"))
     find.add_child(search)
     seq.add_child(find)
