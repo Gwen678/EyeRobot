@@ -91,7 +91,13 @@ class YoloVisionBridge(Node):
             x, y, z = pos.x, -pos.y, pos.z
             if z <= 0.05:        # no depth association on this detection
                 continue
-            dets.append((x, y, z, res.hypothesis.score))
+            # The driver also fills the (abused) 3D bbox with the 2D pixel
+            # box in NN-input coordinates — kept for the debug overlay so
+            # "where the NN sees a box" and "where the 3D position projects"
+            # are visible independently.
+            bb = (det.bbox.center.position.x, det.bbox.center.position.y,
+                  det.bbox.size.x, det.bbox.size.y)
+            dets.append((x, y, z, res.hypothesis.score, bb))
 
         with self._det_lock:
             self._latest_dets = dets
@@ -102,7 +108,7 @@ class YoloVisionBridge(Node):
         closest = min(dets, key=lambda d: d[2])
         self.target_pub_.publish(Point(x=closest[0], y=closest[1], z=closest[2]))
 
-        for x, y, z, _score in dets:
+        for x, y, z, _score, _bb in dets:
             stamped = PointStamped()
             stamped.header.frame_id = OPTICAL_FRAME
             # Same stamp discipline as the HSV node: transform at the
@@ -128,13 +134,27 @@ class YoloVisionBridge(Node):
             dets = list(self._latest_dets)
 
         frame = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
-        for x, y, z, score in dets:
+        h, w = frame.shape[:2]
+        for x, y, z, score, bb in dets:
+            # Magenta circle: the 3D spatial position projected back through
+            # the RGB intrinsics.
             u = int(self.cx0 + x * self.fx / z)
             v = int(self.cy0 + y * self.fy / z)
-            if 0 <= u < frame.shape[1] and 0 <= v < frame.shape[0]:
+            if 0 <= u < w and 0 <= v < h:
                 cv2.circle(frame, (u, v), 10, (255, 0, 255), 2)
                 cv2.putText(frame, f"block {score:.2f} [{z:.2f}m]", (u + 12, v),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+            # Yellow rectangle: the NN's own 2D box (NN-input pixel coords,
+            # rescaled square-input -> 640x480 image). If yellow boxes sit on
+            # garbage while real blocks go unmarked, the network/decode is
+            # wrong; if yellow disagrees with magenta, the spatial/projection
+            # path is wrong.
+            bcx, bcy, bw_, bh_ = bb
+            sx, sy = w / 640.0, h / 640.0
+            cv2.rectangle(frame,
+                          (int((bcx - bw_ / 2) * sx), int((bcy - bh_ / 2) * sy)),
+                          (int((bcx + bw_ / 2) * sx), int((bcy + bh_ / 2) * sy)),
+                          (0, 255, 255), 2)
         if raw_wanted:
             msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
             msg.header = rgb_msg.header

@@ -74,6 +74,31 @@ def _write_nn_config(context):
             "(colcon build --packages-select perception)")
     conf = float(context.launch_configurations.get('yolo_conf', '0.7'))
     size = int(context.launch_configurations.get('yolo_input', '640'))
+    family = context.launch_configurations.get('yolo_family', 'v6')
+
+    if family == 'v6':
+        # BlockBuster's proven YOLOv6 pipeline, replicated verbatim from
+        # their yolov6_spatial_publisher.cpp: anchors + masks as set there
+        # (tiny-yolo defaults — possibly inert for an anchor-free v6 head,
+        # but they shipped with them and it worked), iou 0.7, conf 0.87.
+        meta = {
+            "classes": 1,
+            "coordinates": 4,
+            "anchors": [10, 14, 23, 27, 37, 58, 81, 82, 135, 169, 344, 319],
+            "anchor_masks": {"side13": [3, 4, 5], "side26": [1, 2, 3]},
+            "iou_threshold": 0.7,
+            "confidence_threshold": conf,
+        }
+    else:
+        # Our YOLOv8 (anchor-free), per the Luxonis-tool best.json.
+        meta = {
+            "classes": 1,
+            "coordinates": 4,
+            "anchors": [],
+            "anchor_masks": {},
+            "iou_threshold": 0.5,
+            "confidence_threshold": conf,
+        }
 
     config = {
         "model": {"zoo": "path", "model_name": blob},
@@ -82,14 +107,7 @@ def _write_nn_config(context):
             "NN_family": "YOLO",
             "input_size": f"{size}x{size}",
             "confidence_threshold": conf,
-            "NN_specific_metadata": {
-                "classes": 1,
-                "coordinates": 4,
-                "anchors": [],               # YOLOv8 is anchor-free
-                "anchor_masks": {},
-                "iou_threshold": 0.5,
-                "confidence_threshold": conf,
-            },
+            "NN_specific_metadata": meta,
         },
         "mappings": {"labels": ["block"]},
     }
@@ -123,8 +141,11 @@ def generate_launch_description():
         DeclareLaunchArgument('yolo_conf', default_value='0.7',
                               description='YOLO confidence threshold (detector:=yolo only)'),
         DeclareLaunchArgument('yolo_input', default_value='640',
-                              description='YOLO blob input size: 640 (bundled best.blob) or '
-                                          '416 (re-exported duplo_yolov8n_416 model)'),
+                              description='YOLO blob input size: 640 (BlockBuster v6 best.blob) '
+                                          'or 416 (our compiled duplo_yolov8n_416 model)'),
+        DeclareLaunchArgument('yolo_family', default_value='v6',
+                              description='Decode profile: v6 (BlockBuster blob — their exact '
+                                          'anchors/iou) or v8 (our anchor-free model)'),
         DeclareLaunchArgument('foxglove', default_value='true',
                               description='Start foxglove_bridge on ws://<jetson-ip>:8765'),
 
