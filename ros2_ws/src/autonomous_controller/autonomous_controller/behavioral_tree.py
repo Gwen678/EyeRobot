@@ -2,6 +2,7 @@
 import argparse
 import math
 
+import numpy as np
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.time import Time
@@ -13,12 +14,13 @@ from tf2_ros import Buffer, TransformListener
 # ROS 2 Navigation Messages
 from geometry_msgs.msg import PoseStamped, PointStamped, Twist
 from nav2_msgs.action import NavigateToPose, NavigateThroughPoses
-from nav_msgs.msg import Path as NavPath
+from nav_msgs.msg import Path as NavPath, OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
 from action_msgs.msg import GoalStatus
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import (qos_profile_sensor_data, QoSProfile,
+                       ReliabilityPolicy, DurabilityPolicy)
 
 # Intake actuation (cmd_vel_bridge forwards these to the motor topics).
 # 8.0 rad/s matches the teleop defaults (fan/belt_command_rad_s).
@@ -41,6 +43,14 @@ PULLBACK_OFFSETS = (0.0, 0.25, 0.45)
 # attempts in milliseconds on transient failures (e.g. Nav2's planner/costmap
 # servers still activating when the first goal lands).
 RETRY_DELAY_S = 2.0
+
+# Mission time budget. The loop mission runs collect cycles until
+# (MISSION_TIME_LIMIT_S - FINAL_UNLOAD_RESERVE_S) elapses since the first
+# tick after localization, then forces one last trip to the delivery zone,
+# unloads whatever is on board, and parks. The reserve must cover the worst
+# trip home (~half arena at 0.3 m/s ≈ 25 s) + discharge dwell + margin.
+MISSION_TIME_LIMIT_S = 600.0
+FINAL_UNLOAD_RESERVE_S = 75.0
 
 # ── Calibrated mission frame ────────────────────────────────────────────────
 # clean_room_8x8.yaml is re-zeroed so the user-picked origin pixel
@@ -91,6 +101,70 @@ def _shared_tf_buffer(node):
     return node.bt_tf_buffer
 
 
+class ArenaMap:
+    """Validity oracle backed by the STATIC arena map (clean_room_8x8).
+
+    Subscribes once to /map (the map_server's latched grid — the same
+    cleanroom map AMCL localizes against) and answers "is a disk of radius
+    r around (x, y) entirely known free space?" via a precomputed numpy
+    disk mask. Used to refuse vision detections projected into walls and
+    to drop route points Nav2 could never plan to. The static map is
+    deliberately preferred over the live global costmap: it cannot be
+    polluted by transient sensor noise, needs no service polling, and the
+    arena walls — the thing ghosts hide behind — never move.
+    """
+
+    FREE_MAX = 50          # occupancy below this counts as free (0..100 scale)
+
+    def __init__(self, node):
+        self.node = node
+        self._grid = None      # int8 (rows=y, cols=x)
+        self._meta = None
+        self._disk_masks = {}  # radius_cells -> bool mask, cached
+        latched = QoSProfile(depth=1,
+                             reliability=ReliabilityPolicy.RELIABLE,
+                             durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        node.create_subscription(OccupancyGrid, '/map', self._on_map, latched)
+
+    def _on_map(self, msg):
+        self._meta = msg.info
+        self._grid = np.asarray(msg.data, dtype=np.int8).reshape(
+            msg.info.height, msg.info.width)
+        self.node.get_logger().info(
+            f"[arena-map] static map loaded: {msg.info.width}x{msg.info.height} "
+            f"@ {msg.info.resolution:.3f} m/cell")
+
+    def _disk(self, r_cells):
+        if r_cells not in self._disk_masks:
+            axis = np.arange(-r_cells, r_cells + 1)
+            yy, xx = np.meshgrid(axis, axis, indexing='ij')
+            self._disk_masks[r_cells] = (xx * xx + yy * yy) <= r_cells * r_cells
+        return self._disk_masks[r_cells]
+
+    def disk_is_free(self, x, y, radius_m):
+        """True/False once the map is in; None while it has not arrived yet
+        (callers fall back to their pre-map behavior on None)."""
+        if self._grid is None:
+            return None
+        res = self._meta.resolution
+        col = int((x - self._meta.origin.position.x) / res)
+        row = int((y - self._meta.origin.position.y) / res)
+        r = max(0, int(math.ceil(radius_m / res)))
+        h, w = self._grid.shape
+        if not (r <= col < w - r and r <= row < h - r):
+            return False   # outside the mapped area (or too close to its edge)
+        window = self._grid[row - r:row + r + 1, col - r:col + r + 1]
+        cells = window[self._disk(r)]
+        # unknown (-1) is NOT free: a block "behind" the wall projects there
+        return bool(((cells >= 0) & (cells < self.FREE_MAX)).all())
+
+
+def _shared_arena_map(node):
+    if not hasattr(node, "bt_arena_map"):
+        node.bt_arena_map = ArenaMap(node)
+    return node.bt_arena_map
+
+
 class BlockMemory:
     """Accumulates lego detections from /eyerobot/vision/lego_markers_map.
 
@@ -103,36 +177,57 @@ class BlockMemory:
     MERGE_RADIUS = 0.30
     EAT_RADIUS = 0.35
 
-    # Reachable-block gate, map frame: the room's free space as measured on
-    # clean_room_8x8.pgm under the calibrated origin (x right from the arena
-    # corner, interior at negative y). Vision occasionally projects false
-    # positives outside the walls (HSV matches through openings, TF timing
-    # noise) — routing to one sends Nav2 outside the map, the planner aborts,
-    # and the whole route burns its retries. Anything outside this rectangle
-    # is not a collectable block by definition.
+    # Floor-height gate, map frame: a real block sits ON the floor, so its
+    # detected center must land near z=0 after the camera->map transform.
+    # Lower bound -0.06: depth noise + residual mount-calibration error.
+    # Upper bound +0.22: a double-stacked duplo tops out ~0.12, plus the same
+    # error budget. Anything outside (people's shoes, wall tops, points
+    # mis-projected during rotation) is not a block on the floor — and this
+    # gate exercises the full 3D TF chain, which an x/y-only check never did.
+    Z_RANGE = (-0.06, 0.22)
+
+    # In-wall clearance for accepting a detection (meters). Deliberately
+    # TINY: blocks resting against a wall are collectable (the pullback
+    # pass), so only the block's own footprint must be free map space.
+    DETECTION_CLEARANCE_M = 0.04
+
+    # Pre-map fallback rectangle (the room's free space on clean_room_8x8
+    # under the calibrated origin). Only consulted until /map arrives; the
+    # ArenaMap disk check replaces it afterwards.
     X_RANGE = (0.0, 8.8)
     Y_RANGE = (-8.0, 0.0)
 
     def __init__(self, node, tf_buffer):
         self.node = node
         self.tf_buffer = tf_buffer
+        self.arena_map = _shared_arena_map(node)
         self.blocks = []  # [(x, y)] map frame
-        self.collected_since_discharge = 0  # drives the discharge-at-5 trigger
+        self.collected_since_discharge = 0  # drives the discharge trigger
         node.create_subscription(
             PointStamped, '/eyerobot/vision/lego_markers_map', self._on_detection, 10)
         # Foxglove visualization: known blocks as green cubes on /bt/blocks.
         self.marker_pub = node.create_publisher(MarkerArray, '/bt/blocks', 10)
         node.create_timer(0.5, self._prune_eaten)
 
+    def _reject(self, p, why):
+        # Throttled: the vision node re-publishes tracked blocks at frame
+        # rate, so a persistent ghost would otherwise spam the log.
+        self.node.get_logger().warning(
+            f"[blocks] IGNORED detection at map ({p[0]:.2f}, {p[1]:.2f}): {why}",
+            throttle_duration_sec=5.0)
+
     def _on_detection(self, msg):
         p = (msg.point.x, msg.point.y)
-        if not (self.X_RANGE[0] <= p[0] <= self.X_RANGE[1]
-                and self.Y_RANGE[0] <= p[1] <= self.Y_RANGE[1]):
-            # Throttled: the vision node re-publishes tracked blocks at frame
-            # rate, so an out-of-bounds ghost would otherwise spam the log.
-            self.node.get_logger().warning(
-                f"[blocks] IGNORED out-of-arena detection at map "
-                f"({p[0]:.2f}, {p[1]:.2f})", throttle_duration_sec=5.0)
+        if not (self.Z_RANGE[0] <= msg.point.z <= self.Z_RANGE[1]):
+            self._reject(p, f"z={msg.point.z:+.2f} not on the floor")
+            return
+        free = self.arena_map.disk_is_free(p[0], p[1], self.DETECTION_CLEARANCE_M)
+        if free is False:
+            self._reject(p, "inside a wall / outside the mapped arena")
+            return
+        if free is None and not (self.X_RANGE[0] <= p[0] <= self.X_RANGE[1]
+                                 and self.Y_RANGE[0] <= p[1] <= self.Y_RANGE[1]):
+            self._reject(p, "out of arena rectangle (map not loaded yet)")
             return
         for b in self.blocks:
             if math.hypot(b[0] - p[0], b[1] - p[1]) < self.MERGE_RADIUS:
@@ -537,13 +632,21 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
         self.feedback_remaining = None
         self.sent_count = len(self.pending)
 
+        # Goal generation guard: when a goal is PREEMPTED by a newer one
+        # (FollowBlockQueue replans mid-route), the old goal's result
+        # callback still fires — without the generation tag it would
+        # overwrite goal_status with the stale CANCELED/ABORTED and fail a
+        # perfectly healthy replacement route.
+        self._goal_gen = getattr(self, "_goal_gen", 0) + 1
+        gen = self._goal_gen
+
         goal_msg = NavigateThroughPoses.Goal()
         goal_msg.poses = self._build_poses()
         _publish_route(self.node, goal_msg.poses)
         self.logger.info(f"[{self.name}] Routing through {self.sent_count} pose(s): {self.pending}")
         send_goal_future = self.action_client.send_goal_async(
-            goal_msg, feedback_callback=self._feedback_callback)
-        send_goal_future.add_done_callback(self._goal_response_callback)
+            goal_msg, feedback_callback=lambda m: self._feedback_callback(m, gen))
+        send_goal_future.add_done_callback(lambda f: self._goal_response_callback(f, gen))
 
     def initialise(self) -> None:
         """Fires every time the behavior switches from inactive to active."""
@@ -559,10 +662,13 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
             return
         self._send_goal()
 
-    def _feedback_callback(self, feedback_msg):
-        self.feedback_remaining = feedback_msg.feedback.number_of_poses_remaining
+    def _feedback_callback(self, feedback_msg, gen):
+        if gen == self._goal_gen:
+            self.feedback_remaining = feedback_msg.feedback.number_of_poses_remaining
 
-    def _goal_response_callback(self, future):
+    def _goal_response_callback(self, future, gen):
+        if gen != self._goal_gen:
+            return   # response for a goal we already replaced
         self.goal_handle = future.result()
         if not self.goal_handle.accepted:
             self.logger.error(f"[{self.name}] Route rejected by Nav2 planner!")
@@ -570,10 +676,11 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
             return
 
         result_future = self.goal_handle.get_result_async()
-        result_future.add_done_callback(self._goal_result_callback)
+        result_future.add_done_callback(lambda f: self._goal_result_callback(f, gen))
 
-    def _goal_result_callback(self, future):
-        self.goal_status = future.result().status
+    def _goal_result_callback(self, future, gen):
+        if gen == self._goal_gen:
+            self.goal_status = future.result().status
 
     def _recover_from_abort(self):
         """Trim reached poses, pull back (or drop) the suspect, resend.
@@ -658,12 +765,51 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
         self.goal_status = None
 
 
+# Drive-through overshoot: NavigateThroughPoses flows THROUGH the
+# intermediate poses, but the FINAL pose is only approached to within
+# Nav2's xy_goal_tolerance — which can leave the last block sitting just
+# outside the fans. Extending the route one waypoint PAST the last block
+# (along the approach line) turns the final block into a flow-through
+# point too, without ever stopping.
+OVERSHOOT_M = 0.30
+OVERSHOOT_CLEARANCE_M = 0.12   # the overshoot point must be drivable space
+
+
+def _greedy_block_route(robot, blocks, arena_map, max_blocks=5):
+    """Greedy nearest-neighbor route over the given blocks + the overshoot
+    waypoint. Returns [] when no (reachable) blocks exist. Blocks failing
+    the static-map check are dropped defensively (memory normally holds only
+    validated blocks; this catches pre-map stowaways before they abort a
+    Nav2 route)."""
+    blocks = [b for b in blocks
+              if arena_map.disk_is_free(b[0], b[1], 0.04) is not False]
+    if not blocks:
+        return []
+    pos = robot or blocks[0]
+    route = []
+    while blocks and len(route) < max_blocks:
+        blocks.sort(key=lambda b: math.hypot(b[0] - pos[0], b[1] - pos[1]))
+        nxt = blocks.pop(0)
+        route.append(nxt)
+        pos = nxt
+    approach_from = route[-2] if len(route) > 1 else (robot or route[-1])
+    dx = route[-1][0] - approach_from[0]
+    dy = route[-1][1] - approach_from[1]
+    norm = math.hypot(dx, dy)
+    if norm > 1e-6:
+        over = (route[-1][0] + dx / norm * OVERSHOOT_M,
+                route[-1][1] + dy / norm * OVERSHOOT_M)
+        if arena_map.disk_is_free(over[0], over[1], OVERSHOOT_CLEARANCE_M):
+            route.append(over)
+    return route
+
+
 class PlanBlockRoute(py_trees.behaviour.Behaviour):
     """Snapshot up to `max_blocks` nearest vision-detected blocks into a route.
 
     Greedy nearest-neighbor ordering from the robot's current position; the
-    result lands on the shared node as `bt_planned_route` for GoThroughPlanned.
-    FAILURE when no blocks are known (lets a Selector fall back to a sweep).
+    result lands on the shared node as `bt_planned_route`. FAILURE when no
+    blocks are known (lets a Selector fall back to the search scan).
     """
     def __init__(self, name, max_blocks=5):
         super().__init__(name)
@@ -676,21 +822,17 @@ class PlanBlockRoute(py_trees.behaviour.Behaviour):
             raise RuntimeError("ROS 2 node context missing.")
         self.tf_buffer = _shared_tf_buffer(self.node)
         self.memory = _shared_block_memory(self.node, self.tf_buffer)
+        self.arena_map = _shared_arena_map(self.node)
 
     def update(self) -> Status:
-        blocks = list(self.memory.blocks)
-        if not blocks:
-            self.logger.info(f"[{self.name}] no blocks known — falling back.")
+        route = _greedy_block_route(_robot_xy(self.tf_buffer),
+                                    list(self.memory.blocks),
+                                    self.arena_map, self.max_blocks)
+        if not route:
+            self.logger.info(f"[{self.name}] no (reachable) blocks known — falling back.")
             return Status.FAILURE
-        pos = _robot_xy(self.tf_buffer) or blocks[0]
-        route = []
-        while blocks and len(route) < self.max_blocks:
-            blocks.sort(key=lambda b: math.hypot(b[0] - pos[0], b[1] - pos[1]))
-            nxt = blocks.pop(0)
-            route.append(nxt)
-            pos = nxt
         self.node.bt_planned_route = route
-        self.logger.info(f"[{self.name}] route over {len(route)} block(s): "
+        self.logger.info(f"[{self.name}] route over {len(route)} point(s): "
                          + ", ".join(f"({x:.2f},{y:.2f})" for x, y in route))
         return Status.SUCCESS
 
@@ -700,6 +842,59 @@ class GoThroughPlanned(GoThroughPoses):
     def initialise(self) -> None:
         self.waypoints = [tuple(p) for p in getattr(self.node, 'bt_planned_route', [])]
         super().initialise()
+
+
+class FollowBlockQueue(GoThroughPlanned):
+    """GoThroughPlanned that keeps the route synchronized with BlockMemory.
+
+    Nav2 cannot append poses to a running NavigateThroughPoses goal, but a
+    new goal PREEMPTS the active one seamlessly — so the "position queue"
+    is: whenever the camera registers a block that is not on the current
+    route, re-plan greedily over EVERYTHING still in memory (remaining route
+    blocks included — memory only drops a block when it is eaten) from the
+    live robot position, and send the replacement goal. Rate-limited so a
+    burst of detections costs one replan, not five. The goal-generation
+    guard in GoThroughPoses keeps the preempted goal's stale result from
+    failing the new one.
+    """
+
+    REPLAN_MIN_PERIOD_S = 3.0
+
+    def setup(self, **kwargs):
+        super().setup(**kwargs)
+        self.memory = _shared_block_memory(self.node, self.tf_buffer)
+        self.arena_map = _shared_arena_map(self.node)
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._last_replan_s = self._now_s()
+
+    def _has_unrouted_block(self):
+        return any(
+            all(math.hypot(b[0] - w[0], b[1] - w[1]) > BlockMemory.MERGE_RADIUS
+                for w in self.pending)
+            for b in self.memory.blocks)
+
+    def update(self) -> Status:
+        # Fold new detections in only while a goal is healthily in flight
+        # (not during abort recovery / retry backoff).
+        if (self.goal_status is None and self.goal_handle is not None
+                and self.pending and self._retry_at_s is None
+                and self._now_s() - self._last_replan_s > self.REPLAN_MIN_PERIOD_S
+                and self._has_unrouted_block()):
+            route = _greedy_block_route(_robot_xy(self.tf_buffer),
+                                        list(self.memory.blocks),
+                                        self.arena_map)
+            if route:
+                self.logger.info(
+                    f"[{self.name}] new block(s) spotted — replanning over "
+                    f"{len(route)} point(s) and preempting the route.")
+                self.pending = route
+                self.pb_level = [0] * len(route)
+                self._last_replan_s = self._now_s()
+                self._send_goal()
+                return Status.RUNNING
+        return super().update()
 
 
 class HoldEnoughBlocks(py_trees.behaviour.Behaviour):
@@ -807,6 +1002,126 @@ class Wait(py_trees.behaviour.Behaviour):
 def _wrap_deg(d):
     """Fold an angle difference into [-180, 180)."""
     return (d + 180.0) % 360.0 - 180.0
+
+
+class ChargeThroughBlock(py_trees.behaviour.Behaviour):
+    """Mop-up pass after a Nav2 route: drive straight THROUGH any block the
+    route left within reach.
+
+    Nav2 finishes a route within its goal tolerance, which can leave the
+    last block ~20 cm outside the intake. If a known block remains within
+    TRIGGER_RANGE_M when this runs, steer-while-moving (no stop, no in-place
+    rotation — the flow-through constraint holds) through the block position
+    plus PASS_BEYOND_M, so the fans pass over its center. SUCCESS when the
+    pass completes or there is nothing in reach; FAILURE only if the laser
+    says the path is blocked. The block memory's eat-prune then records the
+    collection on its own.
+    """
+
+    TRIGGER_RANGE_M = 0.90
+    PASS_BEYOND_M = 0.25
+    REACHED_M = 0.12
+    SPEED_M_S = 0.14
+    STEER_GAIN = 1.8
+    STEER_WZ_MAX = 0.6
+    STOP_DIST_M = 0.30          # laser front-sector floor (walls, not blocks)
+
+    def __init__(self, name="Charge_Through_Block"):
+        super().__init__(name)
+        self.node = None
+        self._cmd_pub = None
+        self._target = None
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+        if self.node is None:
+            raise RuntimeError("ROS 2 node context missing.")
+        if not hasattr(self.node, "bt_scan_cache"):
+            cache = {"msg": None}
+            self.node.bt_scan_cache = cache
+            self.node.create_subscription(
+                LaserScan, '/scan',
+                lambda m: cache.__setitem__("msg", m),
+                qos_profile_sensor_data)
+        self._cmd_pub = self.node.create_publisher(Twist, '/cmd_vel', 10)
+        self.tf_buffer = _shared_tf_buffer(self.node)
+        self.memory = _shared_block_memory(self.node, self.tf_buffer)
+
+    def initialise(self):
+        self._target = None
+        robot = _robot_xy(self.tf_buffer)
+        if robot is None or not self.memory.blocks:
+            return
+        nearest = min(self.memory.blocks,
+                      key=lambda b: math.hypot(b[0] - robot[0], b[1] - robot[1]))
+        dist = math.hypot(nearest[0] - robot[0], nearest[1] - robot[1])
+        if dist > self.TRIGGER_RANGE_M:
+            return
+        # Aim PAST the block along the robot->block line: the intake must
+        # cross the block's center, not park next to it.
+        ux, uy = (nearest[0] - robot[0]) / dist, (nearest[1] - robot[1]) / dist
+        self._target = (nearest[0] + ux * self.PASS_BEYOND_M,
+                        nearest[1] + uy * self.PASS_BEYOND_M)
+        self.logger.info(f"[{self.name}] block {dist:.2f} m away after route — "
+                         f"charging through to ({self._target[0]:.2f}, {self._target[1]:.2f})")
+
+    def _stop(self):
+        if self._cmd_pub is not None:
+            self._cmd_pub.publish(Twist())
+
+    def _front_clearance(self):
+        scan = self.node.bt_scan_cache["msg"]
+        if scan is None:
+            return None
+        best = float('inf')
+        a = scan.angle_min
+        for r in scan.ranges:
+            bearing = math.degrees(a)
+            a += scan.angle_increment
+            if abs(_wrap_deg(bearing)) > 20.0:
+                continue
+            if math.isfinite(r) and r > scan.range_min:
+                best = min(best, r)
+        return best
+
+    def update(self) -> Status:
+        if self._target is None:
+            return Status.SUCCESS   # nothing left in reach — pass not needed
+        robot = _robot_xy(self.tf_buffer)
+        yaw = _robot_yaw(self.tf_buffer)
+        if robot is None or yaw is None:
+            return Status.RUNNING
+        dist = math.hypot(self._target[0] - robot[0], self._target[1] - robot[1])
+        if dist < self.REACHED_M:
+            self._stop()
+            self.logger.info(f"[{self.name}] pass complete.")
+            return Status.SUCCESS
+        clearance = self._front_clearance()
+        if clearance is not None and clearance < self.STOP_DIST_M:
+            self._stop()
+            self.logger.warning(f"[{self.name}] wall {clearance:.2f} m ahead — abandoning pass.")
+            return Status.FAILURE
+        # Steer while moving: bearing P-control toward the through-point.
+        # NOTE: yaw here is map-frame (the target is map-frame); _robot_yaw
+        # reads odom yaw, so use the map-frame heading from TF instead.
+        bearing = math.atan2(self._target[1] - robot[1], self._target[0] - robot[0])
+        try:
+            t = self.tf_buffer.lookup_transform("map", "base_link", Time())
+            q = t.transform.rotation
+            yaw_map = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                                 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        except Exception:
+            return Status.RUNNING
+        err = math.atan2(math.sin(bearing - yaw_map), math.cos(bearing - yaw_map))
+        cmd = Twist()
+        cmd.linear.x = self.SPEED_M_S
+        cmd.angular.z = max(-self.STEER_WZ_MAX,
+                            min(self.STEER_WZ_MAX, self.STEER_GAIN * err))
+        self._cmd_pub.publish(cmd)
+        return Status.RUNNING
+
+    def terminate(self, new_status):
+        self._stop()
 
 
 class TurnRight(py_trees.behaviour.Behaviour):
@@ -971,6 +1286,58 @@ class SeekBlockForward(py_trees.behaviour.Behaviour):
         self._stop()
 
 
+class TimeAlmostUp(py_trees.behaviour.Behaviour):
+    """SUCCESS once the mission clock leaves only the final-unload reserve.
+
+    The clock starts at this behavior's FIRST tick ever — i.e. right after
+    the first localization, when the mission actually begins — and persists
+    across loop iterations (the behavior instance lives as long as the
+    tree). FAILURE while there is still collecting time left.
+    """
+    def __init__(self, name="Time_Almost_Up",
+                 limit_s=MISSION_TIME_LIMIT_S, reserve_s=FINAL_UNLOAD_RESERVE_S):
+        super().__init__(name)
+        self.cutoff_s = limit_s - reserve_s
+        self.node = None
+        self._t0 = None
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+        if self.node is None:
+            raise RuntimeError("ROS 2 node context missing.")
+
+    def update(self) -> Status:
+        now = self.node.get_clock().now()
+        if self._t0 is None:
+            self._t0 = now
+            self.logger.info(f"[{self.name}] mission clock started "
+                             f"(cutoff in {self.cutoff_s:.0f} s).")
+        elapsed = (now - self._t0).nanoseconds * 1e-9
+        if elapsed >= self.cutoff_s:
+            self.logger.warning(f"[{self.name}] {elapsed:.0f} s elapsed — "
+                                "forcing the final unload.")
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class Park(py_trees.behaviour.Behaviour):
+    """RUNNING forever — pins the tree once the mission is over so the loop
+    cannot restart after the final unload."""
+    def __init__(self, name="Mission_Over_Park"):
+        super().__init__(name)
+        self.node = None
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+
+    def update(self) -> Status:
+        if self.node is not None:
+            self.node.get_logger().info(
+                "[park] mission complete — robot parked at base.",
+                throttle_duration_sec=30.0)
+        return Status.RUNNING
+
+
 def wrap_with_timeout(behaviour_node, duration_seconds):
     timeout_node = py_trees.decorators.Timeout(
         child=behaviour_node,
@@ -991,6 +1358,8 @@ def wrap_with_timeout(behaviour_node, duration_seconds):
 # under the current clean_room_8x8.yaml origin. Third element = arrival yaw.
 # POSE_BASE (the green marker in ref.png) is the initial pose AND the
 # delivery zone — the loop mission unloads there and restarts from there.
+# Arrival yaw 2.38 (facing the arena origin) is the validated unload
+# orientation — confirmed on hardware, do not "simplify" to a flat angle.
 POSE_BASE = (1.005, -0.955, 2.381699)             # green point; face arena origin
 # Geometric center of the arena free space (BlockMemory X_RANGE x Y_RANGE).
 # Only used by the test_center smoke-test mission.
@@ -1048,7 +1417,16 @@ def _collect_round():
     find.add_child(search)
     seq.add_child(find)
 
-    seq.add_child(_with_timeout(GoThroughPlanned("Drive_Through_Blocks"), 120.0))
+    # Dynamic queue: every block detected while driving preempts the route
+    # with a re-plan that includes it. 180 s: the queue legitimately grows
+    # mid-leg, so this leg earns more budget than a frozen route would.
+    seq.add_child(_with_timeout(FollowBlockQueue("Drive_Block_Queue"), 180.0))
+
+    # Mop-up: Nav2 ends a route within its goal tolerance, which can leave
+    # the last block just outside the fans (the planned overshoot waypoint
+    # usually prevents this, but it is skipped when it would land in a
+    # wall). Skippable: a failed pass must not kill the round.
+    seq.add_child(wrap_with_timeout(ChargeThroughBlock("Mop_Up_Pass"), 20.0))
     return seq
 
 
@@ -1075,6 +1453,18 @@ def create_tree(mission="loop"):
     # localized first, then fans spinning BEFORE any motion (blocks must be
     # absorbable from the very first meter).
     root.add_child(WaitForLocalization())
+
+    # Time budget: once only the unload reserve is left, skip collecting,
+    # deliver whatever is on board, stop the intake and park for good.
+    # While time remains, TimeAlmostUp FAILS and the wrapper skips onward.
+    timeout_unload = py_trees.composites.Sequence(name="Final_Unload_On_Time", memory=True)
+    timeout_unload.add_child(TimeAlmostUp())
+    timeout_unload.add_child(_discharge_at_base("TimeUp"))
+    timeout_unload.add_child(SetMotor("Fans_Off_Final", '/cmd_fans', 0.0))
+    timeout_unload.add_child(Park())
+    root.add_child(py_trees.decorators.FailureIsSuccess(
+        child=timeout_unload, name="Final_Unload_Skippable"))
+
     root.add_child(SetMotor("Fans_On", '/cmd_fans', FAN_SPEED))
 
     # One collect round per loop pass; a dry round must not stall the loop.

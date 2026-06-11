@@ -104,7 +104,7 @@ The whole stack — agent, sensors, Nav2, cmd_vel bridge, behavior tree — from
 single script (run in one container terminal):
 
 ```
-bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh [mission]
+bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh
 ```
 ```
 cd ../docker && ./build_ws.sh

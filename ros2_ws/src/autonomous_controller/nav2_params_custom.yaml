@@ -102,13 +102,18 @@ controller_server:
       stateful: true
     FollowPath:
       plugin: dwb_core::DWBLocalPlanner
-      min_vel_x: 0.0
+      # Velocity floors = the motor deadband: below ~7 wheel-RPM the wheels
+      # do not overcome friction, so DWB commanding less stalls the robot in
+      # place while Nav2 believes it is moving.
+      # 7 RPM * 2pi/60 * 0.06 m wheel radius = 0.044 m/s linear;
+      # in-place rotation equivalent: 0.044 * 2 / 0.33 m separation = 0.27 rad/s.
+      min_vel_x: 0.044
       max_vel_x: 0.3         # tune: max forward speed (m/s) for your robot
       min_vel_theta: -1.0
       max_vel_theta: 1.0
-      min_speed_xy: 0.0
+      min_speed_xy: 0.044
       max_speed_xy: 0.3
-      min_speed_theta: 0.0
+      min_speed_theta: 0.27
       acc_lim_x: 0.5
       acc_lim_theta: 1.5
       decel_lim_x: -0.5
