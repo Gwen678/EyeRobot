@@ -140,10 +140,13 @@ class YoloVisionBridge(Node):
         for x, y, z, _score, _bb in dets:
             stamped = PointStamped()
             stamped.header.frame_id = OPTICAL_FRAME
-            # Same stamp discipline as the HSV node: transform at the
-            # DETECTION's timestamp; if TF is not available, drop — a
-            # mis-projected point poisons the block memory.
-            stamped.header.stamp = msg.header.stamp
+            # Use current time, not the detection's capture timestamp: the OAK
+            # VPU pipeline buffers frames and processes them late — at low FPS
+            # (1-3 Hz under load) the capture stamp is 5-10 s old, which falls
+            # outside the TF buffer and causes "extrapolation into the future"
+            # drops. Blocks and the robot both move slowly; using 'now' for the
+            # TF lookup introduces negligible positional error.
+            stamped.header.stamp = self.get_clock().now().to_msg()
             stamped.point = Point(x=x, y=y, z=z)
             try:
                 map_pt = self.tf_buffer.transform(
