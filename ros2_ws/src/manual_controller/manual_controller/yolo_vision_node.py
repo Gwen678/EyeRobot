@@ -95,12 +95,13 @@ class YoloVisionBridge(Node):
                 continue
             res = det.results[0]
             pos = res.pose.pose.position
-            # Positions are used AS-IS in the optical frame — verified on
-            # hardware against a reference stack that consumes
-            # detection.position unflipped with correct map markers. An
-            # earlier y-flip here (assuming DepthAI y-up) mirrored the
-            # projected circles vertically — empirically wrong, removed.
-            x, y, z = pos.x, pos.y, pos.z
+            # Sign convention MEASURED on hardware (2026-06-11, three
+            # simultaneous detections, bbox pixel positions vs spatial
+            # coords): x is right-positive (matches the optical frame,
+            # use as-is); y is UP-positive (DepthAI convention, the
+            # converter does not flip it) while the optical frame is
+            # y-down — negate. z forward in meters.
+            x, y, z = pos.x, -pos.y, pos.z
             if z <= 0.05:        # no depth association on this detection
                 continue
             # The driver also fills the (abused) 3D bbox with the 2D pixel
@@ -169,29 +170,20 @@ class YoloVisionBridge(Node):
 
         frame = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
         h, w = frame.shape[:2]
-        for x, y, z, score, bb in dets:
+        for x, y, z, score, _bb in dets:
             # Magenta circle: the 3D spatial position projected back through
-            # the RGB intrinsics.
+            # the RGB intrinsics — crop-independent, meaningful once the
+            # spatial sign convention is set right. The NN's own boxes are
+            # NOT drawn here: the preview->image_raw crop mapping is
+            # driver-internal and guessing it misplaced boxes; the exact
+            # view is /eyerobot/camera/nn_debug/compressed (raw boxes on
+            # the NN's own input frames).
             u = int(self.cx0 + x * self.fx / z)
             v = int(self.cy0 + y * self.fy / z)
             if 0 <= u < w and 0 <= v < h:
                 cv2.circle(frame, (u, v), 10, (255, 0, 255), 2)
                 cv2.putText(frame, f"block {score:.2f} [{z:.2f}m]", (u + 12, v),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
-            # Yellow rectangle: the NN's own 2D box (NN-input pixel coords).
-            # Mapping square-preview -> 4:3 image: both are center crops of
-            # the same sensor sharing the full vertical FOV, so one uniform
-            # scale (h/nn_size) plus a horizontal offset centers the square
-            # inside the wider image. If yellow boxes sit on garbage while
-            # real blocks go unmarked, the network/decode is wrong; if
-            # yellow disagrees with magenta, the spatial/projection path is.
-            bcx, bcy, bw_, bh_ = bb
-            s = h / 640.0
-            xoff = (w - 640.0 * s) / 2.0
-            cv2.rectangle(frame,
-                          (int((bcx - bw_ / 2) * s + xoff), int((bcy - bh_ / 2) * s)),
-                          (int((bcx + bw_ / 2) * s + xoff), int((bcy + bh_ / 2) * s)),
-                          (0, 255, 255), 2)
         if raw_wanted:
             msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
             msg.header = rgb_msg.header
