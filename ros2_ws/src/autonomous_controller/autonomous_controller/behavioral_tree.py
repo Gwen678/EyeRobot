@@ -1242,6 +1242,20 @@ POSE_BASE = (1.005, -0.955, 2.381699)             # green point; face arena orig
 # Only used by the test_center smoke-test mission.
 POSE_ARENA_CENTER = (4.4, -4.0, 0.0)
 
+# ── Sweep mission parameters ─────────────────────────────────────────────────
+# 3 groups × 3 swipes = 9 total X-direction passes covering the arena in Y.
+# Each swipe: Nav2 to X_FAR at current Y, then back to POSE_BASE[0].
+# Between swipes: advance SWEEP_DY in -Y (toward the far corner).
+# After each group: deliver at POSE_BASE (fans reversed + belt 20 s).
+SWEEP_X_FAR           = 7.5    # far X goal (m); clearance keeps Nav2 from wall
+SWEEP_Y_FAR           = -7.0   # far Y goal (m; negative = away from initial corner)
+SWEEP_GROUPS          = 3
+SWEEP_SWIPES_PER_GROUP = 3
+SWEEP_TOTAL_SWIPES    = SWEEP_GROUPS * SWEEP_SWIPES_PER_GROUP   # 9
+# Y step per swipe; distributes all 9 swipes evenly between POSE_BASE[1] and SWEEP_Y_FAR.
+SWEEP_DY              = (SWEEP_Y_FAR - POSE_BASE[1]) / (SWEEP_TOTAL_SWIPES - 1)
+SWEEP_DISCHARGE_S     = 20.0   # belt + fan dwell per delivery
+
 
 def _goto(name, arena_pose, timeout_s):
     """GoToPose at a calibrated mission pose, wrapped in the standard timeout/skip."""
@@ -1310,6 +1324,61 @@ def _collect_round():
     return seq
 
 
+def _sweep_group(group_idx, group_ys, step_timeout_s=60.0):
+    """SWEEP_SWIPES_PER_GROUP X-direction swipes at the given Y positions.
+
+    Fans at -FAN_SPEED (reversed vs. loop mode) for the whole group.
+    Per swipe: Nav2 to SWEEP_X_FAR at current Y (facing +x), then back to
+    POSE_BASE[0] (facing -x). Between swipes: advance to the next Y (facing -y).
+    """
+    seq = py_trees.composites.Sequence(name=f"SweepGroup_{group_idx}", memory=True)
+    seq.add_child(SetMotor(f"G{group_idx}_FansSweep", '/cmd_fans', -FAN_SPEED))
+    for i, y in enumerate(group_ys):
+        n = group_idx * SWEEP_SWIPES_PER_GROUP + i + 1
+        seq.add_child(_goto(f"Swipe{n}_Fwd",  (SWEEP_X_FAR,    y, 0.0),          step_timeout_s))
+        seq.add_child(_goto(f"Swipe{n}_Back", (POSE_BASE[0],   y, math.pi),      step_timeout_s))
+        if i < len(group_ys) - 1:
+            seq.add_child(_goto(f"Swipe{n}_AdvY",
+                               (POSE_BASE[0], group_ys[i + 1], -math.pi / 2),   step_timeout_s))
+    return seq
+
+
+def _sweep_deliver(tag):
+    """Return to base, switch fans to +FAN_SPEED, belt on for SWEEP_DISCHARGE_S."""
+    seq = py_trees.composites.Sequence(name=f"SweepDeliver_{tag}", memory=True)
+    seq.add_child(_goto(f"Deliver{tag}_Base",     POSE_BASE, 90.0))
+    seq.add_child(SetMotor(f"Deliver{tag}_Fans",  '/cmd_fans', FAN_SPEED))
+    seq.add_child(SetMotor(f"Deliver{tag}_Belt",  '/cmd_belt', BELT_SPEED))
+    seq.add_child(Wait(f"Deliver{tag}_Dwell",     SWEEP_DISCHARGE_S))
+    seq.add_child(SetMotor(f"Deliver{tag}_BeltOff", '/cmd_belt', 0.0))
+    return seq
+
+
+def create_sweep_tree():
+    """Systematic X-sweep: 3 groups of 3 passes covering the arena in Y.
+
+    Fans reversed (−FAN_SPEED) during collection; +FAN_SPEED + belt on for
+    20 s at delivery. Nav2 plans all motion so obstacles are avoided.
+    """
+    root = py_trees.composites.Sequence(name="Mission_sweep", memory=True)
+    root.add_child(WaitForLocalization())
+
+    ys = [POSE_BASE[1] + i * SWEEP_DY for i in range(SWEEP_TOTAL_SWIPES)]
+
+    for g in range(SWEEP_GROUPS):
+        group_ys = ys[g * SWEEP_SWIPES_PER_GROUP:(g + 1) * SWEEP_SWIPES_PER_GROUP]
+        if g > 0:
+            # After delivery the robot is at POSE_BASE; navigate to the first Y
+            # of this group before starting the swipes.
+            root.add_child(_goto(f"G{g}_MoveToStart",
+                                 (POSE_BASE[0], group_ys[0], -math.pi / 2), 90.0))
+        root.add_child(_sweep_group(g, group_ys))
+        root.add_child(_sweep_deliver(g))
+
+    root.add_child(Park())
+    return root
+
+
 def create_tree(mission="loop"):
     """Mission selector (--mission CLI flag / bt_mission launch argument).
 
@@ -1323,6 +1392,9 @@ def create_tree(mission="loop"):
            center (POSE_ARENA_CENTER) — no fans, no collection, no unload.
     """
     root = py_trees.composites.Sequence(name=f"Mission_{mission}", memory=True)
+
+    if mission == "sweep":
+        return create_sweep_tree()
 
     if mission == "test_center":
         root.add_child(WaitForLocalization())
@@ -1367,8 +1439,10 @@ def main(args=None):
     # --mission selects the tree composition; ROS args pass through untouched.
     parser = argparse.ArgumentParser(description="EyeRobot mission behavior tree")
     parser.add_argument('--mission', default='loop',
-                        choices=['loop', 'test_center'],
+                        choices=['loop', 'test_center', 'sweep'],
                         help="loop = endless search/collect/unload cycle (default); "
+                             "sweep = systematic X-sweep, 3 groups of 3 passes, "
+                             "fans reversed during collection, belt+fans at delivery; "
                              "test_center = Nav2 smoke test, single goal at the arena center")
     cli, ros_argv = parser.parse_known_args(args)
 
