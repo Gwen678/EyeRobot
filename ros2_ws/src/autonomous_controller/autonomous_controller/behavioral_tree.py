@@ -13,6 +13,8 @@ from tf2_ros import Buffer, TransformListener
 # ROS 2 Navigation Messages
 from geometry_msgs.msg import PoseStamped, PointStamped, Twist
 from nav2_msgs.action import NavigateToPose, NavigateThroughPoses
+from nav_msgs.msg import Path as NavPath
+from visualization_msgs.msg import Marker, MarkerArray
 from action_msgs.msg import GoalStatus
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32
@@ -106,6 +108,8 @@ class BlockMemory:
         self.collected_since_discharge = 0  # drives the discharge-at-5 trigger
         node.create_subscription(
             PointStamped, '/eyerobot/vision/lego_markers_map', self._on_detection, 10)
+        # Foxglove visualization: known blocks as green cubes on /bt/blocks.
+        self.marker_pub = node.create_publisher(MarkerArray, '/bt/blocks', 10)
         node.create_timer(0.5, self._prune_eaten)
 
     def _on_detection(self, msg):
@@ -138,6 +142,50 @@ class BlockMemory:
                 f"[blocks] collected {eaten} block(s) — {len(kept)} known left, "
                 f"{self.collected_since_discharge} on board since last discharge")
         self.blocks = kept
+        self._publish_markers()
+
+    def _publish_markers(self):
+        """Known blocks as green cubes (DELETEALL first so eaten ones vanish)."""
+        arr = MarkerArray()
+        wipe = Marker()
+        wipe.header.frame_id = "map"
+        wipe.action = Marker.DELETEALL
+        arr.markers.append(wipe)
+        stamp = self.node.get_clock().now().to_msg()
+        for i, (x, y) in enumerate(self.blocks):
+            m = Marker()
+            m.header.frame_id = "map"
+            m.header.stamp = stamp
+            m.ns = "blocks"
+            m.id = i
+            m.type = Marker.CUBE
+            m.action = Marker.ADD
+            m.pose.position.x = x
+            m.pose.position.y = y
+            m.pose.position.z = 0.02
+            m.pose.orientation.w = 1.0
+            m.scale.x = m.scale.y = m.scale.z = 0.08
+            m.color.g = 1.0
+            m.color.a = 0.9
+            arr.markers.append(m)
+        self.marker_pub.publish(arr)
+
+
+def _route_publisher(node):
+    """Shared /bt/route publisher: the goals the BT just sent to Nav2, as a
+    nav_msgs/Path — drop the topic on a Foxglove 3D panel to see where the
+    robot is being sent (distinct from /plan, Nav2's computed path there)."""
+    if not hasattr(node, "bt_route_pub"):
+        node.bt_route_pub = node.create_publisher(NavPath, '/bt/route', 10)
+    return node.bt_route_pub
+
+
+def _publish_route(node, poses):
+    path = NavPath()
+    path.header.frame_id = "map"
+    path.header.stamp = node.get_clock().now().to_msg()
+    path.poses = list(poses)
+    _route_publisher(node).publish(path)
 
 
 def _shared_block_memory(node, tf_buffer):
@@ -274,6 +322,7 @@ class GoToPose(py_trees.behaviour.Behaviour):
             f"[{self.name}] Goal: X={gx:.2f}, Y={gy:.2f}"
             + (f" (pullback {pullback} m)" if pullback > 0.0 else "")
         )
+        _publish_route(self.node, [goal_msg.pose])
         send_goal_future = self.action_client.send_goal_async(goal_msg)
         send_goal_future.add_done_callback(self._goal_response_callback)
 
@@ -435,6 +484,7 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
 
         goal_msg = NavigateThroughPoses.Goal()
         goal_msg.poses = self._build_poses()
+        _publish_route(self.node, goal_msg.poses)
         self.logger.info(f"[{self.name}] Routing through {self.sent_count} pose(s): {self.pending}")
         send_goal_future = self.action_client.send_goal_async(
             goal_msg, feedback_callback=self._feedback_callback)
@@ -846,6 +896,86 @@ class AlignWithWall(py_trees.behaviour.Behaviour):
     def terminate(self, new_status):
         self._stop()
 
+
+class SeekBlockForward(py_trees.behaviour.Behaviour):
+    """Creep straight forward until vision registers a block.
+
+    Fallback discovery when BlockMemory is empty: instead of driving blind
+    sweep chunks, just move slowly ahead so the camera gets fresh ground in
+    view. SUCCESS as soon as >=1 block is known (the next vision round routes
+    over it). The laser guards the front: if a wall/obstacle is closer than
+    STOP_DIST_M, stop and FAIL (the round is skipped and the mission moves
+    on). Wrap with a Timeout — open floor with no blocks would otherwise
+    creep until the far wall.
+    """
+
+    SPEED_M_S = 0.12
+    STOP_DIST_M = 0.45         # laser front-sector minimum before giving up
+    FRONT_HALF_DEG = 20.0
+
+    def __init__(self, name="Seek_Block_Forward"):
+        super().__init__(name)
+        self.node = None
+        self._cmd_pub = None
+        self.memory = None
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+        if self.node is None:
+            raise RuntimeError("ROS 2 node context missing.")
+        if not hasattr(self.node, "bt_scan_cache"):
+            cache = {"msg": None}
+            self.node.bt_scan_cache = cache
+            self.node.create_subscription(
+                LaserScan, '/scan',
+                lambda m: cache.__setitem__("msg", m),
+                qos_profile_sensor_data)
+        self._cmd_pub = self.node.create_publisher(Twist, '/cmd_vel', 10)
+        self.memory = _shared_block_memory(self.node, _shared_tf_buffer(self.node))
+
+    def _front_clearance(self):
+        scan = self.node.bt_scan_cache["msg"]
+        if scan is None:
+            return None
+        best = float('inf')
+        a = scan.angle_min
+        for r in scan.ranges:
+            bearing = math.degrees(a)
+            a += scan.angle_increment
+            if abs(_wrap_deg(bearing)) > self.FRONT_HALF_DEG:
+                continue
+            if math.isfinite(r) and r > scan.range_min:
+                best = min(best, r)
+        return best
+
+    def _stop(self):
+        if self._cmd_pub is not None:
+            self._cmd_pub.publish(Twist())
+
+    def update(self) -> Status:
+        if self.memory.blocks:
+            self._stop()
+            self.logger.info(
+                f"[{self.name}] Vision sees {len(self.memory.blocks)} block(s) — stopping seek.")
+            return Status.SUCCESS
+        clearance = self._front_clearance()
+        if clearance is None:
+            return Status.RUNNING   # no scan yet; Timeout wrapper bounds this
+        if clearance < self.STOP_DIST_M:
+            self._stop()
+            self.logger.warning(
+                f"[{self.name}] Obstacle {clearance:.2f} m ahead and still no "
+                f"block in sight — giving up this seek.")
+            return Status.FAILURE
+        cmd = Twist()
+        cmd.linear.x = self.SPEED_M_S
+        self._cmd_pub.publish(cmd)
+        return Status.RUNNING
+
+    def terminate(self, new_status):
+        self._stop()
+
+
 class ClimbDoor(py_trees.behaviour.Behaviour):
     def __init__(self, name="Climb_Door"): super().__init__(name)
     def update(self): return Status.SUCCESS
@@ -990,9 +1120,12 @@ def _collect_zone(zone_tag, chunks, discharge_between_rounds=True):
         vision.add_child(_with_timeout(GoThroughPlanned(f"{zone_tag}_R{i}_Blocks"), 120.0))
         source.add_child(vision)
 
-        if i <= len(chunks):
-            pts = [arena_to_map(x, y) for x, y in chunks[i - 1]]
-            source.add_child(_with_timeout(GoThroughPoses(f"{zone_tag}_Sweep_{i}", pts), 120.0))
+        # Discovery fallback: no blocks known -> creep straight forward until
+        # the camera sees one (next round's vision plan routes over it).
+        # Replaces the blind sweep chunks: with the short 1.5 m detection
+        # range the camera only finds blocks near its own path anyway.
+        source.add_child(_with_timeout(
+            SeekBlockForward(f"{zone_tag}_R{i}_Seek"), 45.0))
 
         round_seq = py_trees.composites.Sequence(name=f"{zone_tag}_Round_{i}", memory=True)
         round_seq.add_child(source)

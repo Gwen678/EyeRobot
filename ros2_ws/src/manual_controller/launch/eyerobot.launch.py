@@ -113,15 +113,18 @@ def generate_launch_description():
                     FindPackageShare('manual_controller'), 'config', 'depthai_camera.yaml']),
                 'camera_model': 'OAK-D-LITE',
                 'name': 'oak',
-                # Attach the camera's TF tree (oak-d-base-frame → oak → ...) to
-                # the robot: oak_state_publisher then publishes
-                # base_link → oak-d-base-frame at the mount pose (same offsets
-                # as imu_link in Robot.xacro). Without this the oak frames are
-                # an island with no path to odom — and lego_vision_node could
-                # not transform detections into the map frame.
-                'parent_frame': 'base_link',
-                'cam_pos_x': '0.42',
-                'cam_pos_z': '0.135',
+                # Camera TF tree hangs under 'oak_mount' with ZERO offsets:
+                # imu_remap publishes base_link -> oak_mount with the
+                # gravity-MEASURED mount orientation (+ the translation, its
+                # mount_x/y/z params) once IMU calibration finishes. A static
+                # cam_pitch here would go stale every time the physical mount
+                # is tweaked — measured-at-launch can't. Until calibration
+                # (~8 s) the oak frames are a TF island and lego_vision_node
+                # drops detections, which is correct: their projection would
+                # be garbage anyway.
+                'parent_frame': 'oak_mount',
+                'cam_pos_x': '0.0',
+                'cam_pos_z': '0.0',
                 'rectify_rgb': 'false',
             }.items(),
         ),
@@ -142,6 +145,13 @@ def generate_launch_description():
                 'input_topic':  '/oak/imu/data',     # raw from depthai driver
                 'output_topic': '/oak/imu/data_raw', # REP-103, bias-corrected
                 'frame_id':     'imu_link',
+                # Camera mount: imu_remap publishes base_link -> oak_mount
+                # with the gravity-measured rotation; translation set here
+                # (measure axle midpoint -> camera, meters).
+                'publish_camera_tf': True,
+                'mount_x': 0.42,
+                'mount_y': 0.0,
+                'mount_z': 0.135,
             }],
         ),
 

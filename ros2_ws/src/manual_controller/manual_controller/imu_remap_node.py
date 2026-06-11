@@ -35,6 +35,8 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import Imu
+from geometry_msgs.msg import TransformStamped
+from tf2_ros import Buffer, TransformListener, StaticTransformBroadcaster
 
 
 def _rotation_aligning(v: tuple[float, float, float],
@@ -64,6 +66,40 @@ def _apply(R: list[list[float]], x: float, y: float, z: float):
     return (R[0][0] * x + R[0][1] * y + R[0][2] * z,
             R[1][0] * x + R[1][1] * y + R[1][2] * z,
             R[2][0] * x + R[2][1] * y + R[2][2] * z)
+
+
+def _matmul(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)]
+            for i in range(3)]
+
+
+def _matrix_from_quat(x, y, z, w):
+    """Rotation matrix from a (normalized) quaternion."""
+    return [
+        [1 - 2 * (y * y + z * z), 2 * (x * y - z * w),     2 * (x * z + y * w)],
+        [2 * (x * y + z * w),     1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+        [2 * (x * z - y * w),     2 * (y * z + x * w),     1 - 2 * (x * x + y * y)],
+    ]
+
+
+def _quat_from_matrix(R):
+    """Quaternion (x, y, z, w) from a rotation matrix (Shepperd's method)."""
+    t = R[0][0] + R[1][1] + R[2][2]
+    if t > 0.0:
+        s = math.sqrt(t + 1.0) * 2.0
+        return ((R[2][1] - R[1][2]) / s, (R[0][2] - R[2][0]) / s,
+                (R[1][0] - R[0][1]) / s, 0.25 * s)
+    if R[0][0] > R[1][1] and R[0][0] > R[2][2]:
+        s = math.sqrt(1.0 + R[0][0] - R[1][1] - R[2][2]) * 2.0
+        return (0.25 * s, (R[0][1] + R[1][0]) / s,
+                (R[0][2] + R[2][0]) / s, (R[2][1] - R[1][2]) / s)
+    if R[1][1] > R[2][2]:
+        s = math.sqrt(1.0 + R[1][1] - R[0][0] - R[2][2]) * 2.0
+        return ((R[0][1] + R[1][0]) / s, 0.25 * s,
+                (R[1][2] + R[2][1]) / s, (R[0][2] - R[2][0]) / s)
+    s = math.sqrt(1.0 + R[2][2] - R[0][0] - R[1][1]) * 2.0
+    return ((R[0][2] + R[2][0]) / s, (R[1][2] + R[2][1]) / s,
+            0.25 * s, (R[1][0] - R[0][1]) / s)
 
 
 class ImuRemapNode(Node):
@@ -96,6 +132,34 @@ class ImuRemapNode(Node):
         self._gyro_cov  = [1.65e-6, 0., 0., 0., 1.84e-6, 0., 0., 0., 1.52e-6]
         self._accel_cov = [0.01, 0., 0., 0., 0.01, 0., 0., 0., 0.01]
 
+        # ── Camera-mount TF: on-the-fly orientation from the same gravity ────
+        # The IMU sits INSIDE the OAK, so the gravity calibration above also
+        # measures the CAMERA's mount orientation. eyerobot.launch.py attaches
+        # the depthai TF tree under 'oak_mount' with identity rotation; once
+        # calibration finishes, this node publishes base_link -> oak_mount
+        # with the MEASURED rotation (yaw forced to 0: camera faces forward;
+        # gravity cannot observe yaw). Block detections then project through
+        # the true camera angle automatically — tweak the physical mount all
+        # you want, every launch re-measures it. Before calibration the oak
+        # frames are a TF island, so lego_vision_node simply drops detections
+        # (its TF lookup fails) — exactly what we want from uncalibrated data.
+        self.declare_parameter('publish_camera_tf', True)
+        self.declare_parameter('camera_mount_frame', 'oak_mount')
+        self.declare_parameter('camera_base_frame', 'oak-d-base-frame')
+        self.declare_parameter('mount_x', 0.42)   # base_link -> camera, meters
+        self.declare_parameter('mount_y', 0.0)
+        self.declare_parameter('mount_z', 0.135)
+        self._g_sensor: tuple[float, float, float] | None = None
+        self._imu_frame: str | None = None
+        self._mount_tf_done = False
+        if bool(self.get_parameter('publish_camera_tf').value):
+            self._tf_buffer = Buffer()
+            self._tf_listener = TransformListener(self._tf_buffer, self)
+            self._tf_static_pub = StaticTransformBroadcaster(self)
+            # Retries until the driver's static TF (camera internal extrinsics)
+            # is available, then publishes once and stops.
+            self._mount_tf_timer = self.create_timer(1.0, self._try_publish_mount_tf)
+
         sub_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT,
                              history=HistoryPolicy.KEEP_LAST, depth=10)
         # Publisher must be RELIABLE: imu_filter_madgwick subscribes reliable,
@@ -124,6 +188,7 @@ class ImuRemapNode(Node):
             self._R = _rotation_aligning((0.0, 0.0, 1.0))
         else:
             self._R = _rotation_aligning(a)
+            self._g_sensor = (a[0] / a_norm, a[1] / a_norm, a[2] / a_norm)
             tilt_deg = math.degrees(math.acos(max(-1.0, min(1.0, a[2] / a_norm))))
             self.get_logger().info(
                 f'mount tilt = {tilt_deg:.1f}° from vertical (expected ~60 for '
@@ -133,9 +198,58 @@ class ImuRemapNode(Node):
             f'gyro bias = ({bx:+.5f}, {by:+.5f}, {bz:+.5f}) rad/s '
             f'({n} samples) — robot must have been still')
 
+    def _try_publish_mount_tf(self) -> None:
+        """base_link -> oak_mount with the gravity-measured camera rotation.
+
+        Needs two inputs: the calibrated up-vector (sensor frame) and the
+        driver's static extrinsic imu -> camera-body, which may arrive a few
+        seconds after us. Retries each tick until both exist.
+        """
+        if self._mount_tf_done or self._g_sensor is None or self._imu_frame is None:
+            return
+        cam_frame = self.get_parameter('camera_base_frame').value
+        try:
+            t = self._tf_buffer.lookup_transform(
+                cam_frame, self._imu_frame, rclpy.time.Time())
+        except Exception:
+            return   # driver static TF not received yet — retry next second
+        q = t.transform.rotation
+        # Up-vector measured in the IMU frame, expressed in the camera body
+        # frame via the factory extrinsic.
+        u = _apply(_matrix_from_quat(q.x, q.y, q.z, q.w), *self._g_sensor)
+        R = _rotation_aligning(u)             # camera-body vectors -> level frame
+        # Gravity cannot observe yaw: rotate so the camera body x-axis
+        # projects onto base_link +x (camera mounted facing forward).
+        yaw = math.atan2(R[1][0], R[0][0])
+        cz, sz = math.cos(-yaw), math.sin(-yaw)
+        R = _matmul([[cz, -sz, 0.0], [sz, cz, 0.0], [0.0, 0.0, 1.0]], R)
+        qx, qy, qz, qw = _quat_from_matrix(R)
+
+        tf_msg = TransformStamped()
+        tf_msg.header.stamp = self.get_clock().now().to_msg()
+        tf_msg.header.frame_id = 'base_link'
+        tf_msg.child_frame_id = self.get_parameter('camera_mount_frame').value
+        tf_msg.transform.translation.x = float(self.get_parameter('mount_x').value)
+        tf_msg.transform.translation.y = float(self.get_parameter('mount_y').value)
+        tf_msg.transform.translation.z = float(self.get_parameter('mount_z').value)
+        tf_msg.transform.rotation.x = qx
+        tf_msg.transform.rotation.y = qy
+        tf_msg.transform.rotation.z = qz
+        tf_msg.transform.rotation.w = qw
+        self._tf_static_pub.sendTransform(tf_msg)
+        self._mount_tf_done = True
+        self._mount_tf_timer.cancel()
+        pitch_down = math.degrees(math.asin(max(-1.0, min(1.0, -R[2][0]))))
+        self.get_logger().info(
+            f'camera mount TF published: base_link -> '
+            f'{tf_msg.child_frame_id}, camera forward pitched '
+            f'{pitch_down:+.1f}° below horizontal (gravity-measured)')
+
     def _cb(self, msg: Imu) -> None:
         # Startup calibration: nothing is published until done, so downstream
         # (Madgwick/EKF) never sees uncorrected data.
+        if self._imu_frame is None:
+            self._imu_frame = msg.header.frame_id
         if self._R is None:
             self._gyro_sum[0]  += msg.angular_velocity.x
             self._gyro_sum[1]  += msg.angular_velocity.y
