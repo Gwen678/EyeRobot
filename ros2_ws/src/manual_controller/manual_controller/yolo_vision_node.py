@@ -180,10 +180,22 @@ class YoloVisionBridge(Node):
             # the NN's own input frames).
             u = int(self.cx0 + x * self.fx / z)
             v = int(self.cy0 + y * self.fy / z)
+            # Label carries the projected pixel AND the camera-frame coords:
+            # hover the real block in Foxglove (cursor X/Y readout) and the
+            # difference to @(u,v) is the projection error, directly.
+            label = f"{score:.2f} [{z:.2f}m] @({u},{v}) xy({x:+.2f},{y:+.2f})"
             if 0 <= u < w and 0 <= v < h:
                 cv2.circle(frame, (u, v), 10, (255, 0, 255), 2)
-                cv2.putText(frame, f"block {score:.2f} [{z:.2f}m]", (u + 12, v),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+                cv2.putText(frame, label, (min(u + 12, w - 300), v),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 0, 255), 2)
+            else:
+                # Projection lands outside the image — draw the label pinned
+                # to the nearest edge so off-screen projections stay visible
+                # instead of silently disappearing.
+                ue = min(max(u, 0), w - 1)
+                ve = min(max(v, 12), h - 1)
+                cv2.putText(frame, "OFF " + label, (min(ue, w - 320), ve),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 2)
         if raw_wanted:
             msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
             msg.header = rgb_msg.header
