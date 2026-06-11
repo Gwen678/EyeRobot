@@ -27,13 +27,13 @@
       # resolved into the perception package's install space.
       i_nn_config_path: "/tmp/eyerobot_yolo_nn.json"
       i_enable_passthrough: false
-      # The bundled perception/best.blob takes 640x640 input (it is NOT the
-      # 416 deploy model DEPLOY_OAK.md describes — it predates that training
-      # run). The driver aborts unless the preview matches the blob exactly:
-      # "Current network input size is too large to resize ... set
-      # rgb.i_preview_width/height: 640 and nn.i_disable_resize: true".
-      # If the blob is regenerated at 416, flip these back together with
-      # input_size in lego_test.launch.py's _write_nn_config.
+      # The driver aborts unless the RGB preview size equals the blob input
+      # exactly ("Current network input size is too large to resize...").
+      # The i_preview_* values below are PLACEHOLDERS: lego_test.launch.py
+      # rewrites them to the yolo_input launch arg (640 = bundled
+      # perception/best.blob, which is NOT the 416 model DEPLOY_OAK.md
+      # describes; 416 = a re-exported duplo_yolov8n_416 blob) and feeds the
+      # driver the generated /tmp/eyerobot_camera_yolo.yaml.
       i_disable_resize: true
 
     rgb:
