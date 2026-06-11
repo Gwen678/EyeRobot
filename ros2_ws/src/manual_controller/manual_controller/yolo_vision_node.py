@@ -56,9 +56,13 @@ class YoloVisionBridge(Node):
         self.map_target_pub_ = self.create_publisher(PointStamped, '/eyerobot/vision/lego_markers_map', 10)
 
         # Intrinsics for projecting 3D detections back onto the RGB image
-        # (annotation only). Fallback matches lego_vision_node.
-        self.fx, self.fy = 470.0, 470.0
-        self.cx0, self.cy0 = 320.0, 240.0
+        # (annotation only). None until camera_info arrives — the projection
+        # then derives a crude estimate from the actual frame size instead
+        # of assuming 640x480 (the rgb stream is 1280x720 whenever the
+        # 640-input blob forces the ISP up; a hardcoded 320/240 center put
+        # every circle in the wrong quadrant, diagnosed 2026-06-11).
+        self.fx = self.fy = self.cx0 = self.cy0 = None
+        self._have_camera_info = False
 
         # Latest detections (optical frame) for the annotation overlay,
         # written by detections_callback, read by rgb_callback.
@@ -87,6 +91,12 @@ class YoloVisionBridge(Node):
         if msg.k[0] > 0.0:
             self.fx, self.fy = msg.k[0], msg.k[4]
             self.cx0, self.cy0 = msg.k[2], msg.k[5]
+            if not self._have_camera_info:
+                self._have_camera_info = True
+                self.get_logger().info(
+                    f"camera_info received ({msg.width}x{msg.height}): "
+                    f"fx={self.fx:.1f} fy={self.fy:.1f} "
+                    f"c=({self.cx0:.1f},{self.cy0:.1f})")
 
     def detections_callback(self, msg):
         dets = []
@@ -170,6 +180,18 @@ class YoloVisionBridge(Node):
 
         frame = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
         h, w = frame.shape[:2]
+        if self._have_camera_info:
+            fx, fy, cx0, cy0 = self.fx, self.fy, self.cx0, self.cy0
+        else:
+            # Crude estimate from the actual frame: center = w/2,h/2 and a
+            # ~69 deg horizontal FOV (OAK-D Lite RGB). Wrong by a scale, but
+            # in the right quadrant — and loudly flagged.
+            fx = fy = w / 1.37
+            cx0, cy0 = w / 2.0, h / 2.0
+            self.get_logger().warn(
+                "no /oak/rgb/camera_info yet — projecting with estimated "
+                "intrinsics; circles are approximate",
+                throttle_duration_sec=10.0)
         for x, y, z, score, _bb in dets:
             # Magenta circle: the 3D spatial position projected back through
             # the RGB intrinsics — crop-independent, meaningful once the
@@ -178,8 +200,8 @@ class YoloVisionBridge(Node):
             # driver-internal and guessing it misplaced boxes; the exact
             # view is /eyerobot/camera/nn_debug/compressed (raw boxes on
             # the NN's own input frames).
-            u = int(self.cx0 + x * self.fx / z)
-            v = int(self.cy0 + y * self.fy / z)
+            u = int(cx0 + x * fx / z)
+            v = int(cy0 + y * fy / z)
             # Label carries the projected pixel AND the camera-frame coords:
             # hover the real block in Foxglove (cursor X/Y readout) and the
             # difference to @(u,v) is the projection error, directly.
