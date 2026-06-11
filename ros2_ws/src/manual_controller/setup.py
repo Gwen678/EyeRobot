@@ -30,6 +30,7 @@ setup(
             'urdf_relay = manual_controller.urdf_relay_node:main',
             'imu_remap = manual_controller.imu_remap_node:main',
             'lego_vision_node = manual_controller.lego_vision_node:main',
+            'yolo_vision_node = manual_controller.yolo_vision_node:main',
         ],
     },
 )

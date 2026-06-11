@@ -37,8 +37,10 @@ Optional flags:
                 also runnable as: ros2 run autonomous_controller behavior_tree).
                 Needs Nav2 running (nav2.launch.py full_nav:=true); it waits
                 for the navigate_through_poses server and then for AMCL
-                localization (set the initial pose in Foxglove) before
-                starting the mission.
+                localization before starting the mission. AMCL self-
+                initializes at the base pose (nav2_params.yaml
+                set_initial_pose) — place the robot there; Foxglove Set-pose
+                is only needed when starting elsewhere.
   bt_mission:=full|zone1|zone3|zone4   Mission variant (default full).
                 Each zone flag is a partial run of the full flow:
                 zone1 = zone 1 collection + unload only (no button, no ramp);
@@ -89,7 +91,8 @@ def generate_launch_description():
         DeclareLaunchArgument('bt', default_value='false',
                               description='Start the mission behavior tree (needs Nav2 running)'),
         DeclareLaunchArgument('bt_mission', default_value='full',
-                              description='Mission variant: full | zone1 | zone3 | zone4'),
+                              description='Mission variant: full | zone1 | zone3 | zone4 | '
+                                          'test_center (Nav2 smoke test: one goal at the arena center)'),
 
         # ── Core odometry + ros2_control stack ───────────────────────────────
         IncludeLaunchDescription(
@@ -210,8 +213,9 @@ def generate_launch_description():
         # Safe to start with the rest of the stack: setup() blocks on the
         # navigate_through_poses action server (so it waits for Nav2 to come
         # up), and the tree's first behavior waits for AMCL localization before
-        # sending any goal — set the initial pose in Foxglove and the mission
-        # starts on its own.
+        # sending any goal — AMCL self-initializes at the base pose
+        # (nav2_params.yaml set_initial_pose), so the mission starts on its
+        # own once Nav2 is active.
         Node(
             package='autonomous_controller',
             executable='behavior_tree',

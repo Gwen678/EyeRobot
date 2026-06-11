@@ -4,7 +4,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor  # Pour utiliser tous les cœurs CPU
 from rclpy.callback_groups import ReentrantCallbackGroup
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Point, PointStamped
 from cv_bridge import CvBridge
 import cv2
@@ -111,29 +111,77 @@ class LegoDetectorNode(Node):
         self._tracker_lock = threading.Lock()
 
         self.latest_depth_frame = None
+        self.latest_depth_stamp = None  # float seconds, for staleness check
+
+        # Real intrinsics from camera_info (fallback: the old hand-measured
+        # 470 px focal / image-center principal point for 640x480).
+        self.fx, self.fy = 470.0, 470.0
+        self.cx0, self.cy0 = 320.0, 240.0
+        self._have_camera_info = False
 
         # Abonnements indépendants et parallèles
         self.create_subscription(Image, '/oak/stereo/image_raw', self.depth_callback, 10, callback_group=self.cb_group)
         self.create_subscription(Image, '/oak/rgb/image_raw', self.rgb_callback, 10, callback_group=self.cb_group)
+        self.create_subscription(CameraInfo, '/oak/rgb/camera_info', self.camera_info_callback, 10, callback_group=self.cb_group)
 
         self.get_logger().info("🚀 Nœud Multi-Threadé branché et protégé contre les Timeouts !")
 
+    def camera_info_callback(self, msg):
+        # K = [fx 0 cx; 0 fy cy; 0 0 1] — calibrated values replace the 470 px
+        # approximation that was projecting far blocks tens of cm off.
+        if msg.k[0] > 0.0:
+            self.fx, self.fy = msg.k[0], msg.k[4]
+            self.cx0, self.cy0 = msg.k[2], msg.k[5]
+            if not self._have_camera_info:
+                self._have_camera_info = True
+                self.get_logger().info(
+                    f"camera_info received: fx={self.fx:.1f} fy={self.fy:.1f} "
+                    f"c=({self.cx0:.1f},{self.cy0:.1f})")
+
     def depth_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, "16UC1")
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         with self._depth_lock:
             self.latest_depth_frame = frame
+            self.latest_depth_stamp = stamp
 
     def rgb_callback(self, rgb_msg):
+        rgb_stamp = rgb_msg.header.stamp.sec + rgb_msg.header.stamp.nanosec * 1e-9
         with self._depth_lock:
-            if self.latest_depth_frame is None:
-                return
-            depth = self.latest_depth_frame.copy()
+            depth = None if self.latest_depth_frame is None else self.latest_depth_frame.copy()
+            depth_stamp = self.latest_depth_stamp
+
+        # Stale-depth guard: if the stereo stream died mid-run, the last depth
+        # frame would otherwise be reused forever, projecting blocks at
+        # whatever distance the scene had when it froze. Older than 0.5 s
+        # relative to this RGB frame -> treat as no depth (annotate-only path).
+        if depth is not None and abs(rgb_stamp - depth_stamp) > 0.5:
+            self.get_logger().warn(
+                f"depth frame is {abs(rgb_stamp - depth_stamp):.1f}s older than RGB — "
+                "stereo stream stalled? Skipping 3D output.",
+                throttle_duration_sec=5.0)
+            depth = None
 
         frame = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, self.LOWER_COLOR, self.UPPER_COLOR)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # No depth yet (RGB-only test, or stereo stream not up): still run the
+        # HSV detection and publish the annotated image so the colour pipeline
+        # can be tested on its own — just no 3D projection / target / map
+        # output, since those need depth.
+        if depth is None:
+            if self.image_pub_.get_subscription_count() > 0:
+                for cnt in contours:
+                    if 100 < cv2.contourArea(cnt) < 15000:
+                        x, y, w, h = cv2.boundingRect(cnt)
+                        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 255), 2)
+                        cv2.putText(frame, "no depth", (x, y-10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                self.image_pub_.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+            return
 
         dets = []
         for cnt in contours:
@@ -143,19 +191,42 @@ class LegoDetectorNode(Node):
                 cx, cy = int(x + w/2), int(y + h/2)
 
                 if 0 <= cy < depth.shape[0] and 0 <= cx < depth.shape[1]:
-                    d = np.median(depth[max(0, cy-2):cy+3, max(0, cx-2):cx+3]) / 1000.0
+                    # Median of VALID samples only: 0 means "no stereo data"
+                    # on the OAK — a half-empty window used to drag the
+                    # median to 0 and drop a perfectly good detection.
+                    window = depth[max(0, cy-2):cy+3, max(0, cx-2):cx+3]
+                    valid = window[window > 0]
+                    if valid.size == 0:
+                        continue
+                    d = float(np.median(valid)) / 1000.0
 
-                    # 1.5 m max (was 3.0): beyond that, depth noise + the
-                    # 470 px focal approximation project blocks tens of cm
-                    # off — the source of most out-of-arena ghosts. Far
-                    # blocks get found anyway as the robot sweeps closer.
+                    # 1.5 m max (was 3.0): beyond that, depth noise projects
+                    # blocks tens of cm off — the source of most
+                    # out-of-arena ghosts. Far blocks get found anyway as
+                    # the robot sweeps closer.
                     if 0.1 < d < 1.5:
-                        px = (cx - 320) * d / 470.0
-                        py = (cy - 240) * d / 470.0
+                        # Physical-size gate: a duplo block is ~3-13 cm wide.
+                        # The pixel-area gate alone passes a tiny smudge up
+                        # close and a green wall far away; width-in-meters
+                        # rejects both regardless of distance.
+                        width_m = w * d / self.fx
+                        if not (0.015 < width_m < 0.35):
+                            continue
+                        px = (cx - self.cx0) * d / self.fx
+                        py = (cy - self.cy0) * d / self.fy
                         dets.append((cx, cy, px, py, d, x, y, w, h))
 
         with self._tracker_lock:
-            tracked = dict(self.tracker.update(dets))  # snapshot — safe to iterate outside the lock
+            self.tracker.update(dets)
+            # Publish ONLY objects matched in THIS frame (disappeared == 0).
+            # The tracker keeps unmatched objects alive for maxDisappeared
+            # frames with their LAST-SEEN camera coords; projecting those
+            # through the CURRENT frame's TF painted phantom blocks whenever
+            # the robot turned (a block seen 3 s / 40 deg ago landed wherever
+            # the camera points now). Tracker memory is for ID continuity
+            # only — never for output.
+            tracked = {oid: data for oid, data in self.tracker.objects.items()
+                       if self.tracker.disappeared[oid] == 0}
 
         closest_lego_dist = float('inf')
         closest_lego_pt = None
@@ -197,8 +268,14 @@ class LegoDetectorNode(Node):
             try:
                 map_pt = self.tf_buffer.transform(stamped, "map", timeout=rclpy.duration.Duration(seconds=0.1))
                 self.map_target_pub_.publish(map_pt)
-            except Exception:
-                pass
+            except Exception as e:
+                # Dropping is correct (mis-projection poisons block memory),
+                # but a dead TF tree must not look like "no blocks" — say so,
+                # throttled. Expected transiently before mount calibration
+                # (~8 s) and always in standalone testing without SLAM.
+                self.get_logger().warn(
+                    f"map TF unavailable, detection dropped: {e}",
+                    throttle_duration_sec=5.0)
 
         if closest_lego_pt is not None:
             self.target_pub_.publish(closest_lego_pt)

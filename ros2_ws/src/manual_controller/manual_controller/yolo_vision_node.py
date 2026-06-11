@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Bridge from the OAK's onboard YOLO detector to the EyeRobot vision topics.
+
+The heavy lifting happens on the camera: depthai_ros_driver (configured with
+i_nn_type: "spatial" + the YOLOv8 block blob, see depthai_camera_yolo.yaml)
+runs a YoloSpatialDetectionNetwork on the Myriad X VPU — detection and depth
+association both on-device. This node only converts the resulting
+vision_msgs/Detection3DArray (/oak/nn/spatial_detections) to the same topics
+lego_vision_node (HSV) publishes, so everything downstream (block memory, BT,
+Foxglove panels) is detector-agnostic:
+
+  /eyerobot/vision/lego_target       closest block, camera OPTICAL frame
+                                     (x right, y down, z forward, meters)
+  /eyerobot/vision/lego_markers_map  per-detection map-frame points (TF at the
+                                     detection stamp; dropped with a throttled
+                                     warning when TF is unavailable)
+  /eyerobot/camera/annotated_image   detections projected onto the RGB feed
+                                     (only rendered while subscribed)
+
+Coordinate note: DepthAI spatial coordinates are x-right / y-UP / z-forward
+and the depthai_bridge converter applies NO axis flip (verified against
+SpatialDetectionConverter.cpp, v2.7.2). The optical frame is y-DOWN, so this
+node negates y before stamping points with the optical frame id.
+"""
+import threading
+
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image, CameraInfo
+from geometry_msgs.msg import Point, PointStamped
+from vision_msgs.msg import Detection3DArray
+from cv_bridge import CvBridge
+import cv2
+from tf2_ros import Buffer, TransformListener
+import tf2_geometry_msgs  # noqa: F401  (registers PointStamped TF support)
+
+
+OPTICAL_FRAME = "oak_rgb_camera_optical_frame"
+
+
+class YoloVisionBridge(Node):
+    def __init__(self):
+        super().__init__('lego_detector_node')  # same name as the HSV variant — they are exclusive
+
+        self.bridge = CvBridge()
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        self.image_pub_ = self.create_publisher(Image, '/eyerobot/camera/annotated_image', 10)
+        self.target_pub_ = self.create_publisher(Point, '/eyerobot/vision/lego_target', 10)
+        self.map_target_pub_ = self.create_publisher(PointStamped, '/eyerobot/vision/lego_markers_map', 10)
+
+        # Intrinsics for projecting 3D detections back onto the RGB image
+        # (annotation only). Fallback matches lego_vision_node.
+        self.fx, self.fy = 470.0, 470.0
+        self.cx0, self.cy0 = 320.0, 240.0
+
+        # Latest detections (optical frame) for the annotation overlay,
+        # written by detections_callback, read by rgb_callback.
+        self._det_lock = threading.Lock()
+        self._latest_dets = []   # list of (x, y, z, score)
+
+        self.create_subscription(Detection3DArray, '/oak/nn/spatial_detections',
+                                 self.detections_callback, 10)
+        self.create_subscription(CameraInfo, '/oak/rgb/camera_info',
+                                 self.camera_info_callback, 10)
+        self.create_subscription(Image, '/oak/rgb/image_raw',
+                                 self.rgb_callback, 10)
+
+        self.get_logger().info(
+            "YOLO vision bridge up — expecting onboard detections on /oak/nn/spatial_detections")
+
+    def camera_info_callback(self, msg):
+        if msg.k[0] > 0.0:
+            self.fx, self.fy = msg.k[0], msg.k[4]
+            self.cx0, self.cy0 = msg.k[2], msg.k[5]
+
+    def detections_callback(self, msg):
+        dets = []
+        for det in msg.detections:
+            if not det.results:
+                continue
+            res = det.results[0]
+            pos = res.pose.pose.position
+            # DepthAI y-up -> optical y-down; x and z already match.
+            x, y, z = pos.x, -pos.y, pos.z
+            if z <= 0.05:        # no depth association on this detection
+                continue
+            dets.append((x, y, z, res.hypothesis.score))
+
+        with self._det_lock:
+            self._latest_dets = dets
+
+        if not dets:
+            return
+
+        closest = min(dets, key=lambda d: d[2])
+        self.target_pub_.publish(Point(x=closest[0], y=closest[1], z=closest[2]))
+
+        for x, y, z, _score in dets:
+            stamped = PointStamped()
+            stamped.header.frame_id = OPTICAL_FRAME
+            # Same stamp discipline as the HSV node: transform at the
+            # DETECTION's timestamp; if TF is not available, drop — a
+            # mis-projected point poisons the block memory.
+            stamped.header.stamp = msg.header.stamp
+            stamped.point = Point(x=x, y=y, z=z)
+            try:
+                map_pt = self.tf_buffer.transform(
+                    stamped, "map", timeout=rclpy.duration.Duration(seconds=0.1))
+                self.map_target_pub_.publish(map_pt)
+            except Exception as e:
+                self.get_logger().warn(
+                    f"map TF unavailable, detection dropped: {e}",
+                    throttle_duration_sec=5.0)
+
+    def rgb_callback(self, rgb_msg):
+        if self.image_pub_.get_subscription_count() == 0:
+            return
+        with self._det_lock:
+            dets = list(self._latest_dets)
+
+        frame = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
+        for x, y, z, score in dets:
+            u = int(self.cx0 + x * self.fx / z)
+            v = int(self.cy0 + y * self.fy / z)
+            if 0 <= u < frame.shape[1] and 0 <= v < frame.shape[0]:
+                cv2.circle(frame, (u, v), 10, (255, 0, 255), 2)
+                cv2.putText(frame, f"block {score:.2f} [{z:.2f}m]", (u + 12, v),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+        self.image_pub_.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = YoloVisionBridge()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

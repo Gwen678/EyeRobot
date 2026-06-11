@@ -70,6 +70,18 @@ def _robot_xy(tf_buffer):
         return None
 
 
+def _robot_yaw(tf_buffer):
+    """Current robot yaw in the odom frame (continuous, no AMCL jumps), or
+    None if TF is not up yet."""
+    try:
+        t = tf_buffer.lookup_transform("odom", "base_link", Time())
+        q = t.transform.rotation
+        return math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                          1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+    except Exception:
+        return None
+
+
 def _shared_tf_buffer(node):
     """One TF buffer shared by all behaviors (each TransformListener subscribes
     to /tf, so we only want a single one on the node)."""
@@ -172,20 +184,60 @@ class BlockMemory:
 
 
 def _route_publisher(node):
-    """Shared /bt/route publisher: the goals the BT just sent to Nav2, as a
-    nav_msgs/Path — drop the topic on a Foxglove 3D panel to see where the
-    robot is being sent (distinct from /plan, Nav2's computed path there)."""
+    """Shared goal-visualization publishers: /bt/route (nav_msgs/Path, the
+    connected line), /bt/route_points (MarkerArray, one fat orange sphere
+    per goal) and /bt/goal_point (geometry_msgs/PointStamped, the current
+    destination as a flat x,y point at z=0 — renders in any panel that can
+    show a point on the map, no 3D markers needed)."""
     if not hasattr(node, "bt_route_pub"):
         node.bt_route_pub = node.create_publisher(NavPath, '/bt/route', 10)
+        node.bt_route_points_pub = node.create_publisher(
+            MarkerArray, '/bt/route_points', 10)
+        node.bt_goal_point_pub = node.create_publisher(
+            PointStamped, '/bt/goal_point', 10)
     return node.bt_route_pub
 
 
 def _publish_route(node, poses):
+    _route_publisher(node)   # ensure both publishers exist
+    stamp = node.get_clock().now().to_msg()
     path = NavPath()
     path.header.frame_id = "map"
-    path.header.stamp = node.get_clock().now().to_msg()
+    path.header.stamp = stamp
     path.poses = list(poses)
-    _route_publisher(node).publish(path)
+    node.bt_route_pub.publish(path)
+
+    arr = MarkerArray()
+    wipe = Marker()
+    wipe.header.frame_id = "map"
+    wipe.action = Marker.DELETEALL
+    arr.markers.append(wipe)
+    for i, ps in enumerate(poses):
+        m = Marker()
+        m.header.frame_id = "map"
+        m.header.stamp = stamp
+        m.ns = "route"
+        m.id = i
+        m.type = Marker.SPHERE
+        m.action = Marker.ADD
+        m.pose.position.x = ps.pose.position.x
+        m.pose.position.y = ps.pose.position.y
+        m.pose.position.z = 0.10
+        m.pose.orientation.w = 1.0
+        m.scale.x = m.scale.y = m.scale.z = 0.20
+        m.color.r = 1.0
+        m.color.g = 0.5
+        m.color.a = 0.95
+        arr.markers.append(m)
+    node.bt_route_points_pub.publish(arr)
+
+    if poses:
+        goal_pt = PointStamped()
+        goal_pt.header.frame_id = "map"
+        goal_pt.header.stamp = stamp
+        goal_pt.point.x = poses[-1].pose.position.x
+        goal_pt.point.y = poses[-1].pose.position.y
+        node.bt_goal_point_pub.publish(goal_pt)
 
 
 def _shared_block_memory(node, tf_buffer):
@@ -212,11 +264,14 @@ def _wait_for_server_verbose(behaviour, action_name):
 class WaitForLocalization(py_trees.behaviour.Behaviour):
     """Blocks the mission until AMCL is localized (map→base_link TF resolves).
 
-    This is the launch-file replacement for the old press-ENTER gate in
-    run_autonomous.sh: nav2 AMCL publishes map→odom only after it receives an
-    initial pose, so the mission waits here until you set it in Foxglove
-    (Set pose tool), then starts on its own. Deliberately NOT wrapped in a
-    timeout — starting unlocalized would send the robot to wrong places.
+    AMCL self-initializes at the base pose (set_initial_pose + initial_pose
+    in nav2_params.yaml — the green marker in ref.png), so this normally
+    passes within seconds of Nav2 activating; no manual pose-setting needed.
+    It still gates the start because map→odom only appears once AMCL is up,
+    and if the robot does NOT start at the base pose the operator must
+    relocalize (Foxglove Set-pose) before the mission may move. Deliberately
+    NOT wrapped in a timeout — starting unlocalized would send the robot to
+    wrong places.
     """
     def __init__(self, name="Wait_For_Localization"):
         super().__init__(name)
@@ -913,11 +968,16 @@ class SeekBlockForward(py_trees.behaviour.Behaviour):
     STOP_DIST_M = 0.45         # laser front-sector minimum before giving up
     FRONT_HALF_DEG = 20.0
 
+    HEADING_GAIN = 2.0         # rad/s per rad of heading error
+    HEADING_WZ_MAX = 0.5
+
     def __init__(self, name="Seek_Block_Forward"):
         super().__init__(name)
         self.node = None
         self._cmd_pub = None
         self.memory = None
+        self.tf_buffer = None
+        self._target_yaw = None
 
     def setup(self, **kwargs):
         self.node = kwargs.get("node")
@@ -931,7 +991,11 @@ class SeekBlockForward(py_trees.behaviour.Behaviour):
                 lambda m: cache.__setitem__("msg", m),
                 qos_profile_sensor_data)
         self._cmd_pub = self.node.create_publisher(Twist, '/cmd_vel', 10)
-        self.memory = _shared_block_memory(self.node, _shared_tf_buffer(self.node))
+        self.tf_buffer = _shared_tf_buffer(self.node)
+        self.memory = _shared_block_memory(self.node, self.tf_buffer)
+
+    def initialise(self):
+        self._target_yaw = None   # re-latch the heading on every activation
 
     def _front_clearance(self):
         scan = self.node.bt_scan_cache["msg"]
@@ -967,8 +1031,20 @@ class SeekBlockForward(py_trees.behaviour.Behaviour):
                 f"[{self.name}] Obstacle {clearance:.2f} m ahead and still no "
                 f"block in sight — giving up this seek.")
             return Status.FAILURE
+        # Heading hold: latch the yaw at seek start and P-control angular.z to
+        # keep it. Open-loop linear.x alone veered/turned on the real robot
+        # (wheel asymmetry + fan reaction torque) — Nav2 normally closes this
+        # loop for us; here we must do it ourselves.
         cmd = Twist()
         cmd.linear.x = self.SPEED_M_S
+        yaw = _robot_yaw(self.tf_buffer)
+        if yaw is not None:
+            if self._target_yaw is None:
+                self._target_yaw = yaw
+            err = math.atan2(math.sin(self._target_yaw - yaw),
+                             math.cos(self._target_yaw - yaw))
+            cmd.angular.z = max(-self.HEADING_WZ_MAX,
+                                min(self.HEADING_WZ_MAX, self.HEADING_GAIN * err))
         self._cmd_pub.publish(cmd)
         return Status.RUNNING
 
@@ -1015,6 +1091,9 @@ def wrap_with_timeout(behaviour_node, duration_seconds):
 #   blue   ramp alignment line
 #   red    objectives.png long-term zone goals
 POSE_BUTTON = (8.810, -4.355, 0.0)                 # yellow point; face the button wall
+# Geometric center of the arena free space (BlockMemory X_RANGE x Y_RANGE).
+# Only used by the test_center smoke-test mission.
+POSE_ARENA_CENTER = (4.4, -4.0, 0.0)
 POSE_BASE = (1.005, -0.955, 2.381699)             # green point; face arena origin
 POSE_DOOR_LINE_ENTRY = (8.210, -4.010, math.pi / 2.0)   # lower pink point; face upward
 POSE_DOOR_LINE_EXIT = (8.210, -3.610, math.pi / 2.0)    # upper pink point; continue upward
@@ -1206,6 +1285,8 @@ def create_tree(mission="full"):
     zone1  full minus the button/door/zone-3 leg AND the ramp/zone-4 leg
     zone3  full minus the ramp/zone-4 leg (and its intermediary goals)
     zone4  full minus the button/door/zone-3 leg (and its intermediary goals)
+    test_center  Nav2 smoke test: localize, then ONE goal at the arena
+           center (POSE_ARENA_CENTER) — no fans, no collection, no unload
 
     All modes: fans ON before the first motion; AMCL localization gates the
     start; zone 1 cleanup + unconditional base unload close every mission.
@@ -1214,6 +1295,14 @@ def create_tree(mission="full"):
     zone 3 or zone 4, the count is ignored until the aligned return.
     """
     root = py_trees.composites.Sequence(name=f"Mission_{mission}", memory=True)
+
+    # Nav2 smoke test: localize, then a single goal at the arena center —
+    # no fans, no collection, no unload. Verifies the localization gate,
+    # the Nav2 action chain and the map calibration in isolation.
+    if mission == "test_center":
+        root.add_child(WaitForLocalization())
+        root.add_child(_goto("Test_Center", POSE_ARENA_CENTER, 120.0))
+        return root
 
     # 0. Common prologue: localized first, then fans spinning BEFORE any motion
     #    (blocks must be absorbable from the very first meter).
@@ -1246,8 +1335,9 @@ def main(args=None):
     # --mission selects the tree composition; ROS args pass through untouched.
     parser = argparse.ArgumentParser(description="EyeRobot mission behavior tree")
     parser.add_argument('--mission', default='full',
-                        choices=['full', 'zone1', 'zone3', 'zone4'],
-                        help="Mission variant (see create_tree docstring)")
+                        choices=['full', 'zone1', 'zone3', 'zone4', 'test_center'],
+                        help="Mission variant (see create_tree docstring); "
+                             "test_center = Nav2 smoke test, single goal at the arena center")
     cli, ros_argv = parser.parse_known_args(args)
 
     rclpy.init(args=ros_argv)

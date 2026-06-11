@@ -18,6 +18,8 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
+  <!-- yolo_vision_node: Detection3DArray from the OAK's onboard NN -->
+  <exec_depend>vision_msgs</exec_depend>
   <exec_depend>robot_description</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>joint_state_publisher</exec_depend>
