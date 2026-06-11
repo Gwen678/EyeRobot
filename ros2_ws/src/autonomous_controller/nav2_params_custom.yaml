@@ -194,8 +194,14 @@ local_costmap:
           obstacle_min_range: 0.0
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.30
+        # Local soft zone tightened (0.30 -> 0.22, 2026-06-12): the inscribed
+        # footprint radius is 0.20 m (hard, physical), so 0.22 leaves only a
+        # 2 cm cost gradient. The wide 0.30 zone made recovery spins/backups
+        # near walls fail their collision check ("Collision Ahead") even when
+        # the maneuver was physically fine. Steeper scaling compensates so
+        # DWB still prefers clearance when it exists.
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.22
 
 behavior_server:
   ros__parameters:

@@ -89,6 +89,16 @@ class BlockMemory:
     MERGE_RADIUS = 0.30
     EAT_RADIUS = 0.35
 
+    # Reachable-block gate, map frame: the room's free space as measured on
+    # clean_room_8x8.pgm under the calibrated origin (x right from the arena
+    # corner, interior at negative y). Vision occasionally projects false
+    # positives outside the walls (HSV matches through openings, TF timing
+    # noise) — routing to one sends Nav2 outside the map, the planner aborts,
+    # and the whole route burns its retries. Anything outside this rectangle
+    # is not a collectable block by definition.
+    X_RANGE = (0.0, 8.8)
+    Y_RANGE = (-8.0, 0.0)
+
     def __init__(self, node, tf_buffer):
         self.node = node
         self.tf_buffer = tf_buffer
@@ -100,6 +110,14 @@ class BlockMemory:
 
     def _on_detection(self, msg):
         p = (msg.point.x, msg.point.y)
+        if not (self.X_RANGE[0] <= p[0] <= self.X_RANGE[1]
+                and self.Y_RANGE[0] <= p[1] <= self.Y_RANGE[1]):
+            # Throttled: the vision node re-publishes tracked blocks at frame
+            # rate, so an out-of-bounds ghost would otherwise spam the log.
+            self.node.get_logger().warning(
+                f"[blocks] IGNORED out-of-arena detection at map "
+                f"({p[0]:.2f}, {p[1]:.2f})", throttle_duration_sec=5.0)
+            return
         for b in self.blocks:
             if math.hypot(b[0] - p[0], b[1] - p[1]) < self.MERGE_RADIUS:
                 return

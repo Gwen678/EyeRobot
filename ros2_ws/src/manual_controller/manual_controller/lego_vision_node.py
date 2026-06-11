@@ -145,7 +145,11 @@ class LegoDetectorNode(Node):
                 if 0 <= cy < depth.shape[0] and 0 <= cx < depth.shape[1]:
                     d = np.median(depth[max(0, cy-2):cy+3, max(0, cx-2):cx+3]) / 1000.0
 
-                    if 0.1 < d < 3.0:
+                    # 1.5 m max (was 3.0): beyond that, depth noise + the
+                    # 470 px focal approximation project blocks tens of cm
+                    # off — the source of most out-of-arena ghosts. Far
+                    # blocks get found anyway as the robot sweeps closer.
+                    if 0.1 < d < 1.5:
                         px = (cx - 320) * d / 470.0
                         py = (cy - 240) * d / 470.0
                         dets.append((cx, cy, px, py, d, x, y, w, h))
@@ -156,11 +160,21 @@ class LegoDetectorNode(Node):
         closest_lego_dist = float('inf')
         closest_lego_pt = None
 
+        # Annotated image only when someone (Foxglove) is actually watching:
+        # drawing + bgr8 reserialization at 10 fps costs real Nano CPU and the
+        # data is debug-only. Zero subscribers -> zero overhead.
+        publish_annotated = self.image_pub_.get_subscription_count() > 0
+
         for objID, data in tracked.items():
             cx, cy, px, py, pz, x, y, w, h = data
 
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            cv2.putText(frame, f"Lego ID:{objID} [{pz:.2f}m]", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            if publish_annotated:
+                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                cv2.circle(frame, (cx, cy), 4, (0, 0, 255), -1)  # tracked centroid
+                cv2.putText(frame, f"Lego ID:{objID} [{pz:.2f}m]", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                # Camera-frame coords (m) that get TF'd into the map — when a
+                # ghost block shows up on the map, this is the number to blame.
+                cv2.putText(frame, f"({px:+.2f},{py:+.2f})", (x, y+h+15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 200, 0), 1)
 
             pt = Point(x=float(px), y=float(py), z=float(pz))
 
@@ -170,12 +184,18 @@ class LegoDetectorNode(Node):
 
             stamped = PointStamped()
             stamped.header.frame_id = "oak_rgb_camera_optical_frame"
-            stamped.header.stamp = Time(seconds=0, nanoseconds=0).to_msg() # Hack temps 0
+            # Transform at the IMAGE's timestamp, not time-0 ("latest"). With
+            # time-0, frames captured while the robot rotates (recovery spins!)
+            # were projected with a yaw up to ~40 deg newer than the pixels —
+            # spraying arcs of phantom blocks through the walls. If TF at the
+            # stamp is not available yet, drop the detection: a missed frame
+            # costs nothing (the tracker re-detects), a mis-projected one
+            # poisons the block memory.
+            stamped.header.stamp = rgb_msg.header.stamp
             stamped.point = pt
 
             try:
-                map_pt = self.tf_buffer.transform(stamped, "map", timeout=rclpy.duration.Duration(seconds=0.05))
-                map_pt.header.stamp = rgb_msg.header.stamp
+                map_pt = self.tf_buffer.transform(stamped, "map", timeout=rclpy.duration.Duration(seconds=0.1))
                 self.map_target_pub_.publish(map_pt)
             except Exception:
                 pass
@@ -183,7 +203,8 @@ class LegoDetectorNode(Node):
         if closest_lego_pt is not None:
             self.target_pub_.publish(closest_lego_pt)
 
-        self.image_pub_.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+        if publish_annotated:
+            self.image_pub_.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
 
 def main(args=None):
     rclpy.init(args=args)
