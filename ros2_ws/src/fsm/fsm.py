@@ -21,9 +21,9 @@ class StrategyFSM(Node):
         
         # --- EXACT COORDINATES (8x8m Arena) ---
         self.POSE_BUTTON = self.create_pose(4.20, 7.50, 1.57)    # Facing the button
-        self.POSE_DOOR = self.create_pose(2.00, 7.50, 3.14)      # Zone 3 entrance
-        self.POSE_BASE = self.create_pose(0.50, 0.50, -2.35)     # Drop-off point
-        self.POSE_RAMP_BASE = self.create_pose(7.00, 3.00, 1.57) # Bottom of the ramp
+        self.POSE_DOOR = self.create_pose(8.235, -3.785, -1.570796)  # Door approach from pixel (285, 180), aligned with image vertical
+        self.POSE_BASE = self.create_pose(1.005, -0.955, 2.381699)  # Drop-off point, facing arena origin
+        self.POSE_RAMP_BASE = self.create_pose(4.985, -6.025, 0.0) # Ramp approach from pixel (220, 224.8), aligned with image horizontal
         
         # --- PUBLISHERS & SUBSCRIBERS ---
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)  # remapped into diff_drive_controller

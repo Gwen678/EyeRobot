@@ -121,11 +121,10 @@ ekf:=true lego:=true bt:=true` (vision + behavior tree are part of the launch)
 reaches `diff_drive_controller` directly (its subscription is remapped to
 `/cmd_vel` — no relay node). The behavior tree arms itself: it waits for the
 Nav2 action servers (30–60 s on the Nano, logged every 5 s), then for AMCL
-localization — **the mission starts the moment you set the initial pose in
-Foxglove** (see the sanity check below); until then it idles. AMCL's default
-start pose is currently disabled for testing (`set_initial_pose: false` in
-`nav2_params_custom.yaml`; the measured arena-corner+1m pose is in the file,
-flip to `true` for match day). Ctrl+C tears everything down.
+localization — with the current config the mission starts as soon as AMCL
+accepts the default start pose from `nav2_params_custom.yaml` (`initial_pose`
+= arena/map `(1.0, 1.0)`). If you disable `set_initial_pose`, it will instead
+idle until you seed AMCL manually from Foxglove. Ctrl+C tears everything down.
 
 **How the BT collects blocks** (`autonomous_controller` package,
 `autonomous_controller/behavioral_tree.py`):
@@ -150,8 +149,8 @@ flip to `true` for match day). Ctrl+C tears everything down.
 
 Mission poses (button, door, ramp, base) live in `behavioral_tree.py` in the
 **arena frame** (lower-left arena corner = (0,0), from fsm.py) and are
-converted via `arena_to_map()` — the offset `ARENA_ORIGIN_IN_MAP=(-1.40,-6.60)`
-was measured from the clean map; re-measure it if the map is re-recorded.
+passed through `arena_to_map()`, which is currently a no-op because
+`clean_room_8x8.yaml` is re-zeroed so arena frame == map frame.
 The BT is symlink-installed: editing it (or any config/launch file) takes
 effect on relaunch without a rebuild.
 

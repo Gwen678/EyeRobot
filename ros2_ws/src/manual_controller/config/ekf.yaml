@@ -12,11 +12,11 @@
 
 ekf_filter_node:
   ros__parameters:
-    # 30 Hz is NOT achievable on the Nano with the RGBD camera streams running:
-    # measured EKF cycle times 36-71 ms ("Failed to meet update rate" spam,
-    # 2026-06-11). 20 Hz (50 ms budget) fits the ~45 ms average; drop to 15 if
-    # warnings persist. 20 Hz odom->base_link TF matches Nav2's controller rate.
-    frequency: 20.0
+    # 15 Hz (67 ms budget) — target for whole-pipeline synchronisation.
+    # 20 Hz still produced "Failed to meet update rate" warnings on the Nano
+    # under RGBD + Nav2 + lego load (36-71 ms observed cycle times, 2026-06-11).
+    # Nav2 controller, BT tick, and IMU are all aligned to this rate.
+    frequency: 15.0
     sensor_timeout: 0.2
     two_d_mode: true
     publish_tf: true
@@ -53,10 +53,9 @@ ekf_filter_node:
                   false, false, false]
     imu0_differential: false
     imu0_relative: false
-    # 200 Hz IMU vs 30 Hz filter: queue must absorb >7 msgs/cycle plus executor
-    # jitter on the Nano. With 10, roughly half the samples were silently
-    # dropped — measured as EKF yaw integrating only ~54% of a real rotation.
-    imu0_queue_size: 100
+    # 50 Hz IMU vs 15 Hz EKF = 3.3 msgs/cycle. 50 gives ~15× headroom for
+    # executor jitter. Original 100 was sized for 200 Hz IMU; not needed now.
+    imu0_queue_size: 50
     imu0_remove_gravitational_acceleration: false
 
     # ── Process noise Q (15-state: x y z r p yaw vx vy vz vr vp vyaw ax ay az) ─

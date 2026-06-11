@@ -11,10 +11,12 @@ from py_trees.common import Status
 from tf2_ros import Buffer, TransformListener
 
 # ROS 2 Navigation Messages
-from geometry_msgs.msg import PoseStamped, PointStamped
+from geometry_msgs.msg import PoseStamped, PointStamped, Twist
 from nav2_msgs.action import NavigateToPose, NavigateThroughPoses
 from action_msgs.msg import GoalStatus
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32
+from rclpy.qos import qos_profile_sensor_data
 
 # Intake actuation (cmd_vel_bridge forwards these to the motor topics).
 # 8.0 rad/s matches the teleop defaults (fan/belt_command_rad_s).
@@ -38,19 +40,16 @@ PULLBACK_OFFSETS = (0.0, 0.25, 0.45)
 # servers still activating when the first goal lands).
 RETRY_DELAY_S = 2.0
 
-# ── Arena frame ──────────────────────────────────────────────────────────────
-# Mission coordinates (from fsm.py, "EXACT COORDINATES (8x8m Arena)") are
-# authored in the ARENA frame: lower-left interior corner of the 8x8 arena is
-# (0,0), x along the bottom wall, y along the left wall. The map frame is
-# whatever SLAM recorded. Offset measured from clean_room_8x8 by wall-density
-# analysis (2026-06-11): left wall interior face x=-1.4, bottom wall interior
-# face y=-6.6, residual map tilt ~1-2 deg (ignored — below AMCL noise at 8 m).
-# If the map is ever re-recorded, re-measure these two numbers.
-ARENA_ORIGIN_IN_MAP = (-1.40, -6.60)
+# ── Calibrated mission frame ────────────────────────────────────────────────
+# clean_room_8x8.yaml is re-zeroed so the user-picked origin pixel
+# (120.3, 104.3) becomes map (0,0). We keep arena_to_map() as a no-op so the
+# BT call sites stay stable, but the calibrated mission poses below are now
+# authored directly in this map frame, using the colored markers in ref.png.
+ARENA_ORIGIN_IN_MAP = (0.0, 0.0)
 
 
 def arena_to_map(x, y):
-    """Arena-frame (x, y) -> map-frame (x, y)."""
+    """Identity transform retained so existing BT call sites do not change."""
     return (x + ARENA_ORIGIN_IN_MAP[0], y + ARENA_ORIGIN_IN_MAP[1])
 
 
@@ -694,9 +693,140 @@ class PushButton(py_trees.behaviour.Behaviour):
         # Automatically succeed for testing downstream executions
         return Status.SUCCESS
 
+def _wrap_deg(d):
+    """Fold an angle difference into [-180, 180)."""
+    return (d + 180.0) % 360.0 - 180.0
+
+
+def _wrap_half(d):
+    """Fold a LINE-direction difference into (-90, 90] (lines are mod 180)."""
+    return (d + 90.0) % 180.0 - 90.0
+
+
 class AlignWithWall(py_trees.behaviour.Behaviour):
-    def __init__(self, name="Align_With_Wall"): super().__init__(name)
-    def update(self): return Status.SUCCESS
+    """Laser double-check of heading before a precision traverse (door/ramp).
+
+    The calibrated map waypoints + AMCL get the robot ROUGHLY onto the
+    alignment line; this behavior then trues the heading against the PHYSICAL
+    wall, independently of localization. It fits a line (principal axis) to
+    the /scan points in a sector around `wall_bearing_deg` (robot frame:
+    0 = ahead, -90 = right, +90 = left) and measures the residual yaw error:
+      mode 'perpendicular' — we face the wall: its line should read 90 deg
+      mode 'parallel'      — we run along it: its line should read 0 deg
+    If the error exceeds TRIGGER_DEG, rotate in place (/cmd_vel) until within
+    SETTLE_DEG. If no wall can be fit (sensor hiccup, wall out of range) it
+    warns LOUDLY and passes — the double-check must never strand the mission;
+    the Timeout decorator around it bounds the correction time.
+    """
+
+    ROTATE_MAX_RAD_S = 0.4
+    ROTATE_MIN_RAD_S = 0.12    # below this the diff drive barely moves
+    GAIN = 0.03                # rad/s per deg of error
+    TRIGGER_DEG = 4.0          # start correcting above this
+    SETTLE_DEG = 2.0           # stop correcting below this (hysteresis)
+    SECTOR_HALF_DEG = 35.0
+    MAX_RANGE_M = 3.0          # drop returns past this (e.g. through the door gap)
+    RANGE_BAND_M = 0.4         # keep points within ±band of the sector median
+    MIN_POINTS = 15
+
+    def __init__(self, name="Align_With_Wall", wall_bearing_deg=0.0,
+                 mode="perpendicular"):
+        super().__init__(name)
+        self.wall_bearing_deg = float(wall_bearing_deg)
+        self.expected_deg = 90.0 if mode == "perpendicular" else 0.0
+        self.node = None
+        self._cmd_pub = None
+        self._correcting = False
+
+    def setup(self, **kwargs):
+        self.node = kwargs.get("node")
+        if self.node is None:
+            raise RuntimeError("ROS 2 node context missing.")
+        # One shared /scan cache for all AlignWithWall instances. Sensor-data
+        # QoS is mandatory: rplidar publishes BEST_EFFORT and a default
+        # RELIABLE subscription would silently never match.
+        if not hasattr(self.node, "bt_scan_cache"):
+            cache = {"msg": None}
+            self.node.bt_scan_cache = cache
+            self.node.create_subscription(
+                LaserScan, '/scan',
+                lambda m: cache.__setitem__("msg", m),
+                qos_profile_sensor_data)
+        self._cmd_pub = self.node.create_publisher(Twist, '/cmd_vel', 10)
+
+    def initialise(self):
+        self._correcting = False
+
+    def _wall_error_deg(self, scan):
+        """Fitted wall-line angle minus expected, in deg; None if no good fit."""
+        pts = []
+        a = scan.angle_min
+        for r in scan.ranges:
+            bearing_deg = math.degrees(a)
+            a += scan.angle_increment
+            if not math.isfinite(r) or r < scan.range_min or r > self.MAX_RANGE_M:
+                continue
+            if abs(_wrap_deg(bearing_deg - self.wall_bearing_deg)) > self.SECTOR_HALF_DEG:
+                continue
+            pts.append((r, math.radians(bearing_deg)))
+        if len(pts) < self.MIN_POINTS:
+            return None
+        # Median-range band keeps only the wall surface, rejecting returns
+        # through the door opening or off foreground clutter.
+        ranges = sorted(p[0] for p in pts)
+        median = ranges[len(ranges) // 2]
+        xy = [(r * math.cos(b), r * math.sin(b)) for r, b in pts
+              if abs(r - median) <= self.RANGE_BAND_M]
+        if len(xy) < self.MIN_POINTS:
+            return None
+        # Principal-axis (total least squares) line fit — no numpy needed.
+        n = len(xy)
+        mx = sum(p[0] for p in xy) / n
+        my = sum(p[1] for p in xy) / n
+        sxx = sum((p[0] - mx) ** 2 for p in xy)
+        syy = sum((p[1] - my) ** 2 for p in xy)
+        sxy = sum((p[0] - mx) * (p[1] - my) for p in xy)
+        line_deg = math.degrees(0.5 * math.atan2(2.0 * sxy, sxx - syy))
+        return _wrap_half(line_deg - self.expected_deg)
+
+    def _stop(self):
+        if self._cmd_pub is not None:
+            self._cmd_pub.publish(Twist())
+
+    def update(self) -> Status:
+        scan = self.node.bt_scan_cache["msg"]
+        if scan is None:
+            return Status.RUNNING   # no scan yet; Timeout wrapper bounds this
+        err = self._wall_error_deg(scan)
+        if err is None:
+            self.logger.warning(
+                f"[{self.name}] No wall fit in scan sector (bearing "
+                f"{self.wall_bearing_deg:+.0f} deg) — SKIPPING the alignment "
+                f"double-check. Verify the heading visually if you can!")
+            self._stop()
+            return Status.SUCCESS
+        threshold = self.SETTLE_DEG if self._correcting else self.TRIGGER_DEG
+        if abs(err) <= threshold:
+            self._stop()
+            self.logger.info(f"[{self.name}] Wall-aligned (residual {err:+.1f} deg"
+                             + (", corrected" if self._correcting else "") + ").")
+            return Status.SUCCESS
+        if not self._correcting:
+            self.logger.warning(
+                f"[{self.name}] Heading off by {err:+.1f} deg vs the wall "
+                f"(AMCL pose disagrees with the laser) — correcting in place.")
+            self._correcting = True
+        # err > 0 means the wall line reads CCW of expected, i.e. our yaw is
+        # short — rotate CCW (+z). Plain P-control with a deadband floor.
+        wz = max(self.ROTATE_MIN_RAD_S,
+                 min(self.ROTATE_MAX_RAD_S, self.GAIN * abs(err)))
+        cmd = Twist()
+        cmd.angular.z = wz if err > 0 else -wz
+        self._cmd_pub.publish(cmd)
+        return Status.RUNNING
+
+    def terminate(self, new_status):
+        self._stop()
 
 class ClimbDoor(py_trees.behaviour.Behaviour):
     def __init__(self, name="Climb_Door"): super().__init__(name)
@@ -727,34 +857,60 @@ def wrap_with_timeout(behaviour_node, duration_seconds):
 # TREE COMPOSITION — mission phases mirror fsm.py's state machine
 # =========================================================
 
-# Mission poses, ARENA frame (transplanted verbatim from fsm.py's
-# "EXACT COORDINATES (8x8m Arena)"; third element = arrival yaw in radians):
-POSE_BUTTON    = (4.20, 7.50, 1.57)    # facing the button (top wall)
-POSE_DOOR      = (2.00, 7.50, 3.14)    # Zone 3 entrance
-POSE_RAMP_BASE = (7.00, 3.00, 1.57)    # bottom of the ramp
-POSE_BASE      = (0.50, 0.50, -2.35)   # drop-off point (lower-left corner)
+# Mission calibration points, MAP frame, derived from ros2_ws/maps/ref.png
+# under the current clean_room_8x8.yaml origin. Third element = arrival yaw.
+# The ref image encodes:
+#   red    arena/map (0,0)
+#   green  initial/base point
+#   yellow button
+#   pink   door alignment line (travel upward through the doorway)
+#   blue   ramp alignment line
+#   red    objectives.png long-term zone goals
+POSE_BUTTON = (8.810, -4.355, 0.0)                 # yellow point; face the button wall
+POSE_BASE = (1.005, -0.955, 2.381699)             # green point; face arena origin
+POSE_DOOR_LINE_ENTRY = (8.210, -4.010, math.pi / 2.0)   # lower pink point; face upward
+POSE_DOOR_LINE_EXIT = (8.210, -3.610, math.pi / 2.0)    # upper pink point; continue upward
+POSE_ZONE3_OBJECTIVE = (8.135, -2.085, math.pi)         # top red point; turn into zone 3
+POSE_RAMP_LINE_ENTRY = (4.510, -8.135, 0.174216)        # left blue point; face up-ramp toward zone 4
+RAMP_UP_ROUTE_POINTS = [
+    (4.885, -8.160),   # middle blue point
+    (5.210, -8.160),   # right blue point
+    (7.635, -7.585),   # bottom red objective in zone 4
+]
+POSE_ZONE4_OBJECTIVE = (7.635, -7.585, math.pi)        # bottom red point; turn into zone 4
+POSE_RAMP_RETURN_ENTRY = (7.635, -8.160, math.pi)      # same horizontal as blue points, face back toward ramp
+RAMP_DOWN_ROUTE_POINTS = [
+    (5.210, -8.160),   # right blue point
+    (4.885, -8.160),   # middle blue point
+    (4.510, -8.135),   # left blue point / ramp exit
+]
 
-# Collection sweep routes per zone, ARENA frame. PLACEHOLDERS — replace with
-# the real block-rich sweep lines per zone (or, later, a vision-driven route
-# from /eyerobot/vision/lego_markers_map). Each chunk approximates a 5-block
-# load: there is NO intake counter yet, so "5 blocks collected" is modeled as
-# "one sweep chunk done" -> return to base and discharge.
+# Fallback sweep routes in the current calibrated map frame. The BT prefers
+# vision-planned routes first; these are only the "no blocks known yet" backup
+# passes for each zone.
 ZONE1_SWEEP_CHUNKS = [
-    [(1.5, 1.5), (3.5, 1.5), (3.5, 3.0)],   # TODO real zone 1 sweep, part 1
-    [(1.5, 3.0), (1.5, 4.5), (3.5, 4.5)],   # TODO real zone 1 sweep, part 2
+    [(1.10, -1.10), (3.80, -1.10), (4.20, -3.10)],
+    [(4.20, -5.60), (2.30, -6.90), (1.10, -5.10)],
 ]
 ZONE3_SWEEP_CHUNKS = [
-    [(1.0, 6.5), (3.5, 6.5)],               # TODO real zone 3 sweep (behind the door)
+    [(8.10, -2.10), (7.10, -2.10), (6.70, -2.90)],
+    [(6.70, -1.40), (7.60, -1.10), (8.10, -1.80)],
 ]
 ZONE4_SWEEP_CHUNKS = [
-    [(6.0, 4.5), (6.0, 6.5)],               # TODO real zone 4 sweep (past the ramp)
+    [(7.60, -7.60), (6.80, -7.20), (6.10, -6.60)],
+    [(6.10, -7.90), (6.90, -8.00), (7.50, -7.70)],
 ]
 
 
 def _goto(name, arena_pose, timeout_s):
-    """GoToPose at an arena-frame pose, wrapped in the standard timeout/skip."""
+    """GoToPose at a calibrated mission pose, wrapped in the standard timeout/skip."""
     x, y = arena_to_map(arena_pose[0], arena_pose[1])
     return wrap_with_timeout(GoToPose(name, x, y, target_yaw=arena_pose[2]), timeout_s)
+
+
+def _follow_map_route(name, points, timeout_s):
+    """Navigate through an explicit map-frame polyline without per-point yaw."""
+    return _with_timeout(GoThroughPoses(name, points), timeout_s)
 
 
 def _discharge_at_base(tag):
@@ -788,7 +944,7 @@ def _with_timeout(behaviour_node, duration_seconds):
         name=f"{behaviour_node.name}_Timeout")
 
 
-def _collect_zone(zone_tag, chunks):
+def _collect_zone(zone_tag, chunks, discharge_between_rounds=True):
     """Collect blocks: vision-planned routes first, sweep chunks as fallback.
 
     Each round: if vision (BlockMemory) knows blocks, flow through the <=5
@@ -799,6 +955,12 @@ def _collect_zone(zone_tag, chunks):
     after the sweeps to mop up late discoveries. A round with nothing to do
     fails its Selector and skips its discharge (FailureIsSuccess keeps the
     mission going).
+
+    discharge_between_rounds=False for zones behind a precision traverse
+    (door / ramp): a mid-collection run to base would path back through the
+    door or off the ramp WITHOUT the alignment phases. Those zones collect
+    everything regardless of count; the unload happens after the aligned
+    return, as the mission flow schedules it.
     """
     seq = py_trees.composites.Sequence(name=f"Collect_{zone_tag}", memory=True)
     rounds = len(chunks) + 1
@@ -816,31 +978,89 @@ def _collect_zone(zone_tag, chunks):
 
         round_seq = py_trees.composites.Sequence(name=f"{zone_tag}_Round_{i}", memory=True)
         round_seq.add_child(source)
-        # Unload only when the intake actually holds DISCHARGE_BLOCK_COUNT
-        # blocks (counted by BlockMemory as the robot drives over them).
-        round_seq.add_child(_discharge_if_full(f"{zone_tag}_{i}"))
+        if discharge_between_rounds:
+            # Unload only when the intake actually holds DISCHARGE_BLOCK_COUNT
+            # blocks (counted by BlockMemory as the robot drives over them).
+            round_seq.add_child(_discharge_if_full(f"{zone_tag}_{i}"))
         seq.add_child(py_trees.decorators.FailureIsSuccess(
             child=round_seq, name=f"{zone_tag}_Round_{i}_Skippable"))
     return seq
 
 
 def _button_phase(root):
-    """Button + door entry (the part zone1/zone4 missions skip)."""
+    """Button + door entry, matching the yellow/pink markers in ref.png.
+
+    Pre_Button gate: blocks swallowed incidentally on the way here count too —
+    if the intake already holds >= DISCHARGE_BLOCK_COUNT, make ONE trip back
+    to base, then head straight for the objective (no block routing). Inside
+    the door (zone 3) the count is ignored until the aligned return.
+    The laser align check trues the heading against the physical door wall
+    before the traverse — AMCL alone is not trusted for precision moves.
+    """
+    root.add_child(_discharge_if_full("Pre_Button"))
     root.add_child(_goto("Move_To_Button", POSE_BUTTON, 60.0))
     root.add_child(wrap_with_timeout(PushButton(), 5.0))
-    root.add_child(_goto("Go_To_Door", POSE_DOOR, 60.0))
-    root.add_child(wrap_with_timeout(AlignWithWall(), 5.0))
-    root.add_child(wrap_with_timeout(ClimbDoor(), 5.0))
+    root.add_child(_goto("Door_Line_Entry", POSE_DOOR_LINE_ENTRY, 60.0))
+    root.add_child(wrap_with_timeout(AlignWithWall(
+        "Door_Align_Check", wall_bearing_deg=0.0, mode="perpendicular"), 12.0))
+    root.add_child(_goto("Door_Line_Exit", POSE_DOOR_LINE_EXIT, 30.0))
+
+
+def _zone3_phase(root):
+    """Door transition, then drive to the top objective and collect zone 3.
+
+    No mid-collection discharge: everything collected behind the door stays on
+    board until the mission flow brings the robot back out and unloads.
+    """
+    _button_phase(root)
+    root.add_child(_goto("Zone3_Objective", POSE_ZONE3_OBJECTIVE, 45.0))
+    root.add_child(_collect_zone("Zone3", ZONE3_SWEEP_CHUNKS,
+                                 discharge_between_rounds=False))
+
+
+def _ramp_phase(root):
+    """Line up on the blue markers, climb the ramp, and reach zone 4 objective.
+
+    Same gate as the button leg: one optional base trip BEFORE committing to
+    the ramp, then direct. The align check runs the right-hand wall parallel
+    before the climb — a misaligned ramp entry is how the robot falls off.
+    """
+    root.add_child(_discharge_if_full("Pre_Ramp"))
+    root.add_child(_goto("Ramp_Line_Entry", POSE_RAMP_LINE_ENTRY, 60.0))
+    root.add_child(wrap_with_timeout(AlignWithWall(
+        "Ramp_Align_Check", wall_bearing_deg=-90.0, mode="parallel"), 12.0))
+    root.add_child(_follow_map_route("Pass_Ramp", RAMP_UP_ROUTE_POINTS, 120.0))
+    root.add_child(_goto("Zone4_Objective", POSE_ZONE4_OBJECTIVE, 30.0))
+
+
+def _ramp_return_phase(root):
+    """Return from zone 4 by re-aligning on the blue line and driving down-ramp.
+
+    Facing pi (back toward the ramp) the same wall is now on the LEFT (+90).
+    """
+    root.add_child(_goto("Ramp_Return_Entry", POSE_RAMP_RETURN_ENTRY, 45.0))
+    root.add_child(wrap_with_timeout(AlignWithWall(
+        "Ramp_Return_Align_Check", wall_bearing_deg=90.0, mode="parallel"), 12.0))
+    root.add_child(_follow_map_route("Return_Down_Ramp", RAMP_DOWN_ROUTE_POINTS, 120.0))
 
 
 def create_tree(mission="full"):
-    """Mission selector (--mission CLI flag / bt_mission launch argument):
+    """Mission selector (--mission CLI flag / bt_mission launch argument).
 
-    full   button + zone 3 + ramp + zone 4 + final discharge
-    zone1  blocks only: sweep zone 1, discharge at base per chunk (no button/ramp)
-    zone3  button + door phase, then zone 3 collection
-    zone4  no button: ramp, then zone 4 collection
-    All modes: fans ON before the first motion; AMCL localization gates the start.
+    Every zone flag is a PARTIAL RUN of the full flow — identical phases in
+    identical order, with the skipped leg removed:
+
+    full   button/door + zone 3 + discharge + ramp + zone 4 + aligned return
+           + discharge + zone 1 cleanup + final unload
+    zone1  full minus the button/door/zone-3 leg AND the ramp/zone-4 leg
+    zone3  full minus the ramp/zone-4 leg (and its intermediary goals)
+    zone4  full minus the button/door/zone-3 leg (and its intermediary goals)
+
+    All modes: fans ON before the first motion; AMCL localization gates the
+    start; zone 1 cleanup + unconditional base unload close every mission.
+    Block-count policy: at most ONE base trip at the Pre_Button / Pre_Ramp
+    gates if >= DISCHARGE_BLOCK_COUNT was swallowed en route; once inside
+    zone 3 or zone 4, the count is ignored until the aligned return.
     """
     root = py_trees.composites.Sequence(name=f"Mission_{mission}", memory=True)
 
@@ -849,19 +1069,18 @@ def create_tree(mission="full"):
     root.add_child(WaitForLocalization())
     root.add_child(SetMotor("Fans_On", '/cmd_fans', FAN_SPEED))
 
-    if mission == "zone1":
-        root.add_child(_collect_zone("Zone1", ZONE1_SWEEP_CHUNKS))
-    elif mission == "zone3":
-        _button_phase(root)
-        root.add_child(_collect_zone("Zone3", ZONE3_SWEEP_CHUNKS))
-    elif mission == "zone4":
-        root.add_child(_goto("Go_To_Ramp", POSE_RAMP_BASE, 60.0))
-        root.add_child(_collect_zone("Zone4", ZONE4_SWEEP_CHUNKS))
-    else:  # full
-        _button_phase(root)
-        root.add_child(_collect_zone("Zone3", ZONE3_SWEEP_CHUNKS))
-        root.add_child(_goto("Go_To_Ramp", POSE_RAMP_BASE, 60.0))
-        root.add_child(_collect_zone("Zone4", ZONE4_SWEEP_CHUNKS))
+    if mission in ("full", "zone3"):
+        _zone3_phase(root)
+        root.add_child(_discharge_at_base("Post_Zone3"))
+    if mission in ("full", "zone4"):
+        _ramp_phase(root)
+        root.add_child(_collect_zone("Zone4", ZONE4_SWEEP_CHUNKS,
+                                     discharge_between_rounds=False))
+        _ramp_return_phase(root)
+        root.add_child(_discharge_at_base("Post_Zone4"))
+    # Zone 1 cleanup runs in EVERY mode (it is the robot's home zone — no
+    # precision traverse needed, so per-round discharges stay enabled).
+    root.add_child(_collect_zone("Zone1", ZONE1_SWEEP_CHUNKS))
 
     # Epilogue: back to base and unload UNCONDITIONALLY (whatever partial load
     # is on board), then stop the intake.

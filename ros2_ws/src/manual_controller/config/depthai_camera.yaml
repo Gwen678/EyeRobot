@@ -34,12 +34,12 @@
       i_align_depth: true
 
     imu:
-      # 100 Hz (down from 200, 2026-06-11): with RGBD streams running, the Nano
-      # can't sustain the EKF at even 20 Hz while it chews 200 IMU msgs/s —
-      # halving the rate halves the EKF's per-cycle measurement work. 100 Hz is
-      # still 5x the EKF rate; no practical accuracy loss (yaw rate only).
-      i_acc_freq: 100
-      i_gyro_freq: 100
+      # 50 Hz (down from 100, 2026-06-11): pipeline synchronised to 15 Hz EKF.
+      # 50 Hz gives 3.3 IMU samples per EKF cycle — enough for accurate yaw
+      # integration (gyro-only path). Further reduction risks integration gaps
+      # at fast turns; do not go below 30 Hz.
+      i_acc_freq: 50
+      i_gyro_freq: 50
       i_message_type: "IMU"                    # sensor_msgs/Imu
       i_publish_topic: true
       i_batch_report_threshold: 1              # minimal batching for low latency

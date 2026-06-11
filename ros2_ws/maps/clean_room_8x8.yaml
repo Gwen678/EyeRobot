@@ -1,10 +1,14 @@
 image: clean_room_8x8.pgm
 mode: trinary
 resolution: 0.05
-# Origin derived from room_8x8.yaml by cross-correlating wall pixels:
-# the cleaned canvas (481x459) is shifted dx=+3 px, dy=-3 px and 66 rows
-# taller than the original (476x393), so origin moves by (-0.15, -3.45) m.
-origin: [-7.67, -15.85, 0]
+# Re-zeroed so arena (0,0) lands at image pixel (120.3, 104.3) on the
+# 481x459 clean map. With continuous image coordinates and 0.05 m/px:
+#   origin_x = -120.3 * 0.05 = -6.015
+#   origin_y = -(459 - 104.3) * 0.05 = -17.735
+# Reference calibration picks from the same pass:
+#   button pixel ~= (296.5, 191.4)
+#   ramp crossing centerline row ~= 224.8
+origin: [-6.015, -17.735, 0]
 negate: 0
 occupied_thresh: 0.65
 free_thresh: 0.25

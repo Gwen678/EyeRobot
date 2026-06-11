@@ -39,10 +39,12 @@ Optional flags:
                 for the navigate_through_poses server and then for AMCL
                 localization (set the initial pose in Foxglove) before
                 starting the mission.
-  bt_mission:=full|zone1|zone3|zone4   Mission variant (default full):
-                zone1 = blocks only (no button/ramp), discharge at base per
-                ~5-block sweep chunk; zone3 = button+door then zone 3 blocks;
-                zone4 = ramp then zone 4 blocks, no button; full = everything.
+  bt_mission:=full|zone1|zone3|zone4   Mission variant (default full).
+                Each zone flag is a partial run of the full flow:
+                zone1 = zone 1 collection + unload only (no button, no ramp);
+                zone3 = full minus the ramp/zone-4 leg;
+                zone4 = full minus the button/door/zone-3 leg.
+                Zone 1 cleanup + final unload close every mission.
 
 Full mapping session with vision:
   ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true lego:=true
