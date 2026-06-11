@@ -107,17 +107,24 @@ controller_server:
       # place while Nav2 believes it is moving.
       # 7 RPM * 2pi/60 * 0.06 m wheel radius = 0.044 m/s linear;
       # in-place rotation equivalent: 0.044 * 2 / 0.33 m separation = 0.27 rad/s.
-      min_vel_x: 0.044
-      max_vel_x: 0.3         # tune: max forward speed (m/s) for your robot
-      min_vel_theta: -1.0
-      max_vel_theta: 1.0
-      min_speed_xy: 0.044
-      max_speed_xy: 0.3
+      # Fast profile (2026-06-11): ceilings at the diff_drive limiter cap
+      # (12 rad/s wheels = 0.72 m/s / 4.36 rad/s — motors are the real limit
+      # beyond ~9 rad/s). FLOOR at 5 rad/s wheels (0.30 m/s): DWB samples
+      # only [0.30, 0.72] forward, so it cannot choose to crawl — while
+      # translating, the robot commits. In-place rotation (RotateToGoal)
+      # is unaffected; expect wider cornering arcs and goal overshoot
+      # (absorbed by xy tolerance + the 0.35 m eat radius).
+      min_vel_x: 0.30
+      max_vel_x: 0.72
+      min_vel_theta: -4.36
+      max_vel_theta: 4.36
+      min_speed_xy: 0.30
+      max_speed_xy: 0.72
       min_speed_theta: 0.27
-      acc_lim_x: 0.5
-      acc_lim_theta: 1.5
-      decel_lim_x: -0.5
-      decel_lim_theta: -1.5
+      acc_lim_x: 0.72
+      acc_lim_theta: 4.36
+      decel_lim_x: -1.5
+      decel_lim_theta: -4.36
       vx_samples: 20
       vtheta_samples: 40
       sim_time: 1.5

@@ -765,22 +765,12 @@ class GoThroughPoses(py_trees.behaviour.Behaviour):
         self.goal_status = None
 
 
-# Drive-through overshoot: NavigateThroughPoses flows THROUGH the
-# intermediate poses, but the FINAL pose is only approached to within
-# Nav2's xy_goal_tolerance — which can leave the last block sitting just
-# outside the fans. Extending the route one waypoint PAST the last block
-# (along the approach line) turns the final block into a flow-through
-# point too, without ever stopping.
-OVERSHOOT_M = 0.30
-OVERSHOOT_CLEARANCE_M = 0.12   # the overshoot point must be drivable space
-
-
 def _greedy_block_route(robot, blocks, arena_map, max_blocks=5):
-    """Greedy nearest-neighbor route over the given blocks + the overshoot
-    waypoint. Returns [] when no (reachable) blocks exist. Blocks failing
-    the static-map check are dropped defensively (memory normally holds only
-    validated blocks; this catches pre-map stowaways before they abort a
-    Nav2 route)."""
+    """Greedy nearest-neighbor route over the given blocks — goal to goal,
+    nothing else. Returns [] when no (reachable) blocks exist. Blocks
+    failing the static-map check are dropped defensively (memory normally
+    holds only validated blocks; this catches pre-map stowaways before they
+    abort a Nav2 route)."""
     blocks = [b for b in blocks
               if arena_map.disk_is_free(b[0], b[1], 0.04) is not False]
     if not blocks:
@@ -792,15 +782,6 @@ def _greedy_block_route(robot, blocks, arena_map, max_blocks=5):
         nxt = blocks.pop(0)
         route.append(nxt)
         pos = nxt
-    approach_from = route[-2] if len(route) > 1 else (robot or route[-1])
-    dx = route[-1][0] - approach_from[0]
-    dy = route[-1][1] - approach_from[1]
-    norm = math.hypot(dx, dy)
-    if norm > 1e-6:
-        over = (route[-1][0] + dx / norm * OVERSHOOT_M,
-                route[-1][1] + dy / norm * OVERSHOOT_M)
-        if arena_map.disk_is_free(over[0], over[1], OVERSHOOT_CLEARANCE_M):
-            route.append(over)
     return route
 
 
@@ -1002,126 +983,6 @@ class Wait(py_trees.behaviour.Behaviour):
 def _wrap_deg(d):
     """Fold an angle difference into [-180, 180)."""
     return (d + 180.0) % 360.0 - 180.0
-
-
-class ChargeThroughBlock(py_trees.behaviour.Behaviour):
-    """Mop-up pass after a Nav2 route: drive straight THROUGH any block the
-    route left within reach.
-
-    Nav2 finishes a route within its goal tolerance, which can leave the
-    last block ~20 cm outside the intake. If a known block remains within
-    TRIGGER_RANGE_M when this runs, steer-while-moving (no stop, no in-place
-    rotation — the flow-through constraint holds) through the block position
-    plus PASS_BEYOND_M, so the fans pass over its center. SUCCESS when the
-    pass completes or there is nothing in reach; FAILURE only if the laser
-    says the path is blocked. The block memory's eat-prune then records the
-    collection on its own.
-    """
-
-    TRIGGER_RANGE_M = 0.90
-    PASS_BEYOND_M = 0.25
-    REACHED_M = 0.12
-    SPEED_M_S = 0.14
-    STEER_GAIN = 1.8
-    STEER_WZ_MAX = 0.6
-    STOP_DIST_M = 0.30          # laser front-sector floor (walls, not blocks)
-
-    def __init__(self, name="Charge_Through_Block"):
-        super().__init__(name)
-        self.node = None
-        self._cmd_pub = None
-        self._target = None
-
-    def setup(self, **kwargs):
-        self.node = kwargs.get("node")
-        if self.node is None:
-            raise RuntimeError("ROS 2 node context missing.")
-        if not hasattr(self.node, "bt_scan_cache"):
-            cache = {"msg": None}
-            self.node.bt_scan_cache = cache
-            self.node.create_subscription(
-                LaserScan, '/scan',
-                lambda m: cache.__setitem__("msg", m),
-                qos_profile_sensor_data)
-        self._cmd_pub = self.node.create_publisher(Twist, '/cmd_vel', 10)
-        self.tf_buffer = _shared_tf_buffer(self.node)
-        self.memory = _shared_block_memory(self.node, self.tf_buffer)
-
-    def initialise(self):
-        self._target = None
-        robot = _robot_xy(self.tf_buffer)
-        if robot is None or not self.memory.blocks:
-            return
-        nearest = min(self.memory.blocks,
-                      key=lambda b: math.hypot(b[0] - robot[0], b[1] - robot[1]))
-        dist = math.hypot(nearest[0] - robot[0], nearest[1] - robot[1])
-        if dist > self.TRIGGER_RANGE_M:
-            return
-        # Aim PAST the block along the robot->block line: the intake must
-        # cross the block's center, not park next to it.
-        ux, uy = (nearest[0] - robot[0]) / dist, (nearest[1] - robot[1]) / dist
-        self._target = (nearest[0] + ux * self.PASS_BEYOND_M,
-                        nearest[1] + uy * self.PASS_BEYOND_M)
-        self.logger.info(f"[{self.name}] block {dist:.2f} m away after route — "
-                         f"charging through to ({self._target[0]:.2f}, {self._target[1]:.2f})")
-
-    def _stop(self):
-        if self._cmd_pub is not None:
-            self._cmd_pub.publish(Twist())
-
-    def _front_clearance(self):
-        scan = self.node.bt_scan_cache["msg"]
-        if scan is None:
-            return None
-        best = float('inf')
-        a = scan.angle_min
-        for r in scan.ranges:
-            bearing = math.degrees(a)
-            a += scan.angle_increment
-            if abs(_wrap_deg(bearing)) > 20.0:
-                continue
-            if math.isfinite(r) and r > scan.range_min:
-                best = min(best, r)
-        return best
-
-    def update(self) -> Status:
-        if self._target is None:
-            return Status.SUCCESS   # nothing left in reach — pass not needed
-        robot = _robot_xy(self.tf_buffer)
-        yaw = _robot_yaw(self.tf_buffer)
-        if robot is None or yaw is None:
-            return Status.RUNNING
-        dist = math.hypot(self._target[0] - robot[0], self._target[1] - robot[1])
-        if dist < self.REACHED_M:
-            self._stop()
-            self.logger.info(f"[{self.name}] pass complete.")
-            return Status.SUCCESS
-        clearance = self._front_clearance()
-        if clearance is not None and clearance < self.STOP_DIST_M:
-            self._stop()
-            self.logger.warning(f"[{self.name}] wall {clearance:.2f} m ahead — abandoning pass.")
-            return Status.FAILURE
-        # Steer while moving: bearing P-control toward the through-point.
-        # NOTE: yaw here is map-frame (the target is map-frame); _robot_yaw
-        # reads odom yaw, so use the map-frame heading from TF instead.
-        bearing = math.atan2(self._target[1] - robot[1], self._target[0] - robot[0])
-        try:
-            t = self.tf_buffer.lookup_transform("map", "base_link", Time())
-            q = t.transform.rotation
-            yaw_map = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
-                                 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
-        except Exception:
-            return Status.RUNNING
-        err = math.atan2(math.sin(bearing - yaw_map), math.cos(bearing - yaw_map))
-        cmd = Twist()
-        cmd.linear.x = self.SPEED_M_S
-        cmd.angular.z = max(-self.STEER_WZ_MAX,
-                            min(self.STEER_WZ_MAX, self.STEER_GAIN * err))
-        self._cmd_pub.publish(cmd)
-        return Status.RUNNING
-
-    def terminate(self, new_status):
-        self._stop()
 
 
 class TurnRight(py_trees.behaviour.Behaviour):
@@ -1408,12 +1269,16 @@ def _collect_round():
     """
     seq = py_trees.composites.Sequence(name="Round", memory=True)
 
+    # Detect -> go. Only when NOTHING is detected: one 45-degree right turn
+    # (stopping the instant a block appears), then re-check. A still-empty
+    # round fails skippably and the loop comes around for the next 45
+    # degrees — the full scan emerges from repetition, not from a long
+    # in-place spin. All actual driving is Nav2's, not ours.
     find = py_trees.composites.Selector(name="Round_Find", memory=True)
     find.add_child(PlanBlockRoute("Plan_Known_Blocks"))
     search = py_trees.composites.Sequence(name="Round_Search", memory=True)
-    search.add_child(_with_timeout(TurnRight("Turn_Right_Scan", angle_deg=90.0), 30.0))
-    search.add_child(_with_timeout(SeekBlockForward("Seek_Forward"), 25.0))
-    search.add_child(PlanBlockRoute("Plan_Found_Blocks"))
+    search.add_child(_with_timeout(TurnRight("Turn_45_Scan", angle_deg=45.0), 15.0))
+    search.add_child(PlanBlockRoute("Plan_After_Turn"))
     find.add_child(search)
     seq.add_child(find)
 
@@ -1421,12 +1286,6 @@ def _collect_round():
     # with a re-plan that includes it. 180 s: the queue legitimately grows
     # mid-leg, so this leg earns more budget than a frozen route would.
     seq.add_child(_with_timeout(FollowBlockQueue("Drive_Block_Queue"), 180.0))
-
-    # Mop-up: Nav2 ends a route within its goal tolerance, which can leave
-    # the last block just outside the fans (the planned overshoot waypoint
-    # usually prevents this, but it is skipped when it would land in a
-    # wall). Skippable: a failed pass must not kill the round.
-    seq.add_child(wrap_with_timeout(ChargeThroughBlock("Mop_Up_Pass"), 20.0))
     return seq
 
 
