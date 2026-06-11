@@ -212,7 +212,7 @@ echo "[3/3] Launching Nav2 Server..."
 # room_8x8 frame (see maps/clean_room_8x8.yaml). full_nav so Nav2 runs the
 # planner/controller and publishes /cmd_vel for the BT's navigation goals.
 ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/clean_room_8x8.yaml full_nav:=true &
-sleep 2
+sleep 5
 
 # 3b. Nav2 readiness: AMCL must produce the map frame (it self-initializes
 # from the yaml pose). A boot where this fails = lifecycle activation died
