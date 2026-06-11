@@ -73,6 +73,17 @@ def _matmul(A, B):
             for i in range(3)]
 
 
+def _matrix_from_rpy(roll, pitch, yaw):
+    """Rotation matrix from extrinsic XYZ (roll-pitch-yaw) Euler angles."""
+    cr, sr = math.cos(roll), math.sin(roll)
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    return _matmul(
+        [[cy, -sy, 0.0], [sy, cy, 0.0], [0.0, 0.0, 1.0]],
+        _matmul([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]],
+                [[1.0, 0.0, 0.0], [0.0, cr, -sr], [0.0, sr, cr]]))
+
+
 def _matrix_from_quat(x, y, z, w):
     """Rotation matrix from a (normalized) quaternion."""
     return [
@@ -153,6 +164,14 @@ class ImuRemapNode(Node):
         # default here pointed at that ghost and the mount TF silently
         # never published — 2026-06-11.)
         self.declare_parameter('camera_base_frame', 'oak')
+        # IMU->camera-body extrinsic fallback (roll, pitch, yaw, radians).
+        # The driver URDF only creates an IMU frame for camera_model OAK-D
+        # — NEVER for the OAK-D-LITE — so on this robot the TF lookup can
+        # never succeed and this parameter is the actual mechanism. Validate
+        # via the published log line: 'camera forward pitched +XX.X°' must
+        # match the physically measured mount tilt (~59° down); if it reads
+        # nonsense, this extrinsic is what to adjust.
+        self.declare_parameter('imu_extrinsic_rpy', [0.0, 0.0, 0.0])
         self.declare_parameter('mount_x', 0.42)   # base_link -> camera, meters
         self.declare_parameter('mount_y', 0.0)
         self.declare_parameter('mount_z', 0.135)
@@ -229,19 +248,35 @@ class ImuRemapNode(Node):
                 throttle_duration_sec=10.0)
             return
         cam_frame = self.get_parameter('camera_base_frame').value
+        R_ic = None
         try:
             t = self._tf_buffer.lookup_transform(
                 cam_frame, self._imu_frame, rclpy.time.Time())
-        except Exception as e:
+            q = t.transform.rotation
+            R_ic = _matrix_from_quat(q.x, q.y, q.z, q.w)
+        except Exception:
+            # The OAK-D-LITE URDF never creates an IMU frame (only camera
+            # model 'OAK-D' gets one), so on this robot the lookup CANNOT
+            # succeed — after a short grace period (in case a future driver
+            # does publish it), use the imu_extrinsic_rpy parameter instead.
+            self._tf_misses = getattr(self, '_tf_misses', 0) + 1
+            if self._tf_misses < 10:
+                self.get_logger().warning(
+                    f'camera mount TF: extrinsic {cam_frame} <- '
+                    f'{self._imu_frame} not in TF (attempt '
+                    f'{self._tf_misses}/10 before parameter fallback)',
+                    throttle_duration_sec=5.0)
+                return
+            rpy = [float(v) for v in self.get_parameter('imu_extrinsic_rpy').value]
+            R_ic = _matrix_from_rpy(*rpy)
             self.get_logger().warning(
-                f'camera mount TF pending: driver extrinsic {cam_frame} <- '
-                f'{self._imu_frame} not in TF yet ({e})',
-                throttle_duration_sec=10.0)
-            return
-        q = t.transform.rotation
+                'camera mount TF: using imu_extrinsic_rpy parameter '
+                f'{rpy} (no IMU frame in the driver URDF for this camera '
+                'model). VERIFY the published pitch against the physical '
+                'mount tilt.')
         # Up-vector measured in the IMU frame, expressed in the camera body
-        # frame via the factory extrinsic.
-        u = _apply(_matrix_from_quat(q.x, q.y, q.z, q.w), *self._g_sensor)
+        # frame via the extrinsic.
+        u = _apply(R_ic, *self._g_sensor)
         R = _rotation_aligning(u)             # camera-body vectors -> level frame
         # Gravity cannot observe yaw: rotate so the camera body x-axis
         # projects onto base_link +x (camera mounted facing forward).
