@@ -26,6 +26,7 @@ import threading
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, CameraInfo, CompressedImage
 from geometry_msgs.msg import Point, PointStamped
 from vision_msgs.msg import Detection3DArray
@@ -79,8 +80,12 @@ class YoloVisionBridge(Node):
             CompressedImage, '/eyerobot/camera/nn_debug/compressed', 10)
         self.create_subscription(Image, '/oak/nn/passthrough',
                                  self.passthrough_callback, 10)
+        # Sensor-data (best-effort) QoS: compatible with the driver whatever
+        # reliability it publishes with — a default RELIABLE subscription
+        # never matched and the node sat on fallback intrinsics forever.
         self.create_subscription(CameraInfo, '/oak/rgb/camera_info',
-                                 self.camera_info_callback, 10)
+                                 self.camera_info_callback,
+                                 qos_profile_sensor_data)
         self.create_subscription(Image, '/oak/rgb/image_raw',
                                  self.rgb_callback, 10)
 
@@ -91,6 +96,7 @@ class YoloVisionBridge(Node):
         if msg.k[0] > 0.0:
             self.fx, self.fy = msg.k[0], msg.k[4]
             self.cx0, self.cy0 = msg.k[2], msg.k[5]
+            self.ci_w, self.ci_h = msg.width, msg.height
             if not self._have_camera_info:
                 self._have_camera_info = True
                 self.get_logger().info(
@@ -181,7 +187,11 @@ class YoloVisionBridge(Node):
         frame = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
         h, w = frame.shape[:2]
         if self._have_camera_info:
-            fx, fy, cx0, cy0 = self.fx, self.fy, self.cx0, self.cy0
+            # camera_info can be calibrated at different dimensions than the
+            # actually-published stream — scale intrinsics to this frame.
+            sx, sy = w / self.ci_w, h / self.ci_h
+            fx, fy = self.fx * sx, self.fy * sy
+            cx0, cy0 = self.cx0 * sx, self.cy0 * sy
         else:
             # Crude estimate from the actual frame: center = w/2,h/2 and a
             # ~69 deg horizontal FOV (OAK-D Lite RGB). Wrong by a scale, but
