@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import threading
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor  # Pour utiliser tous les cœurs CPU
@@ -102,7 +103,13 @@ class LegoDetectorNode(Node):
         self.LOWER_COLOR = np.array([35, 100, 50])
         self.UPPER_COLOR = np.array([85, 255, 255])
 
-        # Mémoire tampon pour la profondeur (Zéro Latence, Zéro CPU)
+        # Locks protecting shared state across concurrent callback threads.
+        # ReentrantCallbackGroup + MultiThreadedExecutor can fire depth_callback
+        # and rgb_callback (or two rgb_callbacks) simultaneously; without locks
+        # the tracker's OrderedDict raises RuntimeError on concurrent mutation.
+        self._depth_lock = threading.Lock()
+        self._tracker_lock = threading.Lock()
+
         self.latest_depth_frame = None
 
         # Abonnements indépendants et parallèles
@@ -112,16 +119,17 @@ class LegoDetectorNode(Node):
         self.get_logger().info("🚀 Nœud Multi-Threadé branché et protégé contre les Timeouts !")
 
     def depth_callback(self, msg):
-        # On stocke l'image de profondeur dès qu'elle arrive
-        self.latest_depth_frame = self.bridge.imgmsg_to_cv2(msg, "16UC1")
+        frame = self.bridge.imgmsg_to_cv2(msg, "16UC1")
+        with self._depth_lock:
+            self.latest_depth_frame = frame
 
     def rgb_callback(self, rgb_msg):
-        # Si on n'a pas encore reçu de carte de profondeur, on attend la suivante
-        if self.latest_depth_frame is None:
-            return
+        with self._depth_lock:
+            if self.latest_depth_frame is None:
+                return
+            depth = self.latest_depth_frame.copy()
 
         frame = self.bridge.imgmsg_to_cv2(rgb_msg, "bgr8")
-        depth = self.latest_depth_frame.copy()
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, self.LOWER_COLOR, self.UPPER_COLOR)
@@ -142,7 +150,9 @@ class LegoDetectorNode(Node):
                         py = (cy - 240) * d / 470.0
                         dets.append((cx, cy, px, py, d, x, y, w, h))
 
-        tracked = self.tracker.update(dets)
+        with self._tracker_lock:
+            tracked = dict(self.tracker.update(dets))  # snapshot — safe to iterate outside the lock
+
         closest_lego_dist = float('inf')
         closest_lego_pt = None
 

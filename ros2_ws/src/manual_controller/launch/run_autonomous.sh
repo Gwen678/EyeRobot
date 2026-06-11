@@ -1,8 +1,34 @@
 #!/usr/bin/env bash
 
-# --- CLEANUP TRAP ---
-# If this script is interrupted (Ctrl+C), forcefully kill all background processes
-trap 'echo "Stopping autonomous mission..."; kill $(jobs -p) 2>/dev/null; exit' SIGINT SIGTERM
+# --- CLEANUP ---
+# Ordered shutdown. The old one-liner TERMed the ros2 launch processes the
+# instant Ctrl+C arrived — killing them MID graceful shutdown, which orphans
+# their component containers and leaves the OAK with an open XLink session
+# (wedged camera / "IMU hung" on the next run) and stray micro-ROS agents.
+# Correct order: SIGINT, then WAIT for the launches to stop their nodes,
+# escalate only if they hang, sweep known stragglers at the end.
+cleanup() {
+  trap - SIGINT SIGTERM
+  echo ""
+  echo "Stopping autonomous mission (waiting for clean shutdown)..."
+  kill -INT $(jobs -p) 2>/dev/null
+  deadline=$((SECONDS + 15))
+  while [ ${SECONDS} -lt ${deadline} ] && [ -n "$(jobs -rp)" ]; do
+    sleep 1
+  done
+  if [ -n "$(jobs -rp)" ]; then
+    echo "Some processes did not stop in 15 s — escalating..."
+    kill -TERM $(jobs -rp) 2>/dev/null
+    sleep 3
+    kill -KILL $(jobs -rp) 2>/dev/null
+  fi
+  # Sweep processes that detached from our job table (the ros2 run wrapper
+  # does not always forward signals to the agent binary).
+  pkill -f micro_ros_agent 2>/dev/null
+  echo "All stopped."
+  exit "${1:-0}"
+}
+trap cleanup SIGINT SIGTERM
 
 echo "========================================="
 echo "   STARTING EYEROBOT AUTONOMOUS STACK   "
@@ -53,6 +79,33 @@ if [ -n "${STALE}" ]; then
   exit 1
 fi
 
+# Clear stale Fast DDS shared-memory segments (left behind by killed sessions;
+# cause "Failed init_port fastrtps_portXXXX: open_and_lock_file failed").
+# Safe at this point: the checks above guarantee no ROS processes are running.
+rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_* 2>/dev/null
+ros2 daemon stop >/dev/null 2>&1   # daemon caches transports; restarts lazily
+
+# Pre-compile lego_vision_node: the node crashes mid-run on import/syntax errors
+# (numpy ABI mismatch, missing dep after a pip update) which wedges the OAK USB
+# session and looks like an IMU failure on the next run. Catch it here in <2 s.
+LEGO_SRC=/eyerobot/ros2_ws/src/manual_controller/manual_controller/lego_vision_node.py
+echo "Pre-checking lego_vision_node..."
+if ! python3 -m py_compile "${LEGO_SRC}" 2>&1; then
+  echo "FATAL: lego_vision_node.py has a syntax error — fix it before running."
+  exit 1
+fi
+if ! python3 -c "
+import sys
+sys.path.insert(0, '/eyerobot/ros2_ws/install/manual_controller/lib/python3.10/site-packages')
+import cv2, numpy, ultralytics, depthai
+from cv_bridge import CvBridge
+from tf2_ros import Buffer
+print('lego_vision_node imports OK')
+" 2>&1; then
+  echo "FATAL: lego_vision_node.py import check failed (see above). Fix the dep, then rerun."
+  exit 1
+fi
+
 # 1. Start the micro-ROS Agent (Hardware communication)
 echo "[1/3] Launching micro-ROS Agent..."
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/esp32 -b 115200 &
@@ -92,8 +145,7 @@ else
   echo "  FATAL: no IMU data after 90 s. Aborting the whole stack."
   echo "  (power-cycle the OAK / check imu_remap logs, then rerun)"
   echo "============================================================"
-  kill $(jobs -p) 2>/dev/null
-  exit 1
+  cleanup 1   # ordered shutdown — same path as Ctrl+C (exits for us)
 fi
 
 # 3. Launch Navigation 2 Stack (AMCL Localization + Global/Local Costmaps)
