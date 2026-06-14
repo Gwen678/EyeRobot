@@ -42,7 +42,7 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-  // ── Parameters (from URDF <ros2_control> block) ───────────────────────────
+  // Parameters (from URDF ros2_control block)
   double      counts_per_rev_{5756.0};
   double      right_feedback_sign_{1.0};
   double      left_feedback_sign_{-1.0};
@@ -51,18 +51,18 @@ private:
   std::string right_cmd_topic_{"motor_rwheel_cmd"};
   std::string left_cmd_topic_{"motor_lwheel_cmd"};
 
-  // ── State interfaces (position + velocity per wheel) ─────────────────────
+  // State interfaces (position + velocity per wheel).
   // Positive = forward for both wheels (feedback_sign applied in read()).
   double right_position_{0.0};
   double left_position_{0.0};
   double right_velocity_{0.0};
   double left_velocity_{0.0};
 
-  // ── Command interfaces ────────────────────────────────────────────────────
+  // Command interfaces
   double right_command_{0.0};
   double left_command_{0.0};
 
-  // ── Encoder tracking ─────────────────────────────────────────────────────
+  // Encoder tracking
   // INT32_MIN is used as sentinel meaning "not yet received".
   std::mutex  mutex_;
   int32_t     right_count_{std::numeric_limits<int32_t>::min()};
@@ -70,7 +70,7 @@ private:
   int32_t     prev_right_{std::numeric_limits<int32_t>::min()};
   int32_t     prev_left_{std::numeric_limits<int32_t>::min()};
 
-  // ── ROS node for pub/sub (separate from controller_manager) ──────────────
+  // ROS node for pub/sub (separate from controller_manager)
   rclcpp::Node::SharedPtr node_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr  right_cmd_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr  left_cmd_pub_;

@@ -36,9 +36,7 @@ if not lego_cat_ids:
     print("No LEGO category found in LVIS!")
     exit()
 
-# ======================
-# MAP IMAGE ID → FILE INFO
-# ======================
+# MAP IMAGE ID TO FILE INFO
 img_map = {img["id"]: img for img in data["images"]}
 
 # ======================

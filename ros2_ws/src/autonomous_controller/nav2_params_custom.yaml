@@ -1,26 +1,20 @@
-### Nav2 params for EyeRobot — AMCL localization + full navigation stack.
-#
-# TF tree:
-#   map -> odom        (AMCL, from /scan + saved map)
-#   odom -> base_link  (EKF, wheel encoder + IMU)
-#   base_link -> laser (URDF fixed joint, lidar_mount)
-#
-# Run with:
-#   ros2 launch manual_controller nav2.launch.py map:=<path>/map.yaml
+### Nav2 params for EyeRobot - AMCL localization + full navigation stack.
+# TF tree: map to odom (AMCL), odom to base_link (EKF), base_link to laser (URDF).
+# Run with: ros2 launch manual_controller nav2.launch.py map:=<path>/map.yaml
 
 amcl:
   ros__parameters:
     use_sim_time: false
-    alpha1: 0.2          # rot noise from rot motion  — tune if localisation drifts on turns
+    alpha1: 0.2          # rot noise from rot motion - tune if localization drifts on turns
     alpha2: 0.2          # rot noise from trans motion
-    alpha3: 0.2          # trans noise from trans motion — tune if localisation drifts on straight runs
+    alpha3: 0.2          # trans noise from trans motion - tune if localization drifts on straight runs
     alpha4: 0.2          # trans noise from rot motion
     alpha5: 0.2          # (omni only)
     base_frame_id: base_link
     odom_frame_id: odom
     global_frame_id: map
     laser_model_type: likelihood_field
-    laser_max_range: 10.0         # A1M8 reliable indoor range (spec 12 m; 10 m keeps accuracy adequate for likelihood field)
+    laser_max_range: 10.0         # A1M8 reliable indoor range; 10 m keeps accuracy adequate for likelihood field
     laser_min_range: 0.15
     laser_likelihood_max_dist: 2.0
     max_beams: 60
@@ -39,9 +33,8 @@ amcl:
     z_short: 0.05
     z_max: 0.05
     scan_topic: /scan
-    # Default start pose: green marker in ros2_ws/maps/ref.png. Under the
-    # current clean_room_8x8.yaml origin, that point is the user-marked start
-    # / discharge point 1 m from the red origin in x and image-y.
+    # Default start pose: green marker in ros2_ws/maps/ref.png.
+    # About 1 m from the map origin in x and y.
     set_initial_pose: true
     initial_pose:
       x: 1.005
@@ -60,11 +53,9 @@ bt_navigator:
     global_frame: map
     robot_base_frame: base_link
     odom_topic: /odometry/filtered
-    # Nano is slow: service/action ack takes longer than the Nav2 defaults.
-    # server_timeout: max wait for action-server ack (default 10 s is too short).
+    # Nano is slow; action ack takes longer than Nav2 defaults (10 s too short).
     server_timeout: 30.0
-    # bt_loop_duration: BT tick period (ms). 67 ms ≈ 15 Hz — aligned to the
-    # EKF and controller rate so the whole pipeline runs at the same cadence.
+    # bt_loop_duration: BT tick period (ms). 67 ms ~ 15 Hz, matching EKF and controller rate.
     bt_loop_duration: 67
     default_nav_to_pose_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml"
     default_nav_through_poses_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
@@ -102,21 +93,8 @@ controller_server:
       stateful: true
     FollowPath:
       plugin: dwb_core::DWBLocalPlanner
-      # Velocity floors = the motor deadband: below ~7 wheel-RPM the wheels
-      # do not overcome friction, so DWB commanding less stalls the robot in
-      # place while Nav2 believes it is moving.
-      # 7 RPM * 2pi/60 * 0.06 m wheel radius = 0.044 m/s linear;
-      # in-place rotation equivalent: 0.044 * 2 / 0.33 m separation = 0.27 rad/s.
-      # Fast profile (2026-06-11): ceilings at the diff_drive limiter cap
-      # (12 rad/s wheels = 0.72 m/s / 4.36 rad/s — motors are the real limit
-      # beyond ~9 rad/s). FORWARD FLOOR 0.30 m/s = 5 rad/s wheels, which
-      # also clears the firmware friction point (duty = 15% breakaway +
-      # 0.01/tps -> ~50% duty = ~3.9 rad/s wheels = 0.23 m/s rolling): DWB
-      # samples only [0.30, 0.72] forward — it cannot command speeds the
-      # friction eats, and it cannot crawl. Expect wider cornering arcs and
-      # goal overshoot (absorbed by xy tolerance + the 0.35 m eat radius).
-      # Speed floors at 8 rad/s wheels = 0.48 m/s linear / 2.91 rad/s angular
-      # (8 * 0.06 m wheel radius = 0.48 m/s; 0.48 / 0.165 m half-track = 2.91 rad/s).
+      # Velocity floors match motor deadband: below ~7 wheel-RPM wheels stall.
+      # Floors at 8 rad/s wheels = 0.48 m/s linear / 2.91 rad/s angular to clear static friction.
       min_vel_x: 0.48
       max_vel_x: 0.72
       min_vel_theta: -4.36
@@ -209,12 +187,8 @@ local_costmap:
           obstacle_min_range: 0.0
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        # Local soft zone tightened (0.30 -> 0.22, 2026-06-12): the inscribed
-        # footprint radius is 0.20 m (hard, physical), so 0.22 leaves only a
-        # 2 cm cost gradient. The wide 0.30 zone made recovery spins/backups
-        # near walls fail their collision check ("Collision Ahead") even when
-        # the maneuver was physically fine. Steeper scaling compensates so
-        # DWB still prefers clearance when it exists.
+        # Inflation radius tightened to 0.22 m (footprint is 0.20 m); the wider 0.30 m zone
+        # caused false "Collision Ahead" failures during recovery near walls.
         cost_scaling_factor: 5.0
         inflation_radius: 0.22
 
@@ -250,12 +224,8 @@ waypoint_follower:
       enabled: true
       waypoint_pause_duration: 200
 
-# bond_timeout 30 s (default 4.0): the Nano's CPU spikes during camera/NN
-# warm-up and EKF load starve the bond heartbeats; with the default the
-# lifecycle manager declares healthy servers dead and DEACTIVATES the stack
-# mid-boot or mid-mission (observed 2026-06-11: bt_navigator rejecting all
-# goals after a load spike). 30 s rides out any realistic spike — a server
-# that is genuinely dead for 30 s has crashed visibly anyway.
+# bond_timeout 30 s: Nano CPU spikes during startup starve bond heartbeats, causing
+# the lifecycle manager to wrongly declare healthy servers dead and deactivate the stack.
 lifecycle_manager_localization:
   ros__parameters:
     use_sim_time: false

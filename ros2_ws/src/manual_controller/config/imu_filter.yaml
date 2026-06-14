@@ -1,31 +1,21 @@
 # imu_filter_madgwick parameters for OAK-D Lite BMI270.
-#
-# Input:  /oak/imu/data   (raw accel + gyro from depthai_ros_driver, remapped
-#                           onto imu/data_raw in eyerobot.launch.py)
-# Output: /oak/imu/fused  (orientation from Madgwick; remapped away from the
-#                           default imu/data, which the driver's raw topic uses)
-#
-# Node is launched in the /oak namespace so relative topics resolve correctly.
-# Key must be /** (not the bare node name): the node runs as
-# /oak/imu_filter_madgwick_node and a bare-name key does not match a namespaced
-# node — the file silently fails to load and use_mag falls back to its default
-# (true), leaving the filter waiting forever for imu/mag.
+# Input: /oak/imu/data (raw accel + gyro); output: /oak/imu/fused (Madgwick orientation).
+# Key must be /** because the node runs namespaced; a bare-name key silently fails to load.
 
 /**:
   ros__parameters:
 
-    # Low gain (0.01): BMI270 has no magnetometer so yaw is unobservable from
-    # accel — trusting gyro heavily avoids drifting yaw corrections from accel
-    # noise during motion.  Equivalent to alpha=0.98 in the old complementary filter.
+    # Low gain (0.01): no magnetometer so yaw is unobservable from accel; trusts gyro heavily.
+    # Equivalent to alpha=0.98 in the old complementary filter.
     gain: 0.01
     zeta: 0.0            # no gyro drift compensation (no magnetometer reference)
     use_mag: false       # BMI270 has no magnetometer
 
-    # Do not publish TF — base_link→imu_link is a static URDF mount.
-    # Emitting it here would give imu_link two parents.
+    # Do not publish TF - base_link to imu_link is a static URDF mount.
+    # Publishing it here would give imu_link two parents.
     publish_tf: false
 
-    world_frame: "enu"   # East-North-Up = ROS REP-103 (Z up, X forward)
+    world_frame: "enu"   # East North Up = ROS REP-103 (Z up, X forward)
 
     remove_gravity_vector: false  # EKF only fuses vyaw, not linear_acceleration
     use_magnetic_field_msg: false

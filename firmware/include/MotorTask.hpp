@@ -20,8 +20,7 @@ private:
     PiController       _pi;
     AppBus&            _bus;
 
-    // Latest commanded speed in rad/s, persisted across loop iterations. A new
-    // micro-ROS command overwrites it; otherwise the loop keeps executing the
-    // last value (until the safety timeout zeroes it on comms loss).
+    // Latest commanded speed in rad/s. A new micro-ROS command overwrites it;
+    // the safety timeout zeroes it on comms loss.
     float              _command_rads = 0.0f;
 };

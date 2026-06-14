@@ -11,7 +11,7 @@ class StrategyFSM(Node):
     def __init__(self):
         super().__init__('strategy_fsm')
         
-        # --- MATCH CONFIGURATION ---
+        # Match configuration
         self.state = 'INIT'
         self.lego_count = 0
         self.MAX_LEGOS = 6
@@ -19,13 +19,13 @@ class StrategyFSM(Node):
         self.current_pitch = 0.0
         self.ramp_status = 'WAITING'
         
-        # --- EXACT COORDINATES (8x8m Arena) ---
+        # Exact coordinates (8x8m Arena)
         self.POSE_BUTTON = self.create_pose(4.20, 7.50, 1.57)    # Facing the button
         self.POSE_DOOR = self.create_pose(8.235, -3.785, -1.570796)  # Door approach from pixel (285, 180), aligned with image vertical
         self.POSE_BASE = self.create_pose(1.005, -0.955, 2.381699)  # Drop-off point, facing arena origin
         self.POSE_RAMP_BASE = self.create_pose(4.985, -6.025, 0.0) # Ramp approach from pixel (220, 224.8), aligned with image horizontal
         
-        # --- PUBLISHERS & SUBSCRIBERS ---
+        # Publishers and subscribers
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)  # remapped into diff_drive_controller
         self.nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         
@@ -37,9 +37,7 @@ class StrategyFSM(Node):
         self.timer = self.create_timer(0.1, self.control_loop)
         self.get_logger().info("FSM Initialized. Ready for the match!")
 
-    # -----------------------------------------------------------
-    # MAIN LOOP (The Brain)
-    # -----------------------------------------------------------
+    # Main loop
     def control_loop(self):
         cmd = Twist()
         
@@ -81,9 +79,7 @@ class StrategyFSM(Node):
             self.state = 'NAVIGATING'
             self.next_state = 'CLIMB_RAMP'
 
-    # -----------------------------------------------------------
-    # SENSOR MANAGEMENT
-    # -----------------------------------------------------------
+    # Sensor management
     def imu_cb(self, msg):
         """ Converts the IMU quaternion to a Pitch angle """
         q = msg.orientation
@@ -119,9 +115,7 @@ class StrategyFSM(Node):
                     self.state = 'NAVIGATING'
                     self.next_state = 'EMPTY_BASE'
 
-    # -----------------------------------------------------------
-    # RAMP LOGIC
-    # -----------------------------------------------------------
+    # Ramp logic
     def handle_ramp(self):
         cmd = Twist()
         if self.ramp_status == 'WAITING':
@@ -141,15 +135,13 @@ class StrategyFSM(Node):
                 
         self.cmd_pub.publish(cmd)
 
-    # -----------------------------------------------------------
-    # NAV2 UTILITIES
-    # -----------------------------------------------------------
+    # Nav2 utilities
     def create_pose(self, x, y, theta):
         pose = PoseStamped()
         pose.header.frame_id = 'map'
         pose.pose.position.x = x
         pose.pose.position.y = y
-        # Angle conversion (Euler) -> Quaternion for Z axis
+        # Convert Euler angle to quaternion for Z axis
         pose.pose.orientation.z = math.sin(theta / 2.0)
         pose.pose.orientation.w = math.cos(theta / 2.0)
         return pose

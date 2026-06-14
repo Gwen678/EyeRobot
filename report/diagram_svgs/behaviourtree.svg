@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1680 980">
+<style>
+  text{font-family:"Inter","Segoe UI",Roboto,-apple-system,Arial,sans-serif}
+  .t{font:700 15px "Inter","Segoe UI",Arial,sans-serif;fill:#0f172a}
+  .t.sm{font-size:13px}
+  .s{font:600 11px "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;fill:#64748b}
+  .s.lg{font-size:12px}
+  .lanelabel{font:800 12px "Inter",Arial,sans-serif;fill:#94a3b8;letter-spacing:.13em;text-transform:uppercase}
+  .elabel{font:600 11.5px "JetBrains Mono",ui-monospace,Menlo,monospace;fill:#334155;paint-order:stroke;stroke:#fff;stroke-width:5px;stroke-linejoin:round;}
+  .elabel.dim{fill:#64748b}
+  .group{fill:none;stroke:#cbd5e1;stroke-dasharray:5 4;}
+  .grouplbl{font:800 12px "Inter",Arial,sans-serif;fill:#64748b;letter-spacing:.06em}
+  .edge{fill:none;stroke:#94a3b8;stroke-width:2;marker-end:url(#ar)}
+  .edge.blue{stroke:#3b82f6;marker-end:url(#arb)}
+  .edge.red{stroke:#ef4444;marker-end:url(#arr)}
+  .edge.tf{stroke:#6366f1;stroke-width:2.2;marker-end:url(#ari)}
+  .edge.green{stroke:#10b981;marker-end:url(#arg)}
+  .edge.dash{stroke-dasharray:6 5}
+  .edge.bidir{marker-start:url(#arrev)}
+  .edge.blue.bidir{marker-start:url(#arbrev)}
+  .edge.plain{marker-end:none}
+  .box{filter:url(#sh)}
+  .sensor {fill:#fffbeb;stroke:#d97706;stroke-width:1.7}
+  .driver {fill:#f0f9ff;stroke:#0284c7;stroke-width:1.7}
+  .percep {fill:#f5f3ff;stroke:#7c3aed;stroke-width:1.7}
+  .estim  {fill:#f0fdfa;stroke:#0d9488;stroke-width:1.7}
+  .nav    {fill:#eff6ff;stroke:#2563eb;stroke-width:1.7}
+  .mission{fill:#ecfdf5;stroke:#059669;stroke-width:1.7}
+  .fw     {fill:#fff7ed;stroke:#ea580c;stroke-width:1.7}
+  .power  {fill:#fef2f2;stroke:#dc2626;stroke-width:1.7}
+  .infra  {fill:#f8fafc;stroke:#475569;stroke-width:1.7}
+  .tf     {fill:#eef2ff;stroke:#4f46e5;stroke-width:1.7}
+</style>
+<defs>
+  <marker id="ar" markerWidth="11" markerHeight="11" refX="8.5" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#94a3b8"/></marker>
+  <marker id="arrev" markerWidth="11" markerHeight="11" refX="0.5" refY="4" orient="auto"><path d="M9,0 L0,4 L9,8 Z" fill="#94a3b8"/></marker>
+  <marker id="arb" markerWidth="11" markerHeight="11" refX="8.5" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#3b82f6"/></marker>
+  <marker id="arbrev" markerWidth="11" markerHeight="11" refX="0.5" refY="4" orient="auto"><path d="M9,0 L0,4 L9,8 Z" fill="#3b82f6"/></marker>
+  <marker id="arr" markerWidth="11" markerHeight="11" refX="8.5" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#ef4444"/></marker>
+  <marker id="ari" markerWidth="11" markerHeight="11" refX="8.5" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#6366f1"/></marker>
+  <marker id="arg" markerWidth="11" markerHeight="11" refX="8.5" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 Z" fill="#10b981"/></marker>
+  <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.12"/></filter>
+</defs>
+
+    <rect class="box infra" x="690" y="20" width="300" height="58" rx="12"/><text class="t" x="840" y="46" text-anchor="middle">Mission_full</text><text class="s" x="840" y="66" text-anchor="middle">Sequence &#183; memory</text>
+    <path class="edge plain" d="M840,78 V98"/>
+    <path class="edge plain" d="M150,98 H1340"/>
+    <path class="edge" d="M150,98 V120"/><path class="edge" d="M360,98 V120"/><path class="edge" d="M585,98 V120"/><path class="edge" d="M840,98 V120"/><path class="edge" d="M1090,98 V120"/><path class="edge" d="M1340,98 V120"/>
+
+    <rect class="box mission" x="60" y="120" width="180" height="64" rx="11"/><text class="t sm" x="150" y="151" text-anchor="middle">Localise</text><text class="s" x="150" y="170" text-anchor="middle">WaitForLocalization</text>
+    <rect class="box mission" x="285" y="120" width="150" height="64" rx="11"/><text class="t sm" x="360" y="151" text-anchor="middle">Fans on</text><text class="s" x="360" y="170" text-anchor="middle">SetMotor</text>
+    <rect class="box infra" x="480" y="120" width="210" height="64" rx="11"/><text class="t sm" x="585" y="151" text-anchor="middle">Zone 3 leg</text><text class="s" x="585" y="170" text-anchor="middle">button + door</text>
+    <rect class="box infra" x="735" y="120" width="210" height="64" rx="11"/><text class="t sm" x="840" y="151" text-anchor="middle">Zone 4 leg</text><text class="s" x="840" y="170" text-anchor="middle">ramp</text>
+    <rect class="box infra" x="990" y="120" width="200" height="64" rx="11"/><text class="t sm" x="1090" y="151" text-anchor="middle">Zone 1 cleanup</text><text class="s" x="1090" y="170" text-anchor="middle">home zone</text>
+    <rect class="box mission" x="1235" y="120" width="210" height="64" rx="11"/><text class="t sm" x="1340" y="151" text-anchor="middle">Deliver &amp; stop</text><text class="s" x="1340" y="170" text-anchor="middle">epilogue</text>
+
+    <path class="edge" d="M240,152 H285"/><path class="edge" d="M435,152 H480"/><path class="edge" d="M690,152 H735"/><path class="edge" d="M945,152 H990"/><path class="edge" d="M1190,152 H1235"/>
+    <path class="edge" d="M585,184 V230"/><path class="edge" d="M840,184 V230"/><path class="edge" d="M1090,184 V230"/><path class="edge" d="M1340,184 V230"/>
+
+    <rect class="box mission" x="470" y="230" width="230" height="50" rx="10"/><text class="t sm" x="585" y="251" text-anchor="middle">Discharge if full</text><text class="s" x="585" y="268" text-anchor="middle">gate &#183; Pre_Button</text>
+    <rect class="box sensor" x="470" y="298" width="230" height="50" rx="10"/><text class="t sm" x="585" y="319" text-anchor="middle">Button &#8594; PushButton</text><text class="s" x="585" y="336" text-anchor="middle">interaction, 5 s</text>
+    <rect class="box sensor" x="470" y="366" width="230" height="50" rx="10"/><text class="t sm" x="585" y="387" text-anchor="middle">Door align</text><text class="s" x="585" y="404" text-anchor="middle">AlignWithWall &#183; laser</text>
+    <rect class="box nav" x="470" y="434" width="230" height="50" rx="10"/><text class="t sm" x="585" y="455" text-anchor="middle">Through door &#8594; Zone 3</text><text class="s" x="585" y="472" text-anchor="middle">GoToPose</text>
+    <rect class="box percep" x="470" y="502" width="230" height="50" rx="10"/><text class="t sm" x="585" y="523" text-anchor="middle">Collect zone 3</text><text class="s" x="585" y="540" text-anchor="middle">detail A &#183; no mid-unload</text>
+    <rect class="box mission" x="470" y="570" width="230" height="50" rx="10"/><text class="t sm" x="585" y="591" text-anchor="middle">Discharge @ base</text><text class="s" x="585" y="608" text-anchor="middle">detail B &#183; Post_Zone3</text>
+    <path class="edge" d="M585,280 V298"/><path class="edge" d="M585,348 V366"/><path class="edge" d="M585,416 V434"/><path class="edge" d="M585,484 V502"/><path class="edge" d="M585,552 V570"/>
+
+    <rect class="box mission" x="725" y="230" width="230" height="50" rx="10"/><text class="t sm" x="840" y="251" text-anchor="middle">Discharge if full</text><text class="s" x="840" y="268" text-anchor="middle">gate &#183; Pre_Ramp</text>
+    <rect class="box sensor" x="725" y="298" width="230" height="50" rx="10"/><text class="t sm" x="840" y="319" text-anchor="middle">Ramp align</text><text class="s" x="840" y="336" text-anchor="middle">AlignWithWall &#183; laser</text>
+    <rect class="box sensor" x="725" y="366" width="230" height="50" rx="10"/><text class="t sm" x="840" y="387" text-anchor="middle">Climb ramp</text><text class="s" x="840" y="404" text-anchor="middle">Pass_Ramp route</text>
+    <rect class="box nav" x="725" y="434" width="230" height="50" rx="10"/><text class="t sm" x="840" y="455" text-anchor="middle">Zone 4 objective</text><text class="s" x="840" y="472" text-anchor="middle">GoToPose</text>
+    <rect class="box percep" x="725" y="502" width="230" height="50" rx="10"/><text class="t sm" x="840" y="523" text-anchor="middle">Collect zone 4</text><text class="s" x="840" y="540" text-anchor="middle">detail A &#183; no mid-unload</text>
+    <rect class="box sensor" x="725" y="570" width="230" height="50" rx="10"/><text class="t sm" x="840" y="591" text-anchor="middle">Aligned ramp return</text><text class="s" x="840" y="608" text-anchor="middle">AlignWithWall + route</text>
+    <rect class="box mission" x="725" y="638" width="230" height="50" rx="10"/><text class="t sm" x="840" y="659" text-anchor="middle">Discharge @ base</text><text class="s" x="840" y="676" text-anchor="middle">detail B &#183; Post_Zone4</text>
+    <path class="edge" d="M840,280 V298"/><path class="edge" d="M840,348 V366"/><path class="edge" d="M840,416 V434"/><path class="edge" d="M840,484 V502"/><path class="edge" d="M840,552 V570"/><path class="edge" d="M840,620 V638"/>
+
+    <rect class="box percep" x="985" y="230" width="210" height="50" rx="10"/><text class="t sm" x="1090" y="251" text-anchor="middle">Collect zone 1</text><text class="s" x="1090" y="268" text-anchor="middle">detail A &#183; per-round unload</text>
+
+    <rect class="box mission" x="1235" y="230" width="210" height="50" rx="10"/><text class="t sm" x="1340" y="251" text-anchor="middle">Discharge @ base</text><text class="s" x="1340" y="268" text-anchor="middle">Final &#183; detail B</text>
+    <rect class="box mission" x="1235" y="298" width="210" height="50" rx="10"/><text class="t sm" x="1340" y="319" text-anchor="middle">Delivery</text><text class="s" x="1340" y="336" text-anchor="middle">push out, 5 s</text>
+    <rect class="box mission" x="1235" y="366" width="210" height="50" rx="10"/><text class="t sm" x="1340" y="387" text-anchor="middle">Fans off</text><text class="s" x="1340" y="404" text-anchor="middle">SetMotor</text>
+    <path class="edge" d="M1340,280 V298"/><path class="edge" d="M1340,348 V366"/>
+
+    <rect class="group" x="70" y="700" width="770" height="250" rx="14"/>
+    <text class="grouplbl" x="90" y="726">A &#8212; Collect_&#10216;zone&#10217;: one round, repeated (FailureIsSuccess skips an empty round)</text>
+    <rect class="box infra" x="100" y="788" width="150" height="54" rx="10"/><text class="t sm" x="175" y="810" text-anchor="middle">Round source</text><text class="s" x="175" y="828" text-anchor="middle">Selector ?</text>
+    <text class="s" x="410" y="760" text-anchor="middle">vision route (known blocks)</text>
+    <rect class="box percep" x="305" y="768" width="210" height="46" rx="10"/><text class="t sm" x="410" y="789" text-anchor="middle">PlanBlockRoute</text><text class="s" x="410" y="805" text-anchor="middle">&#8804; 5 nearest</text>
+    <rect class="box nav" x="305" y="824" width="210" height="46" rx="10"/><text class="t sm" x="410" y="845" text-anchor="middle">GoThroughPlanned</text><text class="s" x="410" y="861" text-anchor="middle">flow-through &#183; 120 s</text>
+    <rect class="box percep" x="305" y="888" width="210" height="44" rx="10"/><text class="t sm" x="410" y="908" text-anchor="middle">SeekBlockForward</text><text class="s" x="410" y="924" text-anchor="middle">discovery &#183; 45 s</text>
+    <rect class="box mission" x="580" y="824" width="220" height="46" rx="10"/><text class="t sm" x="690" y="845" text-anchor="middle">Discharge if full</text><text class="s" x="690" y="861" text-anchor="middle">&#8805; N (home zones)</text>
+    <path class="edge plain" d="M250,800 H278 V791 H305"/><path class="edge plain" d="M250,830 H278 V910 H305"/>
+    <path class="edge" d="M410,814 V824"/>
+    <path class="edge plain" d="M515,847 H580"/>
+
+    <rect class="group" x="860" y="700" width="760" height="250" rx="14"/>
+    <text class="grouplbl" x="880" y="726">B &#8212; Discharge @ base (Sequence)</text>
+    <rect class="box nav" x="884" y="812" width="106" height="54" rx="10"/><text class="t sm" x="937" y="834" text-anchor="middle">GoToPose</text><text class="s" x="937" y="852" text-anchor="middle">base</text>
+    <rect class="box mission" x="1002" y="812" width="106" height="54" rx="10"/><text class="t sm" x="1055" y="834" text-anchor="middle">Fans rev</text><text class="s" x="1055" y="852" text-anchor="middle">/cmd_fans &#8722;</text>
+    <rect class="box mission" x="1120" y="812" width="106" height="54" rx="10"/><text class="t sm" x="1173" y="834" text-anchor="middle">Belt on</text><text class="s" x="1173" y="852" text-anchor="middle">/cmd_belt</text>
+    <rect class="box infra" x="1238" y="812" width="106" height="54" rx="10"/><text class="t sm" x="1291" y="834" text-anchor="middle">Wait</text><text class="s" x="1291" y="852" text-anchor="middle">5 s</text>
+    <rect class="box mission" x="1356" y="812" width="106" height="54" rx="10"/><text class="t sm" x="1409" y="834" text-anchor="middle">Fans fwd</text><text class="s" x="1409" y="852" text-anchor="middle">/cmd_fans +</text>
+    <rect class="box mission" x="1474" y="812" width="120" height="54" rx="10"/><text class="t sm" x="1534" y="834" text-anchor="middle">Reset</text><text class="s" x="1534" y="852" text-anchor="middle">ResetBlockCount</text>
+    <path class="edge" d="M990,839 H1002"/><path class="edge" d="M1108,839 H1120"/><path class="edge" d="M1226,839 H1238"/><path class="edge" d="M1344,839 H1356"/><path class="edge" d="M1462,839 H1474"/>
+  
+</svg>

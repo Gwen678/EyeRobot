@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
 """
-Build the YOLO dataset:
-
-  1. Split the 64 block + 7 ground images into train / val / test BEFORE any
-     augmentation (so augmented copies of one photo never leak across splits).
-  2. Downscale every image to a max side of 768 px (deploy size is 416; this keeps
-     disk + training IO small while leaving headroom).
-  3. Augment train and test with the offline augmenter (val stays clean originals
-     for honest validation).
-
-Layout produced under ml/dataset/:
-  images/{train,val,test}/...   labels/{train,val,test}/...   data.yaml
-
-Single class: 0 = block. Ground images carry empty label files (negatives) so the
-model learns to NOT fire on bare floor -> fewer false positives.
+Build the YOLO dataset: split images into train/val/test, downscale to 768 px max side,
+and augment train/val/test. Ground images use empty labels as negatives to reduce false positives.
 """
 import os
 import glob
@@ -43,8 +31,7 @@ COUNTS_TRAIN = dict(hue=5, sat=5, bri=5, rot=5, trans=5, scale=5, shear=5,
                     persp=5, bgr=5, flipud=1, fliplr=1)
 COUNTS_TEST = dict(hue=2, sat=2, bri=2, rot=2, trans=2, scale=2, shear=2,
                    persp=2, bgr=2, flipud=1, fliplr=1)
-# augment val too so the early-stopping metric is stable (val originals are still
-# disjoint from train originals -> no leakage).
+# Augment val so the early-stopping metric is stable; val originals remain disjoint from train.
 COUNTS_VAL = dict(hue=2, sat=2, bri=2, rot=2, trans=2, scale=2, shear=2,
                   persp=2, bgr=2, flipud=1, fliplr=1)
 

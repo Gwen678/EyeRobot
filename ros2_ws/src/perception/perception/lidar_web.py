@@ -6,21 +6,17 @@ import time
 
 app = Flask(__name__)
 
-# -------------------
-# CONFIG
-# -------------------
-PORT = "/dev/ttyUSB0"   # adapte si besoin
+# Config
+PORT = "/dev/ttyUSB0"   # change if needed
 MAP_SIZE = 1600
-SCALE = 20  # mm → pixels (ajuste selon ta pièce)
+SCALE = 20  # mm to pixels (adjust for your room size)
 
 lidar = RPLidar(PORT)
 
 lock = threading.Lock()
 live_points = []
 
-# -------------------
-# SAFE LIDAR INIT
-# -------------------
+# Safe lidar init
 def init_lidar():
     try:
         lidar.stop()
@@ -34,9 +30,7 @@ def init_lidar():
     lidar.start_motor()
     time.sleep(2)
 
-# -------------------
-# LIDAR LOOP STABLE
-# -------------------
+# Lidar loop
 def lidar_loop():
     global live_points
 
@@ -76,22 +70,16 @@ def lidar_loop():
 
             time.sleep(2)
 
-# -------------------
-# THREAD START
-# -------------------
+# Thread start
 threading.Thread(target=lidar_loop, daemon=True).start()
 
-# -------------------
 # API
-# -------------------
 @app.route("/data")
 def data():
     with lock:
         return jsonify(live_points)
 
-# -------------------
-# WEB UI
-# -------------------
+# Web UI
 HTML = """
 <!DOCTYPE html>
 <html>
@@ -149,9 +137,7 @@ loop();
 def index():
     return render_template_string(HTML)
 
-# -------------------
-# RUN
-# -------------------
+# Run
 if __name__ == "__main__":
     print("Starting LiDAR Web UI...")
     app.run(host="0.0.0.0", port=5000, debug=False)

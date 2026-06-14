@@ -10,42 +10,28 @@ static constexpr uint32_t kPeriodMs = 10;
 static constexpr float    kDt       = kPeriodMs / 1000.0f;
 
 
-// Tuned against the measured plant gain: 100% duty ≈ 11 rad/s ≈ 10 000 ticks/s,
-// so ~100 ticks/s per duty unit. Kp=0.01 → proportional loop gain ≈ 1 (no duty
-// saturation below ~9 rad/s of error; the old 0.1 railed at ±100 for any error
-// over ~1 rad/s and ran the loop as chattering bang-bang). Encoder quantization
-// (1 tick / 10 ms = 100 tps) now maps to ±1 duty unit of noise instead of ±10.
-// Ki=0.04 → integral pole ≈ 4 /s (~0.25 s to absorb the steady-state duty).
+// Tuned for ~100 ticks/s per duty unit (100% duty ~ 11 rad/s ~ 10000 ticks/s).
+// Kp=0.01 gives loop gain ~1; Ki=0.04 gives integral pole ~4/s (~0.25 s to remove steady state duty).
 static constexpr float kKp     =  0.01f;
 static constexpr float kKi     =  0.04f;
 static constexpr float kOutMin = -100.0f;
 static constexpr float kOutMax =  100.0f;
 static constexpr float kStopSetpointEpsilonTps = 1.0f;
-// Slowest speed the drivetrain can actually sustain. Nonzero setpoints below
-// it are floored to it (sign-preserving): the bottom of the host-side accel
-// ramp otherwise commands speeds the wheel physically cannot do, which reads
-// as launch latency. Verified on hardware: 1.0 rad/s turns steadily (with the
-// breakaway feedforward active). Re-measure if it changes:
-//   ros2 topic pub -r 20 /motor_rwheel_cmd std_msgs/msg/Float32 "{data: X}"
-// lowering X until the wheel no longer turns steadily.
+// Minimum speed the drivetrain can sustain. Nonzero setpoints below this are
+// raised to it (sign-preserving) to avoid commanding speeds the wheel cannot do.
 static constexpr float kMinWheelRads = 1.0f;
 
-// Feedforward model, command frame. kDutyPerTps: ~100% duty ≈ 11 rad/s ≈
-// 10 000 tps free speed → ~0.01 duty per tps. kBreakawayDuty: duty needed to
-// start the wheel turning under robot load — TUNE on hardware: too low brings
-// back the delayed-launch symptom, too high makes the slowest crawl jumpy.
+// Feedforward model. kDutyPerTps: ~0.01 duty per tps (100% duty ~ 10000 tps free speed).
+// kBreakawayDuty: duty needed to start the wheel turning under load. Tune on hardware.
 static constexpr float kDutyPerTps    = 0.01f;
 static constexpr float kBreakawayDuty = 15.0f;
 
-// Active braking releases below this measured speed (~0.33 rad/s): braking to
-// a perfect 0 would leave the integrator fighting stiction and measurement
-// quantization (1 tick / 10 ms = 100 tps), causing creep/twitch at standstill.
-// Friction handles the last fraction of a rad/s.
+// Active braking releases below this speed (~0.33 rad/s). Braking all the way to 0
+// causes the integrator to fight static friction and rounding noise, causing slow drift at standstill.
 static constexpr float kBrakeReleaseTps = 300.0f;
 
-// Open-loop sign control (fans/belt) turns ANY nonzero command into full duty,
-// so a single corrupted/duplicated best-effort sample would become a full-power
-// twitch. Ignore sub-threshold magnitudes — well below real commands (~5-8 rad/s).
+// Open loop sign control (fans/belt): ignore commands below this magnitude to avoid
+// a corrupted best effort sample becoming a full-power jerk. Real commands are ~5-8 rad/s.
 static constexpr float kOpenLoopDeadbandRads = 0.5f;
 
 static float clamp_abs(float value, float max_abs)
@@ -102,9 +88,8 @@ void MotorTask::run()
 {
     const size_t idx = static_cast<size_t>(_cfg.id);
     const bool closed_loop = (_cfg.mode == MotorControlMode::ClosedLoopSpeed);
-    // Read the encoder for telemetry whenever the motor has one wired, even in
-    // open-loop mode — otherwise the wheel feedback topics always report 0.
-    // enc pins of 0 are the "no encoder" sentinel used for the fans/belt.
+    // Read the encoder for telemetry even in open loop mode; enc pins of 0
+    // are the "no encoder" sentinel used for the fans/belt.
     const bool has_encoder = (_cfg.enc_a > 0 || _cfg.enc_b > 0);
 
     ESP_ERROR_CHECK(_motor.init());
@@ -130,19 +115,14 @@ void MotorTask::run()
             _command_rads = sanitize_command(cmd.speed_rads, _cfg.max_cmd_rads);
         }
 
-        // Safety net only: zero the held command if the stream stops (comms
-        // loss). During normal operation the teleop node republishes at a fixed
-        // rate, so the command persists and a key for one motor never clears
-        // another.
+        // Safety: zero the held command on comms loss. During normal operation
+        // the teleop node republishes at a fixed rate.
         if ((now - last_command_tick) > command_timeout_ticks) {
             _command_rads = 0.0f;
         }
 
-        // Hard safety gate: while the micro-ROS link is down (boot before the
-        // first agent connection, or any reconnect) force the held command to 0
-        // so the motor stays stopped regardless of the last received command.
-        // This decouples motor safety from the (blocking) reconnect loop — the
-        // robot stays still at 0 the whole time the agent is unreachable.
+        // Hard safety: force command to 0 while the micro-ROS link is down.
+        // Keeps the robot still during boot or reconnect regardless of the last received command.
         if (!_bus.link_up.load(std::memory_order_relaxed)) {
             _command_rads = 0.0f;
         }
@@ -161,18 +141,14 @@ void MotorTask::run()
             fb.speed_rads = measured_tps / encoder_cfg::kTicksPerRad;
         }
 
-        // Compute the desired duty in the COMMAND frame (+ = forward), then apply
-        // the per-wheel motor-polarity correction so +duty physically drives this
-        // wheel forward. Keeping invert_motor out of the PI means the loop sees a
-        // coherent +command/+measured frame (negative feedback) and only the
-        // final actuator step accounts for wiring polarity.
+        // Compute duty in the command frame (+ = forward), then apply per-wheel polarity.
+        // Keeping invert_motor outside the PI ensures consistent +command/+measured frame.
         float duty   = 0.0f;
         bool  stop   = false;
         if (closed_loop) {
             float setpoint_tps = _command_rads * encoder_cfg::kTicksPerRad;
-            // Floor sub-threshold commands to the minimum sustainable speed —
-            // commanded intent becomes immediate motion instead of a stalled
-            // hum at a duty the wheel can't move at. Zero stays zero (stop).
+            // Raise below threshold commands to the minimum sustainable speed.
+            // Zero stays zero (stop).
             if (!is_stop_setpoint(setpoint_tps)) {
                 const float min_tps = kMinWheelRads * encoder_cfg::kTicksPerRad;
                 if (setpoint_tps > 0.0f && setpoint_tps < min_tps) {
@@ -181,21 +157,15 @@ void MotorTask::run()
                     setpoint_tps = -min_tps;
                 }
             }
-            // Commanded direction flipped: drop integral built up for the old
-            // direction so the reversal isn't sluggish unwinding it.
+            // Direction flipped: reset integral to avoid slow reversal from unwinding old state.
             if (setpoint_tps * prev_setpoint_tps < 0.0f) {
                 _pi.reset();
             }
             prev_setpoint_tps = setpoint_tps;
 
             if (is_stop_setpoint(setpoint_tps)) {
-                // Commanded stop → active braking: regulate to 0 while the
-                // wheel still moves (reverse torque ∝ remaining speed), then
-                // release and coast once (nearly) stationary so the integrator
-                // can't hold torque against stiction at standstill. The old
-                // hard-coast-only behaviour guarded against a spin/brake
-                // oscillation that came from the broken loop (bang-bang gains
-                // + inverted left feedback), both fixed since.
+                // Commanded stop: actively brake while the wheel still moves,
+                // then release and coast once nearly stationary to avoid holding torque against static friction.
                 if (std::abs(measured_tps) < kBrakeReleaseTps) {
                     _pi.reset();
                     stop = true;
@@ -203,12 +173,8 @@ void MotorTask::run()
                     duty = _pi.update(0.0f, measured_tps, kDt);
                 }
             } else {
-                // Feedforward + PI trim. Without feedforward the integrator has
-                // to wind the duty up from 0 past the gearbox breakaway on
-                // every launch: the wheel sits still (PWM LED ramping) and then
-                // jumps off with the accumulated integral — visible as
-                // "nothing, nothing, full speed". Seed the duty with the known
-                // plant model instead and let the PI correct the residual.
+                // Feedforward + PI trim. Seed duty from the plant model so the
+                // wheel moves immediately; PI corrects the steady state error.
                 const float dir = (setpoint_tps > 0.0f) ? 1.0f : -1.0f;
                 duty = dir * kBreakawayDuty
                      + kDutyPerTps * setpoint_tps

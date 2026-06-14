@@ -5,9 +5,7 @@ import cv2
 
 app = Flask(__name__)
 
-# ======================
-# ggDEPTHAI PIPELINE v3.6
-# ======================
+# DepthAI pipeline
 pipeline = dai.Pipeline()
 
 
@@ -17,16 +15,12 @@ cam.build()
 video_out = cam.requestOutput((640, 640), dai.ImgFrame.Type.BGR888p)
 queue = video_out.createOutputQueue()
 
-# ======================
-# DEVICE
-# ======================
+# Device
 with dai.Device() as device:
     device.start(pipeline)
     print("DepthAI + Flask ready")
 
-# ======================
-# FRAME GENERATOR
-# ======================
+# Frame generator
 def generate_frames():
     while True:
         frame = queue.get().getCvFrame()
@@ -36,9 +30,7 @@ def generate_frames():
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
-# ======================
-# ROUTES
-# ======================
+# Routes
 @app.route('/video')
 def video():
     return Response(generate_frames(),
@@ -56,9 +48,7 @@ def index():
     </html>
     """
 
-# ======================
-# RUN SERVER
-# ======================
+# Run server
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
 

@@ -46,7 +46,7 @@ else:
 
 
 msg = """
-EyeRobot teleop — keypresses to Twist (wheels) + Float32 (fans/belt).
+EyeRobot teleop: keypresses to Twist (wheels) + Float32 (fans/belt).
 ---------------------------
 Driving:
    w/s : forward / backward
@@ -82,7 +82,7 @@ speedBindings = {
     'l': (1, .9),
 }
 
-# Fans/belt latched toggles — tap to activate, tap same key again to stop.
+# Fans/belt latched toggles: tap to activate, tap same key again to stop.
 # +value = forward, -value = reverse; cmd_vel_bridge applies motor coupling.
 fanBindings = {
     'q': 1.0,   # fans forward
@@ -133,9 +133,7 @@ def main():
     frame_id = node.declare_parameter('frame_id', '').value
     fan_speed = node.declare_parameter('fan_command_rad_s', 8.0).value
     belt_speed = node.declare_parameter('belt_command_rad_s', 8.0).value
-    # diff_drive_controller's ~/cmd_vel_unstamped subscription is remapped to
-    # /cmd_vel in manual_controller.launch.py, so teleop and Nav2 share one
-    # topic and drive the controller directly (no topic_tools relay).
+    # cmd_vel_unstamped is remapped to /cmd_vel so teleop and Nav2 share one topic.
     cmd_vel_topic = node.declare_parameter('cmd_vel_topic', '/cmd_vel').value
     if not stamped and frame_id:
         raise Exception("'frame_id' can only be set when 'stamped' is True")
@@ -160,10 +158,8 @@ def main():
     th = 0.0
     status = 0.0
 
-    # Fans/belt latched state, republished at 5 Hz by a node timer (spinner
-    # thread): the firmware zeroes any motor command not refreshed within
-    # 500 ms (comms-loss safety net), so a single publish per keypress only
-    # produces a half-second pulse instead of a latched motor.
+    # Fans/belt latched state, republished at 5 Hz. The firmware zeroes motors
+    # not refreshed within 500 ms, so a single publish per keypress would not latch.
     latched = {'fans': 0.0, 'belt': 0.0}
 
     def _republish_latched():
@@ -199,15 +195,11 @@ def main():
                 if (status == 14):
                     print(msg)
                 status = (status + 1) % 15
-                # Same stale-twist hazard as the fan keys: adjust the scale
-                # without re-sending the last motion command.
+                # Same stale twist issue as fan keys: adjust scale only, do not resend last move.
                 continue
             elif key in fanBindings.keys():
-                # Latched toggle: same key again = off, other key = flip
-                # direction. The timer above keeps republishing the value.
-                # Do NOT fall through to the twist publish below — that would
-                # re-send the LAST move command (stale x/th) and the robot
-                # would lurch/spin every time a fan key is tapped.
+                # Latched toggle: same key again turns off, other key flips direction.
+                # Use continue to avoid resending the last move command as a twist.
                 target = fanBindings[key] * fan_speed
                 latched['fans'] = 0.0 if latched['fans'] == target else target
                 print('fans: %s' % ('+' if latched['fans'] > 0 else ('-' if latched['fans'] < 0 else 'off')))
@@ -230,7 +222,7 @@ def main():
                     latched['belt'] = 0.0
                     pub_fans.publish(Float32(data=0.0))
                     pub_belt.publish(Float32(data=0.0))
-                    print('STOP — wheels, fans and belt off')
+                    print('STOP: wheels, fans and belt off')
                 if (key == '\x03'):
                     break
 

@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 50  # Hz — above the 30 Hz odom rate so no update is missed
+    update_rate: 50  # Hz - above the 30 Hz odom rate so no update is missed
 
     diff_drive_controller:
       type: diff_drive_controller/DiffDriveController
@@ -13,20 +13,13 @@ diff_drive_controller:
     left_wheel_names:  ["left_wheel_joint"]
     right_wheel_names: ["right_wheel_joint"]
 
-    # Geometry — must match state_estimator_node and cmd_vel_bridge params.
+    # Geometry - must match state_estimator_node and cmd_vel_bridge params.
     wheel_separation: 0.33
     wheel_radius:     0.06
 
     # Velocity + acceleration limits.
-    # max_velocity: 12 rad/s * 0.06 m = 0.72 m/s linear; 0.72 / 0.165 = 4.36 rad/s
-    # angular (raised from 9 rad/s wheels 2026-06-11 — wanted faster than 8).
-    # NOTE: past ~9 rad/s the actual ceiling is the MOTORS (PID saturation at
-    # battery voltage), not this limiter — if commanded speed stops tracking,
-    # that is the hardware talking, not a config bug.
-    # max_acceleration: reach max in ~1 s.
-    # min_acceleration asymmetric: stops ramp down fast so the firmware's
-    # active braking actually engages. Humble caveat: the same limit governs
-    # reverse launches, so backing up starts harder than driving off forward.
+    # max_velocity: 12 rad/s * 0.06 m = 0.72 m/s linear; 0.72 / 0.165 = 4.36 rad/s angular.
+    # min_acceleration is asymmetric so braking engages fast; past ~9 rad/s the motor is the real ceiling.
     linear.x.has_velocity_limits:    true
     linear.x.max_velocity:           0.72
     linear.x.min_velocity:          -0.72
@@ -41,19 +34,16 @@ diff_drive_controller:
     angular.z.max_acceleration:       4.36
     angular.z.min_acceleration:      -4.36
 
-    # Stop the robot if no /cmd_vel arrives within this window. Also the delay
-    # between the last teleop keypress and the stop starting — keep it above
-    # the keyboard auto-repeat interval or held-key driving stutters.
+    # Stop the robot if no /cmd_vel arrives within this window.
+    # Keep above the keyboard auto-repeat interval or held-key driving stutters.
     cmd_vel_timeout: 0.25
 
     # Odometry — same covariances as state_estimator_node.py.
     publish_rate: 30.0
     odom_frame_id:  odom
     base_frame_id:  base_link
-    # false: the EKF owns odom->base_link (every documented session runs
-    # ekf:=true). With true, both publish the TF and it flaps between the wheel
-    # and fused estimates. If you ever run WITHOUT ekf:=true, set this back to
-    # true or there is no odom->base_link at all.
+    # false: the EKF owns odom->base_link; setting true makes both publish the TF and they conflict.
+    # Set to true only if running without the EKF.
     enable_odom_tf: false
     pose_covariance_diagonal:  [0.002, 0.002, 0.0, 0.0, 0.0, 0.1]
     twist_covariance_diagonal: [0.01,  0.0,   0.0, 0.0, 0.0, 0.5]

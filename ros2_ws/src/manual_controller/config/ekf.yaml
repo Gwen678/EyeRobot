@@ -1,21 +1,11 @@
-### robot_localization EKF for EyeRobot — fuses wheel odometry + OAK-D IMU.
-#
-# Division of labour:
-#   * wheel /odom  -> vx only (encoders are good at forward distance)
-#   * IMU          -> vyaw only (gyro is the sole yaw source)
-#
-# two_d_mode: true — only feed states that exist in 2D (x, y, yaw, vx, vyaw).
-# Feeding vroll/vpitch in 2D mode adds noise with no benefit.
-#
-# config vector order (15):
-#   [ x,  y,  z,  roll, pitch, yaw,  vx, vy, vz,  vroll, vpitch, vyaw,  ax, ay, az ]
+### robot_localization EKF for EyeRobot - fuses wheel odometry and OAK-D IMU.
+# Wheel /odom feeds vx only; IMU feeds vyaw only. two_d_mode: true (x, y, yaw, vx, vyaw).
+# Config vector order (15): [ x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az ]
 
 ekf_filter_node:
   ros__parameters:
-    # 15 Hz (67 ms budget) — target for whole-pipeline synchronisation.
-    # 20 Hz still produced "Failed to meet update rate" warnings on the Nano
-    # under RGBD + Nav2 + lego load (36-71 ms observed cycle times, 2026-06-11).
-    # Nav2 controller, BT tick, and IMU are all aligned to this rate.
+    # 15 Hz - target for whole-pipeline synchronization. 20 Hz caused "Failed to meet update rate"
+    # warnings on the Nano under RGBD + Nav2 load. Nav2, BT tick, and IMU aligned to this rate.
     frequency: 15.0
     sensor_timeout: 0.2
     two_d_mode: true
@@ -27,7 +17,7 @@ ekf_filter_node:
     base_link_frame: base_link
     world_frame: odom
 
-    # ── Wheel odometry: vx only ──────────────────────────────────────────────────
+    # Wheel odometry: vx only
     # diff_drive_controller publishes under its own namespace by default.
     odom0: /diff_drive_controller/odom
     odom0_config: [false, false, false,
@@ -39,12 +29,8 @@ ekf_filter_node:
     odom0_relative: false
     odom0_queue_size: 10
 
-    # ── IMU: vyaw only — gyro is the sole yaw source ─────────────────────────────
-    # vroll/vpitch disabled: two_d_mode ignores those states, feeding them adds noise.
-    # imu_filter_madgwick output: accel+gyro with orientation filled in.
-    # EKF only uses angular_velocity.z (vyaw); orientation is available but not fused.
-    # Madgwick output, remapped to imu/fused in eyerobot.launch.py because the
-    # depthai driver itself publishes the RAW samples on /oak/imu/data.
+    # IMU: vyaw only - gyro is the sole yaw source. vroll/vpitch disabled (two_d_mode ignores them).
+    # Madgwick output remapped to imu/fused in eyerobot.launch.py; raw samples on /oak/imu/data.
     imu0: /oak/imu/fused
     imu0_config: [false, false, false,
                   false, false, false,
@@ -53,12 +39,11 @@ ekf_filter_node:
                   false, false, false]
     imu0_differential: false
     imu0_relative: false
-    # 50 Hz IMU vs 15 Hz EKF = 3.3 msgs/cycle. 50 gives ~15× headroom for
-    # executor jitter. Original 100 was sized for 200 Hz IMU; not needed now.
+    # 50 Hz IMU vs 15 Hz EKF = ~3.3 msgs/cycle. Queue of 50 gives ~15x headroom for timing variation.
     imu0_queue_size: 50
     imu0_remove_gravitational_acceleration: false
 
-    # ── Process noise Q (15-state: x y z r p yaw vx vy vz vr vp vyaw ax ay az) ─
+    # Process noise Q (15-state: x y z r p yaw vx vy vz vr vp vyaw ax ay az)
     process_noise_covariance: [0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,
                                0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,
                                0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,

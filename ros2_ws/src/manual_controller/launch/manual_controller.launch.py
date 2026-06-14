@@ -19,8 +19,8 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('manual_controller')
     rviz_config = os.path.join(pkg_share, 'rviz', 'eyerobot.rviz')
 
-    # Expand the xacro to a URDF string at launch time.  robot_description must be
-    # built/installed so $(find robot_description) and package:// mesh URIs resolve.
+    # Expand the xacro to a URDF string at launch time.
+    # robot_description must be built/installed so mesh URIs resolve.
     robot_description = ParameterValue(
         Command([
             FindExecutable(name='xacro'), ' ',
@@ -40,16 +40,14 @@ def generate_launch_description():
             PathJoinSubstitution([
                 FindPackageShare('manual_controller'), 'config', 'diff_drive_controller.yaml']),
         ],
-        # diff_drive_controller subscribes ~/cmd_vel_unstamped, which resolves
-        # to /diff_drive_controller/cmd_vel_unstamped. Remap it to /cmd_vel so
-        # Nav2 and teleop drive the controller directly (no topic_tools relay).
+        # Remap cmd_vel_unstamped to /cmd_vel so Nav2 and teleop drive the
+        # controller directly without a topic_tools relay.
         remappings=[('/diff_drive_controller/cmd_vel_unstamped', '/cmd_vel')],
         output='screen',
     )
 
     # Spawners start after controller_manager is alive (RegisterEventHandler below).
-    # joint_state_broadcaster publishes /joint_states so robot_state_publisher can
-    # animate wheels; diff_drive_controller owns kinematics and odom->base_link TF.
+    # diff_drive_controller owns kinematics and the odom->base_link TF.
     joint_state_broadcaster_spawner = Node(
         package='controller_manager',
         executable='spawner',
@@ -67,18 +65,14 @@ def generate_launch_description():
     return LaunchDescription([
         _arg('rviz',       'false', 'Start RViz with the EyeRobot config (off by default; run on dev PC)'),
         _arg('robot_model','true',  'Publish the URDF (robot_state_publisher) for RViz RobotModel'),
-        # Teleop is NOT spawned here — it reads the keyboard, so it needs its
-        # own terminal (and the container has no xterm). Run separately:
+        # Teleop is NOT spawned here; it needs its own terminal. Run separately:
         #   ros2 run manual_controller manual_controller
-        # Drives wheels (wasd → /cmd_vel, remapped into diff_drive_controller),
-        # fans (q/e) and belt (r/t); space stops everything.
 
-        # ── Optional EKF (robot_localization) ────────────────────────────────
-        # When enabled, set enable_odom_tf: false in diff_drive_controller.yaml
-        # so the EKF — not diff_drive_controller — owns the odom->base_link TF.
+        # Optional EKF (robot_localization)
+        # When enabled, set enable_odom_tf: false so the EKF owns the odom->base_link TF.
         _arg('ekf', 'false', 'Run robot_localization EKF fusing wheel odom + IMU'),
 
-        # ── ros2_control: controller manager + controllers ────────────────────
+        # ros2_control: controller manager + controllers
         controller_manager,
 
         RegisterEventHandler(
@@ -88,14 +82,9 @@ def generate_launch_description():
             )
         ),
 
-        # ── Robot description / TF ────────────────────────────────────────────
-        # robot_state_publisher converts joint states (from joint_state_broadcaster)
-        # into link TFs; it does NOT conflict with odom->base_link (owned by
-        # diff_drive_controller or the EKF).
-        # robot_description is remapped to a dedicated topic: the depthai
-        # driver's oak_state_publisher ALSO publishes a (camera-only) URDF on
-        # /robot_description, and with two latched publishers the last writer
-        # wins — Foxglove was rendering the camera instead of the robot.
+        # Robot description / TF
+        # Remapped to /eyerobot/robot_description to avoid collision with the
+        # depthai oak_state_publisher which also publishes on /robot_description.
         Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
@@ -106,7 +95,7 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('robot_model')),
         ),
 
-        # ── Visualization ─────────────────────────────────────────────────────
+        # Visualization
         Node(
             package='rviz2',
             executable='rviz2',
@@ -116,7 +105,7 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # ── Optional EKF ─────────────────────────────────────────────────────
+        # Optional EKF
         Node(
             package='robot_localization',
             executable='ekf_node',
@@ -127,24 +116,21 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('ekf')),
         ),
 
-        # ── Fans/belt bridge (wheels handled by diff_drive_controller) ────────
+        # Fans/belt bridge (wheels handled by diff_drive_controller)
         Node(
             package='manual_controller',
             executable='cmd_vel_bridge',
             name='cmd_vel_bridge',
             output='screen',
             parameters=[{
-                # Physical direction calibration (2026-06-11): positive
-                # /cmd_fans must SUCK blocks in (BT Fans_On, teleop 'q');
-                # with the default +1 signs the fans ran inverted. Flipping
-                # both keeps the mirrored-mount coupling (lfan = -rfan) and
-                # automatically fixes the discharge too (-FAN_SPEED = blow out).
+                # Both signs flipped so positive /cmd_fans sucks blocks in.
+                # Keeps the mirrored mount coupling (lfan = -rfan) and fixes discharge.
                 'rfan_command_sign': -1.0,
                 'lfan_command_sign': -1.0,
             }],
         ),
 
-        # ── Foxglove: relay /robot_description TRANSIENT_LOCAL → VOLATILE ─────
+        # Foxglove: relay /robot_description TRANSIENT_LOCAL to VOLATILE
         Node(
             package='manual_controller',
             executable='urdf_relay',
@@ -153,10 +139,8 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('robot_model')),
         ),
 
-        # ── Trajectory paths for RViz/Foxglove (visualization only) ──────────
-        # Two odom->Path relays so the fused and raw trajectories can be
-        # compared on the same 3D panel: /ekf_path (EKF) vs /wheel_path (wheel
-        # odometry). The wheel one always runs; the EKF one needs ekf:=true.
+        # Trajectory paths for RViz/Foxglove (visualization only)
+        # Publishes /ekf_path and /wheel_path for comparing fused vs raw odometry.
         Node(
             package='manual_controller',
             executable='odom_to_path',

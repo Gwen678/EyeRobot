@@ -1,30 +1,7 @@
-"""Nav2 localization + (optional) navigation for EyeRobot.
+"""Nav2 localization and optional full navigation for EyeRobot.
 
-Wraps the official nav2_bringup launch files instead of instantiating nodes
-manually — more robust lifecycle management, battle-tested parameter loading.
-
+Wraps nav2_bringup launch files (localization_launch.py and navigation_launch.py).
 Run AFTER: ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true
-
-Localization only (AMCL → map->odom TF, you drive manually):
-  ros2 launch manual_controller nav2.launch.py
-
-Full navigation stack (adds global planner + local DWB controller):
-  ros2 launch manual_controller nav2.launch.py full_nav:=true
-
-Choose a map:
-  ros2 launch manual_controller nav2.launch.py \\
-    map:=/eyerobot/ros2_ws/maps/room_8x8.yaml
-
-Available maps (inside the container):
-  /eyerobot/ros2_ws/maps/clean_room_8x8.yaml  (default — GIMP-cleaned, corrected origin)
-  /eyerobot/ros2_ws/maps/room_8x8.yaml        (original SLAM output, origin baseline)
-
-On startup AMCL initialises at (0,0,0). If the robot is elsewhere, publish an
-initial pose via Foxglove (/initialpose) or the 2D Pose Estimate tool.
-
-NOTE: full_nav:=true publishes /cmd_vel (Twist); diff_drive_controller's
-subscription is remapped to /cmd_vel in manual_controller.launch.py, so Nav2
-drives the wheels directly — no relay needed.
 """
 import os
 
@@ -53,9 +30,8 @@ def generate_launch_description():
                               description='Add global planner + local controller '
                                           '(requires /cmd_vel relay to diff_drive_controller)'),
 
-        # ── AMCL + map_server ─────────────────────────────────────────────────
-        # nav2_bringup/localization_launch.py manages map_server + amcl via the
-        # Nav2 lifecycle manager. Publishes map->odom TF from /scan + /map.
+        # AMCL + map_server
+        # nav2_bringup/localization_launch.py manages map_server and amcl via the Nav2 lifecycle manager.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(localization_launch),
             launch_arguments={
@@ -66,9 +42,8 @@ def generate_launch_description():
             }.items(),
         ),
 
-        # ── Full navigation stack ─────────────────────────────────────────────
-        # nav2_bringup/navigation_launch.py adds controller_server,
-        # planner_server, behavior_server, bt_navigator, waypoint_follower.
+        # Full navigation stack
+        # nav2_bringup/navigation_launch.py adds controller_server, planner_server, bt_navigator, and others.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(navigation_launch),
             launch_arguments={

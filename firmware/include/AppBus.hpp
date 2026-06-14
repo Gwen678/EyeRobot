@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <cstddef>
 
-// ── Motor identity ────────────────────────────────────────────────────────────
+// Motor identity
 
 enum class MotorID : uint8_t {
     RIGHT_WHEEL = 0,
@@ -26,12 +26,9 @@ enum class MotorControlMode : uint8_t {
     OpenLoopSign,
 };
 
-// ── Per-motor hardware configuration ─────────────────────────────────────────
-//
-// Single source of truth: pins come from pins.hpp, LEDC channels are assigned
-// here (one channel per motor, all sharing LEDC_TIMER_0 at 20 kHz).
-// Belt and wheels use encoder speed PI. Fans are intentionally encoder-less and
-// therefore use open-loop sign control.
+// Per-motor hardware configuration
+// Pins from pins.hpp; LEDC channels assigned here (one per motor, LEDC_TIMER_0 at 20 kHz).
+// Belt and wheels use encoder speed PI; fans are encoder-less and use open loop sign control.
 
 struct MotorConfig {
     MotorID        id;
@@ -47,24 +44,17 @@ struct MotorConfig {
     float          max_cmd_rads;
     float          open_loop_duty_percent;
     uint32_t       command_timeout_ms;
-    // Negate the encoder count in firmware (e.g. a mirror-mounted wheel whose
-    // encoder counts down when the robot drives forward) so the published
-    // ticks/speed read positive on forward motion. Entries that omit it default
-    // to false; host-side feedback signs can then stay +1.
+    // Negate encoder counts so published ticks/speed read positive on forward motion.
+    // Default false; set true for wheels whose raw encoder counts negative when driving forward.
     bool           invert_encoder;
-    // Negate the duty before setSpeed so a POSITIVE command drives this wheel
-    // FORWARD regardless of its motor wiring polarity (mirror-mounted wheels
-    // spin opposite motor directions for the same robot direction). Together
-    // with invert_encoder (forward reads positive) this makes the whole chain
-    // coherent: +command = forward, +measured = forward, PI is negative
-    // feedback. All sign handling lives on the MCU; the host sends a clean
-    // +forward/-backward speed. Entries that omit it default to false.
+    // Negate duty so a positive command drives the wheel forward regardless of wiring polarity.
+    // With invert_encoder both positive, the PI chain is consistent. Default false.
     bool           invert_motor;
 };
 
 static constexpr float kDefaultMaxCmdRads = 20.0f;
-// Wheels run closed-loop PI speed control (open_loop_duty_percent unused for
-// them). Belt and fans stay open-loop sign control at full duty.
+// Wheels run closed loop PI speed control (open_loop_duty_percent unused for them).
+// Belt and fans stay open loop sign control at full duty.
 static constexpr float kFanDutyPercent = 100.0f;
 static constexpr float kWheelOpenLoopDuty = 100.0f;
 static constexpr float kBeltOpenLoopDuty = 100.0f;
@@ -79,9 +69,8 @@ static constexpr MotorConfig kMotorConfigs[MOTOR_COUNT] = {
       RIGHT_WHEEL_ENCODER_A_PIN, RIGHT_WHEEL_ENCODER_B_PIN,
       kDefaultMaxCmdRads, kWheelOpenLoopDuty, kDefaultCommandTimeoutMs,
       /*invert_encoder=*/false, /*invert_motor=*/false },
-      // CALIBRATION BASELINE (no inversions). Per-wheel rule: if +cmd RUNS AWAY,
-      // flip invert_encoder; once it SETTLES, if it settled going BACKWARD, flip
-      // BOTH flags. Stable pairs are (false,false) and (true,true).
+      // Calibration baseline. If +cmd runs away flip invert_encoder; if it then goes backward
+      // flip both flags. Stable pairs are (false,false) and (true,true).
 
     { MotorID::LEFT_WHEEL,
       MotorControlMode::ClosedLoopSpeed,
@@ -91,13 +80,8 @@ static constexpr MotorConfig kMotorConfigs[MOTOR_COUNT] = {
       LEFT_WHEEL_ENCODER_A_PIN, LEFT_WHEEL_ENCODER_B_PIN,
       kDefaultMaxCmdRads, kWheelOpenLoopDuty, kDefaultCommandTimeoutMs,
       /*invert_encoder=*/true, /*invert_motor=*/true },
-      // Mirror-mounted: +duty drove this wheel BACKWARD (invert_motor) and the
-      // raw encoder counts NEGATIVE on robot-forward (proven by the host having
-      // needed left_feedback_sign=-1), so invert_encoder=true. The earlier
-      // (false,true) pair was POSITIVE feedback — forward commands railed the
-      // duty and the wheel ran away to free speed (~11 rad/s) instead of
-      // tracking. With (true,true) the published ticks read + on forward, so
-      // the host-side left_feedback_sign is now +1.
+      // Mirrored wheel: +duty drove it backward and raw encoder counted negative on forward.
+      // (true,true) gives consistent signs; host-side left_feedback_sign is now +1.
 
     { MotorID::BELT,
       MotorControlMode::OpenLoopSign,
@@ -124,7 +108,7 @@ static constexpr MotorConfig kMotorConfigs[MOTOR_COUNT] = {
       kDefaultMaxCmdRads, kFanDutyPercent, kDefaultCommandTimeoutMs },
 };
 
-// ── Bus message types ─────────────────────────────────────────────────────────
+// Bus message types
 
 struct MotorCmd {
     float speed_rads;   // setpoint in rad/s (negative = backward)
@@ -135,19 +119,15 @@ struct MotorFeedback {
     float   speed_rads; // measured / simulated speed in rad/s
 };
 
-// ── Application bus ───────────────────────────────────────────────────────────
-//
+// Application bus
 // One channel pair per motor, indexed by MotorID.
-// MicroRosTask writes to_motor[id], MotorTask reads to_motor[id].
-// MotorTask writes from_motor[id], MicroRosTask reads from_motor[id].
+// MicroRosTask writes to_motor[id]; MotorTask writes from_motor[id].
 
 struct AppBus {
     Channel<MotorCmd,      4> to_motor[MOTOR_COUNT];
     Channel<MotorFeedback, 4> from_motor[MOTOR_COUNT];
 
-    // True only while the micro-ROS agent link is fully established. Every motor
-    // is hard-gated to 0 whenever this is false — at boot before the first
-    // connection and throughout any reconnect — so a powered-but-disconnected
-    // ESP never drives the motors. MicroRosTask owns writes; MotorTasks read it.
+    // True while the micro-ROS agent link is up. Motors are hard-gated to 0 when false,
+    // so a disconnected ESP never drives motors. MicroRosTask owns writes; MotorTasks read.
     std::atomic<bool> link_up{false};
 };

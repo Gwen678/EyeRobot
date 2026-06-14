@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""Relay nav_msgs/Odometry -> nav_msgs/Path for RViz.
+"""Relay nav_msgs/Odometry to nav_msgs/Path for RViz.
 
-robot_localization's EKF publishes only nav_msgs/Odometry, which RViz draws as a
-trail of arrows. This accumulates its poses into a nav_msgs/Path so the fused
-trajectory can be shown as a continuous line alongside the encoder/IMU comparison
-paths (/path_encoder, /path_imu). Pure visualization: no TF, no math.
+Accumulates EKF poses into a Path so the fused trajectory shows as a continuous line.
 """
 from __future__ import annotations
 
@@ -30,14 +27,14 @@ class OdomToPathNode(Node):
         self._path = Path()
         self._pub = self.create_publisher(Path, path_topic, 10)
         # Human-readable pose: x (m), y (m), z = yaw (deg).
-        #   ros2 topic echo /pose2d_ekf   (or /pose2d_wheel for the wheel instance)
+        # Echo /pose2d_ekf or /pose2d_wheel to read it.
         self._pose2d_pub = self.create_publisher(Vector3, pose2d_topic, 10)
         self.create_subscription(Odometry, odom_topic, self._cb, 10)
         self.get_logger().info(
-            f'Relaying {odom_topic} -> {path_topic} as nav_msgs/Path.')
+            f'Relaying {odom_topic} to {path_topic} as nav_msgs/Path.')
 
     def _cb(self, msg: Odometry) -> None:
-        # The Path inherits the odometry frame (odom); each pose is one EKF sample.
+        # Path uses the odometry frame; each pose is one EKF sample.
         self._path.header = msg.header
         ps = PoseStamped()
         ps.header = msg.header

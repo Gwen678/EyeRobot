@@ -15,8 +15,8 @@ Thread::~Thread()
 
 void Thread::start()
 {
-    // A failed xTaskCreate (out of heap) must not pass silently — a task that
-    // never spawns looks identical to a dead motor / dropped micro-ROS link.
+    // A failed xTaskCreate must not pass silently; a task that
+    // never spawns looks identical to a dead motor or dropped micro-ROS link.
     if (xTaskCreate(taskEntry, _name, _stack_size, this, _priority, &_handle) != pdPASS) {
         _handle = nullptr;
         ESP_LOGE("thread", "xTaskCreate failed for '%s' (stack=%u words): out of heap",

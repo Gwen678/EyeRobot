@@ -1,31 +1,9 @@
 #!/usr/bin/env python3
-"""block_tracker_node.py — Vision detection + block-tracking FSM in one node.
+"""block_tracker_node.py - Vision detection + block tracking FSM in one node.
 
 Runs the OAK-D color+depth pipeline internally (no separate camera.py needed).
-
-States
-------
-SEARCH  no block visible → spin in place
-TRACK   block visible    → P-steer on camera centroid, drive forward
-AVOID   obstacle ahead   → P-steer toward the clearer side
-
-Publications
-------------
-/motor_lwheel_cmd              std_msgs/Float32   rad/s left  wheel
-/motor_rwheel_cmd              std_msgs/Float32   rad/s right wheel
-/eyerobot/camera/annotated_image  sensor_msgs/Image  annotated RGB frame
-/eyerobot/vision/lego_target   geometry_msgs/Point  camera-frame centroid
-/block_tracker/state           std_msgs/String    FSM state
-/block_tracker/front_dist      std_msgs/Float32   front obstacle (m)
-/block_tracker/target_x        std_msgs/Float32   centroid x error (m)
-
-Subscriptions
--------------
-/scan  sensor_msgs/LaserScan
-
-NOTE: oak_imu_cube also opens the OAK-D device. Do not run ekf:=true
-alongside this node — they would conflict over the same USB device.
-Run with: ekf:=false
+States: SEARCH (spin), TRACK (P-steer on centroid), AVOID (P-steer on lidar).
+NOTE: Do not run ekf:=true alongside this node; both would open the same USB device.
 """
 
 import math
@@ -50,26 +28,25 @@ try:
 except ImportError:
     dai = None
 
-# ── Detection config ───────────────────────────────────────────────────────
+# Detection config
 LOWER_COLOR = np.array([0,   150,   0])   # HSV lower bound (green-ish by default)
-UPPER_COLOR = np.array([179, 255, 255])   # HSV upper bound — tune for your block colour
+UPPER_COLOR = np.array([179, 255, 255])   # HSV upper bound - tune for your block color
 IMG_W, IMG_H = 640, 480
 FOCAL = 470.0                              # rough OAK-D Lite focal length (pixels)
 
-# ── FSM / control tuning ───────────────────────────────────────────────────
+# FSM / control tuning
 BASE_SPEED     = 10.0
 SEARCH_SPIN    =  5.0
 KP_VISION      = 60.0
 KP_AVOID       = 10.0
 AVOID_SPEED    =  5.0
 OBSTACLE_DIST  =  0.50   # m
-FRONT_CONE     =   20    # scan indices each side of centre
+FRONT_CONE     =   20    # scan indices each side of center
 SIDE_CONE      =   80
 TARGET_TIMEOUT =  0.5    # s
-# ───────────────────────────────────────────────────────────────────────────
 
 
-# ── Centroid tracker ───────────────────────────────────────────────────────
+# Centroid tracker
 
 class CentroidTracker:
     def __init__(self, max_disappeared=15, max_distance=100):
@@ -122,7 +99,7 @@ class CentroidTracker:
         return self.objects
 
 
-# ── Flask webserver (debug stream on :5000) ────────────────────────────────
+# Flask webserver (debug stream on :5000)
 
 _flask_app   = Flask(__name__)
 _latest_frame = None
@@ -146,7 +123,7 @@ def _feed():
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
-# ── Main node ──────────────────────────────────────────────────────────────
+# Main node
 
 class BlockTrackerNode(Node):
 
@@ -196,11 +173,11 @@ class BlockTrackerNode(Node):
 
         self.get_logger().info('BlockTracker ready  state=SEARCH  stream=:5000/feed')
 
-    # ── Camera init ────────────────────────────────────────────────────────
+    # Camera init
 
     def _init_camera(self):
         if dai is None:
-            self.get_logger().error('depthai not found — vision disabled')
+            self.get_logger().error('depthai not found - vision disabled')
             return
         pipeline = dai.Pipeline()
 
@@ -224,7 +201,7 @@ class BlockTrackerNode(Node):
         self._q_rgb   = device.getOutputQueue('rgb',   maxSize=4, blocking=False)
         self._q_depth = device.getOutputQueue('depth', maxSize=4, blocking=False)
 
-    # ── Camera / detection callback ────────────────────────────────────────
+    # Camera / detection callback
 
     def _camera_cb(self):
         global _latest_frame
@@ -287,12 +264,12 @@ class BlockTrackerNode(Node):
             _latest_frame = frame.copy()
         self._img_pub.publish(self._bridge.cv2_to_imgmsg(frame, 'bgr8'))
 
-    # ── Lidar callback ─────────────────────────────────────────────────────
+    # Lidar callback
 
     def _scan_cb(self, msg: LaserScan):
         self._scan = msg
 
-    # ── Lidar helpers ──────────────────────────────────────────────────────
+    # Lidar helpers
 
     def _valid(self, vals):
         return [x for x in vals if not math.isnan(x) and not math.isinf(x) and x > 0.1]
@@ -313,7 +290,7 @@ class BlockTrackerNode(Node):
         left  = self._valid(r[c + FRONT_CONE: c + FRONT_CONE + SIDE_CONE])
         return KP_AVOID * ((min(right) if right else 5.0) - (min(left) if left else 5.0))
 
-    # ── Motor output ───────────────────────────────────────────────────────
+    # Motor output
 
     def _motors(self, left: float, right: float):
         self._l_pub.publish(Float32(data=float(left)))
@@ -322,7 +299,7 @@ class BlockTrackerNode(Node):
     def _stop(self):
         self._motors(0.0, 0.0)
 
-    # ── FSM callback ───────────────────────────────────────────────────────
+    # FSM callback
 
     def _fsm_cb(self):
         now = self.get_clock().now().nanoseconds * 1e-9

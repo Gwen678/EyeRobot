@@ -1,14 +1,5 @@
 # depthai_ros_driver camera node parameters for EyeRobot (OAK-D Lite).
-#
-# Pipeline type RGBD publishes both RGB and aligned stereo depth, consumed by
-# lego_vision_node (manual_controller) for detection. A bare DEPTH pipeline
-# with no connected output trips a device-side assert ("No output of
-# StereoDepth is connected/used!") and kills the component container.
-# The IMU is enabled independently of the pipeline type via camera.i_enable_imu.
-#
-# Verify parameter names against your installed depthai-ros version:
-#   ros2 param list /oak
-# Values here are tested against depthai_ros_driver 2.7.x (ROS 2 Humble apt).
+# Pipeline type RGBD is required; a bare DEPTH pipeline kills the container. Tested against depthai_ros_driver 2.7.x.
 
 /**:
   ros__parameters:
@@ -16,49 +7,35 @@
     camera:
       i_pipeline_type: "RGBD"   # RGB + StereoDepth streams; IMU is independent
       i_enable_imu: true
-      i_nn_type: "none"         # no neural network — skip default blob download
+      i_nn_type: "none"         # no neural network; skip default blob download
 
-    # RGB stream for lego_vision_node: low rate/resolution to keep the Nano's
-    # CPU and USB bandwidth available for the IMU + lidar pipelines.
-    # 5 fps (down from 10, 2026-06-12): at 0.3 m/s max speed the robot moves
-    # 6 cm between frames — ample for block detection, and it halves the
-    # camera pipeline + HSV detection CPU that was starving the EKF.
+    # RGB stream for lego_vision_node: 5 fps keeps CPU and USB bandwidth free for IMU and lidar.
+    # At 0.3 m/s the robot moves ~6 cm between frames, which is enough for block detection.
     rgb:
       i_publish_topic: true
       i_fps: 5.0
       i_width: 640
       i_height: 480
 
-    # Stereo depth, aligned to the RGB frame so pixel (u,v) in the RGB image
-    # indexes the same point in the depth image (lego_vision_node relies on this).
+    # Stereo depth aligned to the RGB frame so each RGB pixel maps to the same depth pixel.
     stereo:
       i_publish_topic: true
       i_fps: 5.0
       i_align_depth: true
 
     imu:
-      # 50 Hz (down from 100, 2026-06-11): pipeline synchronised to 15 Hz EKF.
-      # 50 Hz gives 3.3 IMU samples per EKF cycle — enough for accurate yaw
-      # integration (gyro-only path). Further reduction risks integration gaps
-      # at fast turns; do not go below 30 Hz.
+      # 50 Hz gives ~3 IMU samples per EKF cycle, enough for yaw integration.
+      # Do not go below 30 Hz or integration gaps appear at fast turns.
       i_acc_freq: 50
       i_gyro_freq: 50
       i_message_type: "IMU"                    # sensor_msgs/Imu
       i_publish_topic: true
-      i_batch_report_threshold: 1              # minimal batching for low latency
+      i_batch_report_threshold: 1              # minimal batching for low delay
       i_max_batch_reports: 10
-      # Valid values: COPY, LINEAR_INTERPOLATE_GYRO, LINEAR_INTERPOLATE_ACCEL —
-      # anything else aborts the container with a map .at() error.
-      # MUST stay COPY on depthai-ros 2.7.0–2.7.4: the LINEAR_INTERPOLATE_*
-      # paths have memory corruption with the 6-axis BMI270 (no rotation/mag
-      # queues) that silently discards ALL IMU output under stereo load —
-      # publisher exists, zero messages, no errors. This is why the IMU "died"
-      # when the pipeline switched RGB→RGBD (2026-06-10/11 debugging session).
-      # github.com/luxonis/depthai-ros/issues/330, fixed in 2.7.5 (PR #357) —
-      # interpolation may be restored after upgrading the driver in the image.
+      # Must stay COPY on depthai-ros 2.7.0-2.7.4: LINEAR_INTERPOLATE_* silently drops all IMU
+      # output under stereo load with the BMI270. Fixed in 2.7.5 (github issue #330).
       i_sync_method: "COPY"
       i_get_base_device_timestamp: false
-      # Re-sync the device→ROS time base on every message: with false, IMU
-      # stamps drift behind the wheel-odom stamps and robot_localization
-      # discards any IMU measurement older than the last processed odom update.
+      # Re-sync device to ROS time base on every message; with false, IMU stamps drift behind
+      # wheel odom stamps and robot_localization discards stale IMU messages.
       i_update_ros_base_time_on_ros_msg: true

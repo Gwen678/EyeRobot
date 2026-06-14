@@ -4,9 +4,7 @@ import random
 from rplidar import RPLidar
 import time
 
-# -------------------
-# CONFIG
-# -------------------
+# Config
 PORT = "/dev/ttyUSB0"
 
 MAP_SIZE = 1600
@@ -15,16 +13,12 @@ N_PARTICLES = 150
 
 lidar = RPLidar(PORT)
 
-# -------------------
-# MAP (binaire: obstacle=1)
-# -------------------
+# Map (binary: obstacle=1)
 import cv2
 map_img = cv2.imread("/home/eyerobot/EyeRobot/ros2_ws/maps/map.png", 0)
 _, map_bin = cv2.threshold(map_img, 100, 1, cv2.THRESH_BINARY_INV)
 
-# -------------------
-# PARTICLES
-# -------------------
+# Particles
 particles = []
 
 def init_particles():
@@ -40,9 +34,7 @@ def init_particles():
 
 init_particles()
 
-# -------------------
-# SCAN
-# -------------------
+# Scan
 def get_scan():
     lidar.connect()
     lidar.start_motor()
@@ -51,9 +43,7 @@ def get_scan():
     for scan in lidar.iter_scans():
         return [(a, d) for (_, a, d) in scan if d > 50]
 
-# -------------------
-# SCORE PARTICLE
-# -------------------
+# Score particle
 def score_particle(p, scan):
     x, y, theta = p
     score = 0
@@ -77,9 +67,7 @@ def score_particle(p, scan):
 
     return score
 
-# -------------------
-# RESAMPLE
-# -------------------
+# Resample
 def resample(particles, weights):
     new_particles = []
 
@@ -92,7 +80,7 @@ def resample(particles, weights):
     for i in idx:
         x, y, t = particles[i]
 
-        # bruit
+        # noise
         x += random.uniform(-0.05, 0.05)
         y += random.uniform(-0.05, 0.05)
         t += random.uniform(-2, 2)
@@ -101,9 +89,7 @@ def resample(particles, weights):
 
     return new_particles
 
-# -------------------
-# LOCALIZATION LOOP
-# -------------------
+# Localization loop
 def run():
 
     global particles

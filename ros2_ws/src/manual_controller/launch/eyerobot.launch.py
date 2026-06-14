@@ -1,56 +1,7 @@
 """Top-level EyeRobot launch: odometry stack + OAK-D IMU + camera streams.
 
-The single depthai_ros_driver instance owns the OAK-D device and publishes
-(RGBD pipeline, see config/depthai_camera.yaml):
-  /oak/imu/data           raw accel+gyro (factory-calibrated frame)
-  /oak/rgb/image_raw      640x480 @ 10 fps colour feed
-  /oak/stereo/image_raw   depth aligned to the RGB frame
-
-IMU chain: /oak/imu/data → imu_remap → /oak/imu/data_raw → Madgwick →
-/oak/imu/fused (the topic ekf.yaml's imu0 points at).
-
-Note: depthai_ros_driver opens the OAK-D device exclusively.  Direct depthai SDK
-access (detect_lego.py, oak_view.py, perception/lego_vision_node.py) cannot run
-simultaneously — vision consumers must subscribe to the /oak/* topics instead
-(that is what manual_controller/lego_vision_node.py does, see lego:=true).
-
-Run in its own terminal (or tmux window) — no teleop, no RViz.
-Those need a real TTY / separate session:
-  ros2 run manual_controller manual_controller   # driving (wasd) + fans (q/e) + belt (r/t)
-  rviz2 -d <path>/eyerobot.rviz                  # on PC
-
-(teleop_twist_keyboard also works out of the box — diff_drive_controller's
-subscription is remapped to /cmd_vel in manual_controller.launch.py, so
-anything publishing /cmd_vel, Nav2 included, drives the wheels directly.)
-
-Optional flags:
-  lidar:=true   Start the RPLidar A1M8. Off by default.
-  slam:=true    Start SLAM Toolbox (requires lidar:=true). Publishes map→odom TF.
-  ekf:=true     Run robot_localization EKF fusing wheel odom + IMU.
-                Also set enable_odom_tf: false in diff_drive_controller.yaml
-                so the EKF — not diff_drive_controller — owns odom→base_link TF.
-  lego:=true    Start the ROS-native Lego vision detector node
-                (manual_controller/lego_vision_node.py — subscribes to the
-                /oak/rgb + /oak/stereo topics above, publishes
-                /eyerobot/vision/lego_target and /eyerobot/vision/lego_markers_map).
-  bt:=true      Start the mission behavior tree (autonomous_controller package,
-                also runnable as: ros2 run autonomous_controller behavior_tree).
-                Needs Nav2 running (nav2.launch.py full_nav:=true); it waits
-                for the navigate_through_poses server and then for AMCL
-                localization before starting the mission. AMCL self-
-                initializes at the base pose (nav2_params.yaml
-                set_initial_pose) — place the robot there; Foxglove Set-pose
-                is only needed when starting elsewhere.
-  bt_mission:=loop|test_center   Mission variant (default loop).
-                loop = endless search/collect/unload cycle (turn right, find
-                blocks, flow through them, unload at base every 10 blocks);
-                test_center = Nav2 smoke test, one goal at the arena center.
-
-Full mapping session with vision:
-  ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true lego:=true
-
-Save map after driving:
-  ros2 run nav2_map_server map_saver_cli -f ~/map
+Flags: lidar, slam, ekf, lego (detector:=yolo|hsv), bt, foxglove, tracker.
+IMU chain: /oak/imu/data to imu_remap to /oak/imu/data_raw to Madgwick to /oak/imu/fused.
 """
 import os
 
@@ -90,9 +41,8 @@ def generate_launch_description():
                               description='Start block tracker FSM'),
         DeclareLaunchArgument('lidar', default_value='false',
                               description='Start the RPLidar A1M8'),
-        # /dev/rplidar is the udev symlink (docker/99-eyerobot-usb.rules) that
-        # tracks the lidar regardless of ttyUSB enumeration order. Fall back to
-        # lidar_port:=/dev/ttyUSBn if the rules are not installed yet.
+        # /dev/rplidar is the udev symlink that tracks the lidar regardless of ttyUSB order.
+        # Use lidar_port:=/dev/ttyUSBn if the udev rules are not installed.
         DeclareLaunchArgument('lidar_port', default_value='/dev/rplidar',
                               description='RPLidar serial device'),
         DeclareLaunchArgument('slam', default_value='false',
@@ -110,16 +60,13 @@ def generate_launch_description():
                                           'detector:=yolo also switches the camera to the NN pipeline. '
                                           'Confidence/input size: constants in nn_config.py.'),
 
-        # lego:=true detector:=yolo -> write /tmp NN json + camera yaml
-        # before the camera include below resolves its params_file.
+        # lego:=true detector:=yolo: write /tmp NN json + camera yaml
+        # before the camera include resolves its params_file.
         OpaqueFunction(function=_maybe_write_yolo_configs),
         DeclareLaunchArgument('bt', default_value='false',
                               description='Start the mission behavior tree (needs Nav2 running)'),
-        DeclareLaunchArgument('bt_mission', default_value='loop',
-                              description='Mission variant: loop (endless collect cycle) | '
-                                          'test_center (Nav2 smoke test: one goal at the arena center)'),
 
-        # ── Core odometry + ros2_control stack ───────────────────────────────
+        # Core odometry + ros2_control stack
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(mc_share, 'launch', 'manual_controller.launch.py')),
@@ -128,18 +75,15 @@ def generate_launch_description():
             }.items(),
         ),
 
-        # ── OAK-D driver: IMU + RGB + aligned depth (single device owner) ────
-        # depthai_ros_driver opens the OAK-D Lite and publishes raw IMU on
-        # /oak/imu/data plus the RGBD streams /oak/rgb/image_raw and
-        # /oak/stereo/image_raw (configured in depthai_camera.yaml).
+        # OAK-D driver: IMU + RGB + aligned depth (single device owner)
+        # Publishes /oak/imu/data, /oak/rgb/image_raw, /oak/stereo/image_raw.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
                     FindPackageShare('depthai_ros_driver'), 'launch', 'camera.launch.py'])),
             launch_arguments={
-                # lego:=true detector:=yolo -> the generated /tmp yaml (NN
-                # pipeline, preview sized to the blob); otherwise the
-                # production camera yaml.
+                # lego:=true detector:=yolo: use the generated /tmp yaml (NN pipeline);
+                # otherwise use the production camera yaml.
                 'params_file': PythonExpression([
                     "'", CAMERA_YAML_PATH, "' if ('",
                     LaunchConfiguration('lego'), "'.lower() == 'true' and '",
@@ -148,15 +92,8 @@ def generate_launch_description():
                                  'config', 'depthai_camera.yaml'), "'"]),
                 'camera_model': 'OAK-D-LITE',
                 'name': 'oak',
-                # Camera TF tree hangs under 'oak_mount' with ZERO offsets:
-                # imu_remap publishes base_link -> oak_mount with the
-                # gravity-MEASURED mount orientation (+ the translation, its
-                # mount_x/y/z params) once IMU calibration finishes. A static
-                # cam_pitch here would go stale every time the physical mount
-                # is tweaked — measured-at-launch can't. Until calibration
-                # (~8 s) the oak frames are a TF island and lego_vision_node
-                # drops detections, which is correct: their projection would
-                # be garbage anyway.
+                # Camera TF hangs under 'oak_mount' with zero offsets.
+                # imu_remap sets the measured mount orientation at startup (~8 s calibration).
                 'parent_frame': 'oak_mount',
                 'cam_pos_x': '0.0',
                 'cam_pos_z': '0.0',
@@ -164,13 +101,8 @@ def generate_launch_description():
             }.items(),
         ),
 
-        # ── IMU pipeline: /oak/imu/data → remap → Madgwick → /oak/imu/fused ──
-        # imu_remap: gravity-aligns the ~58°-tilted OAK mount at startup +
-        # subtracts gyro bias. Keep the robot STILL for ~2 s after launch until
-        # it logs "gyro bias = ...". Sign/tilt handling lives here, in the
-        # data: rotating oak_imu_frame in the URDF did not change the yaw rate
-        # the EKF integrates (verified on hardware), so TF-level correction
-        # was abandoned.
+        # IMU pipeline: /oak/imu/data to remap to Madgwick to /oak/imu/fused
+        # imu_remap corrects the ~58 deg tilted OAK mount and subtracts gyro bias at startup.
         Node(
             package='manual_controller',
             executable='imu_remap',
@@ -178,17 +110,13 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'input_topic':  '/oak/imu/data',     # raw from depthai driver
-                'output_topic': '/oak/imu/data_raw', # REP-103, bias-corrected
+                'output_topic': '/oak/imu/data_raw', # REP-103 bias-corrected
                 'frame_id':     'imu_link',
-                # Camera mount: imu_remap publishes base_link -> oak_mount
-                # with the gravity-measured rotation; translation set here
-                # (measure axle midpoint -> camera, meters).
+                # imu_remap publishes base_link to oak_mount with the measured rotation.
+                # Translation set here (axle midpoint to camera, meters).
                 'publish_camera_tf': True,
-                # Camera body frame to express the IMU extrinsic in: the
-                # driver's camera.launch.py sets base_frame = the camera
-                # NAME, so with name 'oak' the body frame is literally
-                # 'oak' (direct child of oak_mount). NOT 'oak-d-base-frame'
-                # (default-parent ghost) and NOT 'oak-d_frame'.
+                # With name 'oak' the body frame is 'oak' (child of oak_mount).
+                # Not 'oak-d-base-frame' and not 'oak-d_frame'.
                 'camera_base_frame': 'oak',
                 'mount_x': 0.42,
                 'mount_y': 0.0,
@@ -197,11 +125,7 @@ def generate_launch_description():
         ),
 
         # imu_filter_madgwick: fuses accel+gyro into orientation.
-        # Topic wiring (driver publishes ~/imu/data → /oak/imu/data — NOT /oak/imu):
-        #   input : imu/data_raw = /oak/imu/data_raw (from imu_remap above)
-        #   output: imu/data     → /oak/imu/fused (remapped! the default
-        #           /oak/imu/data would collide with the driver's raw topic)
-        # ekf.yaml imu0 must point at /oak/imu/fused.
+        # Input: /oak/imu/data_raw; output remapped to /oak/imu/fused (avoids collision with driver).
         Node(
             package='imu_filter_madgwick',
             executable='imu_filter_madgwick_node',
@@ -213,7 +137,7 @@ def generate_launch_description():
             remappings=[('imu/data', 'imu/fused')],
         ),
 
-        # ── RPLidar A1M8 ─────────────────────────────────────────────────────
+        # RPLidar A1M8
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(lidar_share, 'launch', 'rplidar_a1_launch.py')),
@@ -224,7 +148,7 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('lidar')),
         ),
 
-        # ── Block tracker FSM ─────────────────────────────────────────────────
+        # Block tracker FSM
         Node(
             package='manual_controller',
             executable='block_tracker',
@@ -233,12 +157,8 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('tracker')),
         ),
 
-        # ── Lego vision detector ─────────────────────────────────────────────
-        # HSV colour detection + centroid tracking on /oak/rgb/image_raw with
-        # depth lookup in /oak/stereo/image_raw (RGB-aligned). Publishes the
-        # closest target on /eyerobot/vision/lego_target, map-frame markers on
-        # /eyerobot/vision/lego_markers_map and an annotated feed on
-        # /eyerobot/camera/annotated_image (viewable in Foxglove).
+        # Lego vision detector (HSV)
+        # Publishes /eyerobot/vision/lego_target, lego_markers_map, and annotated_image.
         Node(
             package='manual_controller',
             executable='lego_vision_node',
@@ -249,9 +169,7 @@ def generate_launch_description():
                 LaunchConfiguration('detector'), "' == 'hsv'"])),
         ),
 
-        # Onboard-YOLO bridge: the OAK runs the block model on its VPU
-        # (camera yaml above enables the spatial NN); this node only converts
-        # /oak/nn/spatial_detections to the same /eyerobot/vision/* topics,
+        # Onboard YOLO bridge: converts /oak/nn/spatial_detections to /eyerobot/vision/* topics
         # so BlockMemory/BT are detector-agnostic.
         Node(
             package='manual_controller',
@@ -263,26 +181,19 @@ def generate_launch_description():
                 LaunchConfiguration('detector'), "' == 'yolo'"])),
         ),
 
-        # ── Mission behavior tree ─────────────────────────────────────────────
-        # Safe to start with the rest of the stack: setup() blocks on the
-        # navigate_through_poses action server (so it waits for Nav2 to come
-        # up), and the tree's first behavior waits for AMCL localization before
-        # sending any goal — AMCL self-initializes at the base pose
-        # (nav2_params.yaml set_initial_pose), so the mission starts on its
-        # own once Nav2 is active.
+        # Mission behavior tree
+        # Waits for Nav2 and AMCL before sending goals; AMCL self-initializes at the base pose.
         Node(
             package='autonomous_controller',
             executable='behavior_tree',
             name='behavior_tree',
             output='screen',
-            arguments=['--mission', LaunchConfiguration('bt_mission')],
+            arguments=[],
             condition=IfCondition(LaunchConfiguration('bt')),
         ),
 
-        # ── Foxglove bridge ───────────────────────────────────────────────────
-        # WebSocket server for Foxglove Studio on the PC (ws://<jetson-ip>:8765).
-        # urdf_relay (manual_controller.launch.py) republishes /robot_description
-        # as VOLATILE on /robot_description_volatile for the Foxglove URDF panel.
+        # Foxglove bridge
+        # WebSocket server for Foxglove Studio (ws://<jetson-ip>:8765).
         Node(
             package='foxglove_bridge',
             executable='foxglove_bridge',
@@ -292,7 +203,7 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('foxglove')),
         ),
 
-        # ── SLAM Toolbox ──────────────────────────────────────────────────────
+        # SLAM Toolbox
         Node(
             package='slam_toolbox',
             executable='async_slam_toolbox_node',

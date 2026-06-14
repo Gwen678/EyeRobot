@@ -9,12 +9,10 @@ namespace encoder_cfg {
 constexpr int   kCprMotor    = 16;                      // encoder pulses/rev at motor shaft (nominal)
 constexpr int   kGearRatio   = 90;                      // gearbox reduction (nominal)
 constexpr int   kCprOutput   = kCprMotor * kGearRatio;  // 1440 pulses/rev at output (nominal)
-// Calibrated 4x-quadrature ticks per OUTPUT revolution. The nominal product
-// 16 * 90 * 4 = 5760 is a few counts off the measured value; use the calibrated
-// 5756 so the firmware speed estimate matches the host odometry, which uses
-// counts_per_output_rev = 5756.
+// Calibrated 4x-quadrature ticks per output revolution (measured; nominal 5760 is off).
+// Must match counts_per_output_rev used in host odometry.
 constexpr int   kTicksPerRev = 5756;
-constexpr float kTicksPerRad = kTicksPerRev / (2.0f * 3.14159265358979f); // ≈ 916.1
+constexpr float kTicksPerRad = kTicksPerRev / (2.0f * 3.14159265358979f); // ~916.1
 }
 
 // Full quadrature (4x) encoder using the ESP-IDF PCNT peripheral.

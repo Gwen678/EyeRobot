@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
 """
 Train YOLOv8n on the offline-augmented Duplo dataset.
-
-Design choices:
-  * yolov8n  - smallest YOLOv8, best inference time on the OAK-D Lite Myriad X VPU.
-  * imgsz=416 - the deploy resolution chosen for the object tracker.
-  * ALL of Ultralytics' online augmentation is turned OFF: we already augmented
-    offline with exactly the requested techniques (and never stacked them, per the
-    request). Mosaic/mixup are off for the same reason.
-  * Single class 'block'; ground images are background negatives -> fewer false
-    positives (we prefer false negatives to false positives).
+Online augmentation is disabled because data was already augmented offline; single class 'block' with background negatives to reduce false positives.
 """
 import os
 from ultralytics import YOLO
@@ -25,7 +17,7 @@ NO_AUG = dict(
 
 
 def main():
-    model = YOLO("yolov8n.pt")  # COCO-pretrained -> transfer learning
+    model = YOLO("yolov8n.pt")  # COCO-pretrained, used for transfer learning
     model.train(
         data=DATA,
         epochs=100,

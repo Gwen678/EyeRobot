@@ -8,11 +8,8 @@
 
 static AppBus g_bus;
 
-// Every motor-driver control line physically wired to the ESP32, INCLUDING
-// motors whose tasks are currently disabled in kMotorConfigs (fans, belt).
-// Those H-bridges still need to be held off at boot — if their PWM/DIR pins are
-// left floating they pick up noise and the motor runs away. kMotorConfigs only
-// covers the enabled motors, so we cannot derive this list from it.
+// All motor control pins wired to the ESP32, including disabled motors (fans, belt).
+// H-bridges must be held off at boot; kMotorConfigs only covers enabled motors.
 static constexpr gpio_num_t kAllMotorControlPins[] = {
     (gpio_num_t)BELT_PWM_PIN,        (gpio_num_t)BELT_DIR_PIN,
     (gpio_num_t)RIGHT_WHEEL_PWM_PIN, (gpio_num_t)RIGHT_WHEEL_DIR_PIN,
@@ -46,11 +43,8 @@ static void force_motor_outputs_low()
 
 extern "C" void app_main(void)
 {
-    // Force every motor control line to a defined stopped state (PWM duty 0,
-    // DIR low) the instant the firmware starts — synchronously, before any
-    // motor task or micro-ROS entity is created and well before the agent
-    // handshake. This guarantees the H-bridges never see a spurious enable
-    // while the link is down (e.g. powered standalone with no agent).
+    // Drive all motor pins low before any task or micro-ROS entity is created.
+    // Prevents H-bridges from seeing a spurious enable while the agent link is down.
     force_motor_outputs_low();
 
     static MotorTask right_wheel(MotorID::RIGHT_WHEEL, g_bus);

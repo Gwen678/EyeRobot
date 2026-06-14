@@ -104,7 +104,7 @@ The whole stack — agent, sensors, Nav2, cmd_vel bridge, behavior tree — from
 single script (run in one container terminal):
 
 ```
-bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh
+bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh full
 ```
 ```
 cd ../docker && ./build_ws.sh
@@ -112,12 +112,18 @@ cd ../docker && ./build_ws.sh
 cd ../ros2_ws && source install/setup.bash
 ```
 
-`[mission]` selects the BT variant (default `full`): `zone1` = blocks only
-(no button, no ramp); `zone3` = button + door phase, then zone 3 blocks;
-`zone4` = ramp then zone 4 blocks, no button; `full` = everything. All
-variants turn the fans on before the first motion and end with an
-unconditional unload at base. Standalone equivalent:
-`ros2 run autonomous_controller behavior_tree --mission zone1`.
+`[mission]` selects the BT variant (pass one explicitly; the tree's own
+default is `full`): the full flow runs the legs **in order Zone 3 → Zone 4 →
+home Zone 1**, i.e. button + door phase and zone 3 collection, then the ramp
+and zone 4 collection, then the zone-1 home cleanup, closing with an
+unconditional unload at base. Each zone flag is the same flow with one leg
+removed: `zone3` = full minus the ramp/zone-4 leg; `zone4` = full minus the
+button/door/zone-3 leg; `zone1` = full minus *both* (blocks only, no button,
+no ramp). `test_center` is a Nav2 smoke test — localize, then a single goal at
+the arena centre, with no fans, collection, or unload. Every mode (except
+`test_center`) turns the fans on before the first motion, always runs the
+zone-1 cleanup, and ends with an unconditional unload at base. Standalone
+equivalent: `ros2 run autonomous_controller behavior_tree --mission zone1`.
 
 It starts, in order: micro-ROS agent → wait for the IMU chain (aborts the
 whole stack loudly if no IMU after 90 s) → `eyerobot.launch.py lidar:=true

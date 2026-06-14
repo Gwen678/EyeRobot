@@ -7,7 +7,7 @@
 
 namespace eyerobot_hardware {
 
-// ── Lifecycle ───────────────────────────────────────────────────────────────
+// Lifecycle
 
 hardware_interface::CallbackReturn EyeRobotHardware::on_init(
   const hardware_interface::HardwareInfo & info)
@@ -118,7 +118,7 @@ hardware_interface::CallbackReturn EyeRobotHardware::on_deactivate(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-// ── State interfaces ────────────────────────────────────────────────────────
+// State interfaces
 
 std::vector<hardware_interface::StateInterface>
 EyeRobotHardware::export_state_interfaces()
@@ -150,7 +150,7 @@ EyeRobotHardware::export_command_interfaces()
   return interfaces;
 }
 
-// ── Read (encoders → position / velocity) ───────────────────────────────────
+// Read (encoders to position / velocity)
 
 hardware_interface::return_type EyeRobotHardware::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
@@ -189,8 +189,7 @@ hardware_interface::return_type EyeRobotHardware::read(
   prev_left_  = l_now;
 
   if (std::abs(delta_r) > max_counts || std::abs(delta_l) > max_counts) {
-    // Implausible jump (e.g. firmware reboot resetting counter) — re-baseline,
-    // no pose update. Mirrors state_estimator_node plausibility check.
+    // Implausible jump (e.g. firmware reboot); re-baseline, no pose update.
     return hardware_interface::return_type::OK;
   }
 
@@ -205,7 +204,7 @@ hardware_interface::return_type EyeRobotHardware::read(
   return hardware_interface::return_type::OK;
 }
 
-// ── Write (velocity commands → motor topics) ────────────────────────────────
+// Write (velocity commands to motor topics)
 
 hardware_interface::return_type EyeRobotHardware::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)

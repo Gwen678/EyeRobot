@@ -9,8 +9,8 @@ float PiController::update(float setpoint, float measurement, float dt)
 
     float output = _kp * error;
 
-    // Integral term with anti-windup. Skip entirely when ki == 0 (pure-P): there
-    // is no integral contribution and the windup clamp would divide by zero.
+    // Integral term with antiwindup. Skip when ki == 0 (pure P): no integral
+    // contribution and the windup clamp would divide by zero.
     if (_ki != 0.0f) {
         _integral += error * dt;
 

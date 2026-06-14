@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
 """
-Auto-label Duplo block images by colour.
-
-Blocks are vividly saturated; the floor (carpet / wood) is dull and low-saturation.
-We threshold the HSV saturation channel (with an adaptive Otsu threshold so it
-adapts to each floor), clean it up with morphology, fill holes (so neutral bricks
-*enclosed* by coloured ones are kept), keep the large blobs and take their union
-bounding box -> one YOLO box per image.
-
-Filenames starting with "ground" are treated as negatives (empty label files).
-
-Outputs:
-  ml/work/labels/<name>.txt        YOLO label (class 0 = block), empty for ground
-  ml/work/montage_*.jpg            visual check: green box = ok, red border = FAILED
-  ml/work/autolabel_report.txt     per-image summary
+Auto-label Duplo block images by colour using HSV saturation thresholding.
+Outputs YOLO labels to ml/work/labels/; filenames starting with "ground" get empty label files.
 """
 import os
 import glob
@@ -55,7 +43,7 @@ def segment_box(img_bgr):
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, open_k)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, close_k)
 
-    # fill the outer contours -> neutral bricks enclosed by coloured ones are kept
+    # fill outer contours so neutral bricks enclosed by coloured ones are kept
     cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not cnts:
         return None
@@ -123,7 +111,7 @@ def main():
             cv2.rectangle(thumb, (0, 0), (W - 1, H - 1), (0, 0, 255), 6)
         thumbs.append(thumb)
 
-    # ground -> empty labels (negatives)
+    # ground images get empty label files (negatives)
     for p in grounds:
         name = os.path.splitext(os.path.basename(p))[0]
         open(os.path.join(OUT_LBL, name + ".txt"), "w").close()

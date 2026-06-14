@@ -12,11 +12,8 @@ constexpr ledc_mode_t LEDC_MODE = LEDC_LOW_SPEED_MODE;
 constexpr ledc_timer_t LEDC_TIMER = LEDC_TIMER_0;
 constexpr ledc_timer_bit_t LEDC_RES = LEDC_TIMER_10_BIT;
 
-// 21 kHz: above audible (10 kHz whined badly) and under the DC Motor Driver
-// 2x15A Lite's 25 kHz cap. Its fast-switching damage caution scales with load
-// current — our motors draw a few A, far below the 15 A/channel rating, so
-// switching loss stays small. Kept below 25 kHz so the optocoupler rise/fall
-// times don't eat into duty linearity. 10-bit resolution is fine up to ~78 kHz.
+// 21 kHz: above audible range and below the motor driver's 25 kHz limit.
+// 10-bit resolution is fine up to ~78 kHz.
 constexpr uint32_t PWM_FREQ_HZ = 21000;
 constexpr uint32_t DUTY_MAX = (1u << 10) - 1u;
 }

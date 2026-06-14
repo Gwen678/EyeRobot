@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
 """
 Evaluate the trained detector on the augmented TEST split.
-
-Two outputs:
-  1. Standard Ultralytics metrics (mAP50, mAP50-95) via model.val(split='test').
-  2. A confidence-threshold sweep with IoU>=0.5 matching against ground truth,
-     reporting precision / recall / #false-positives / #false-negatives at each
-     threshold. Because we prefer false negatives to false positives, we then
-     recommend the LOWEST confidence whose precision >= TARGET_PRECISION (so we
-     suppress false alarms while keeping as many true detections as possible).
-
-Sample prediction images are written to ml/work/test_preds/.
+Runs Ultralytics val metrics and a confidence-threshold sweep (IoU>=0.5) to find the lowest conf with precision >= TARGET_PRECISION.
 """
 import os
 import glob
@@ -61,9 +52,9 @@ def main():
     print(f"  mAP50-95  : {metrics.box.map:.4f}")
     print("=" * 60)
 
-    # --- IoU-matched threshold sweep -----------------------------------
+    # IoU-matched threshold sweep
     imgs = sorted(glob.glob(os.path.join(DS, "images", "test", "*.jpg")))
-    # collect (score, is_tp) over all images, plus per-image GT count
+    # gather (score, is_tp) over all images, plus per-image GT count
     dets = []          # (score, matched_bool)
     total_gt = 0
     for ip in imgs:
@@ -113,7 +104,7 @@ def main():
     if rec_thr is not None:
         r = next(x for x in rows if x[0] == rec_thr)
         print(f"Recommended deploy conf (precision>={TARGET_PRECISION}): {rec_thr:.2f}")
-        print(f"  -> precision {r[4]:.3f}, recall {r[5]:.3f}, FP {r[2]}, FN {r[3]}")
+        print(f"  precision {r[4]:.3f}, recall {r[5]:.3f}, FP {r[2]}, FN {r[3]}")
     else:
         best = max(rows, key=lambda x: x[6])
         print(f"No threshold hit precision>={TARGET_PRECISION}; best-F1 conf {best[0]:.2f} "
@@ -125,7 +116,7 @@ def main():
     for ip in imgs[:16]:
         r = model.predict(ip, imgsz=IMGSZ, conf=(rec_thr or 0.25), verbose=False)[0]
         cv2.imwrite(os.path.join(out, os.path.basename(ip)), r.plot())
-    print(f"Sample predictions -> {out}")
+    print(f"Sample predictions saved to {out}")
 
 
 if __name__ == "__main__":

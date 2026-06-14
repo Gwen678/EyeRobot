@@ -27,9 +27,8 @@ esp_err_t MotorController::configure_pwm_timer(ledc_timer_t timer)
     return err;
 }
 esp_err_t MotorController::configure_direction_pin(gpio_num_t gpio){
-    // Push-pull output, no internal pulls. An internal pulldown here would
-    // divide against the level-shifter input and sag the logic-high level
-    // (observed ~2.6 V instead of a full 3.3 V swing).
+    // Push-pull output, no internal pulls. A pulldown sags the logic-high level
+    // against the level-shifter input (observed ~2.6 V instead of 3.3 V).
     gpio_config_t dir_cfg = {};
     dir_cfg.pin_bit_mask = (1ULL << gpio);
     dir_cfg.mode = GPIO_MODE_OUTPUT;
@@ -59,17 +58,13 @@ esp_err_t MotorController::configure_pwm_channel(gpio_num_t gpio, ledc_timer_t t
 
 
 esp_err_t MotorController::init() {
-    // The five motor tasks all start at once and each configures the shared
-    // LEDC timer 0 plus its own channel. ledc_timer_config/ledc_channel_config
-    // are not safe to run concurrently — a race can leave one channel with a
-    // stale, non-zero duty (observed as a fan idling at a few percent instead
-    // of full stop). Serialize the whole init so they run one at a time.
+    // ledc_timer_config/ledc_channel_config are not safe to run concurrently.
+    // Serialize init to avoid a race that leaves a channel with a non-zero duty.
     static std::mutex s_init_mutex;
     std::lock_guard<std::mutex> init_lock(s_init_mutex);
 
-    // Drive both control lines to a defined safe state before LEDC takes the
-    // PWM pin. Without this, floating GPIOs during boot let the H-bridge see
-    // a spurious HIGH on the PWM input and spin the motor.
+    // Drive both control lines low before LEDC takes the PWM pin.
+    // Floating GPIOs during boot can cause a spurious HIGH and spin the motor.
     gpio_set_direction(_pwm_pin, GPIO_MODE_OUTPUT);
     gpio_set_level(_pwm_pin, 0);
     gpio_set_direction(_dir_pin, GPIO_MODE_OUTPUT);
@@ -78,8 +73,8 @@ esp_err_t MotorController::init() {
     esp_err_t err = configure_direction_pin(_dir_pin);
     if (err != ESP_OK) return err;
 
-    // Max drive strength (40 mA) so the pin can hold a solid logic level
-    // against a back-feeding level-shifter input network.
+    // Max drive strength (40 mA) to hold a solid logic level against the
+    // level-shifter input network.
     gpio_set_drive_capability(_dir_pin, GPIO_DRIVE_CAP_3);
     gpio_set_drive_capability(_pwm_pin, GPIO_DRIVE_CAP_3);
 
@@ -93,8 +88,7 @@ esp_err_t MotorController::init() {
 }
 
 esp_err_t MotorController::setDirection(Direction forward_dir) {
-    // DIR polarity is inverted relative to the wiring: a positive (forward)
-    // command must drive the DIR line LOW to spin the motor forward.
+    // DIR polarity is inverted: a forward command drives the DIR line LOW.
     if (forward_dir == Direction::forward) {
         return gpio_set_level(_dir_pin, 0);
     } else {
@@ -111,10 +105,8 @@ esp_err_t MotorController::backward() {
 }
 
 esp_err_t MotorController::stop() {
-    // PWM + DIR driver (DC Motor Driver 2x15A Lite): the PWM input gates the
-    // output, so duty 0 fully stops the motor regardless of the DIR level.
-    // Leave DIR untouched — re-driving it here is unnecessary and only risks a
-    // transient through the (marginal) level shifter.
+    // Duty 0 fully stops the motor regardless of the DIR level.
+    // Leave DIR untouched to avoid a brief glitch through the level shifter.
     return setDutyRaw(0);
 }
 
@@ -157,9 +149,8 @@ esp_err_t MotorController::setSpeed(float speed) { // speed is in range [-100.0,
         return stop();
     }
 
-    // PWM + DIR drive: DIR selects direction, PWM (always on _pwm_pin) sets the
-    // magnitude. setPercent() takes the absolute value so reverse runs at the
-    // commanded magnitude rather than clamping to 0.
+    // DIR selects direction; setPercent() uses the absolute value so reverse
+    // runs at the commanded magnitude.
     if (speed > 0.0f) {
         esp_err_t err = forward();
         if (err != ESP_OK) {

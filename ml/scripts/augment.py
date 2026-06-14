@@ -1,30 +1,12 @@
 #!/usr/bin/env python3
 """
 Offline data augmentation for the Duplo-block detector.
-
-Each technique from the requested list is applied *separately* (not stacked), each
-producing a few randomized variants per image:
-
-  Photometric (boxes unchanged):
-    hue        - shift HSV hue
-    saturation - scale HSV saturation
-    brightness - scale HSV value
-    bgr_swap   - permute colour channels (the 5 non-identity permutations)
-  Geometric (boxes transformed):
-    rotation, translation, scale, shear, perspective
-    flip_ud (vertical), flip_lr (horizontal)   <- deterministic -> 1 variant each
-
-Geometric warps use BORDER_REFLECT_101 so no unrealistic black borders appear.
-Boxes are transformed by warping their 4 corners and taking the axis-aligned
-bounding box (the standard YOLO approach); boxes that leave the frame or become
-tiny are dropped, and a block-image variant that loses all its boxes is skipped.
-
-This module exposes `generate(img, boxes, counts, rng)` -> list of (suffix, img, boxes).
+Each technique is applied separately; flip_ud and flip_lr produce 1 variant each while all others produce n variants. Boxes are warped with their 4 corners and tiny or out-of-frame boxes are dropped.
 """
 import cv2
 import numpy as np
 
-# ---- box helpers -----------------------------------------------------------
+# box helpers
 
 def _boxes_to_corners(boxes, w, h):
     """boxes: list of (cls,xc,yc,bw,bh) norm -> (classes, Nx4x2 pixel corners)."""
@@ -77,7 +59,7 @@ def _warp_boxes(boxes, M, w, h, perspective=False):
     return _corners_to_boxes(classes, warped, w, h)
 
 
-# ---- photometric techniques (boxes unchanged) ------------------------------
+# photometric techniques (boxes unchanged)
 
 def aug_hue(img, boxes, rng):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype(np.int16)
@@ -112,7 +94,7 @@ def make_bgr_swap(idx):
     return f
 
 
-# ---- geometric techniques (boxes transformed) ------------------------------
+# geometric techniques (boxes transformed)
 
 _BORDER = cv2.BORDER_REFLECT_101
 
@@ -173,7 +155,7 @@ def aug_flip_lr(img, boxes, rng):
     return out, nb
 
 
-# ---- driver ----------------------------------------------------------------
+# driver
 
 def build_techniques(counts):
     """Return list of (suffix, fn). counts: dict technique-> n variants."""
