@@ -30,7 +30,7 @@ EyeRobot/
 ├── microros_agent/            # micro-ROS agent assets
 ├── ml/                        # detector training / dataset work
 ├── report/                    # compiled report PDF + figures, documents, CAD
-├── third_party/               # vendored dependencies
+├── images/ 		       # needed to create the dataset
 └── ssh_jetson.sh              # SSH into the Jetson container
 ```
 
