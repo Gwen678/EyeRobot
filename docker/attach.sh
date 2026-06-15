@@ -25,7 +25,7 @@ if [ "$#" -eq 0 ]; then
   exec docker exec -it "${NAME}" bash -lc "${SETUP_CMD}; exec bash -i"
 else
   # Run the one-off command after sourcing the same env an interactive shell gets.
-  # Do NOT source /entrypoint.sh here: it ends in `exec "$@"`, so sourcing it
+  # Do NOT source /container_init.sh here: it ends in `exec "$@"`, so sourcing it
   # replaces the shell and the real command never runs.
   exec docker exec -it "${NAME}" \
     bash -lc "${SETUP_CMD}; exec \"\$@\"" _ "$@"

@@ -1,8 +1,33 @@
 # EyeRobot
 
 ESP32 (motors, micro-ROS) + first-gen Jetson Nano running ROS 2 Humble in Docker.
-Firmware is pre-flashed and the container image + workspace are already built —
+Firmware is pre-flashed and the container image + workspace are already built;
 below are just the commands to connect and run.
+
+## Build (first time, or on a new machine)
+
+The Jetson already has the image and workspace built, so skip this unless you are
+setting up a fresh machine (e.g. a dev PC) or have changed the Dockerfile. Run
+from the repo root:
+
+```bash
+./docker/build.sh                 # 1. build the eyerobot:humble image (CPU; builds anywhere)
+./docker/run.sh                   # 2. start the container (detached) + open a shell
+/eyerobot/docker/build_ws.sh      # 3. inside the container: build the ROS 2 workspace
+```
+
+1. **`build.sh`** builds the image with every dependency (Nav2, SLAM Toolbox,
+   depthai-ros, RPLidar, the micro-ROS agent, CPU YOLO, …). Build it on the same
+   architecture you run on, either on the Jetson, or with `docker buildx --platform
+   linux/arm64`; an x86 image will not run on the Nano.
+2. **`run.sh`** starts the container detached with host networking, USB, and X11,
+   and mounts the repo at `/eyerobot`. Extra shells: `./docker/attach.sh`.
+3. **`build_ws.sh`** compiles the EyeRobot packages into `ros2_ws/install/`. The
+   image ships the *dependencies* but not the workspace, and the Jetson's arm64
+   build will not load on an x86 PC, so the workspace must be built once per
+   machine before the launch commands below will work.
+
+Remove the container with `./docker/stop.sh`. Image/build internals: `docker/README.md`.
 
 ## USB devices
 
@@ -12,7 +37,7 @@ below are just the commands to connect and run.
 | `/dev/esp32` | micro-ROS ESP32 | `/dev/ttyUSB0` (enumeration-dependent!) |
 
 The stable names come from udev rules (`docker/99-eyerobot-usb.rules`, values
-already measured for this robot's hardware — CP2102 lidar, CH340 ESP32).
+already measured for this robot's hardware: CP2102 lidar, CH340 ESP32).
 One-time install on the **Jetson host** (not the container; the container
 bind-mounts `/dev` so the symlinks appear inside):
 
@@ -38,7 +63,7 @@ Drops you into the container shell. Run it again in a new terminal for each node
 
 ### Odometry only (no lidar)
 
-**Terminal 1** — micro-ROS agent (motors/encoders ↔ ROS):
+**Terminal 1**: micro-ROS agent (motors/encoders ↔ ROS):
 
 ```
 ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/esp32 -b 115200
@@ -46,31 +71,31 @@ ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/esp32 -b 115200
 
 (`/dev/esp32` needs the udev rules above; otherwise use the current `ttyUSBn`.)
 
-**Terminal 2** — full stack (odometry + IMU + URDF/TF):
+**Terminal 2**: full stack (odometry + IMU + URDF/TF):
 
 ```
 ros2 launch manual_controller eyerobot.launch.py ekf:=true
 ```
 
-Starts the ros2_control stack (`diff_drive_controller` — wheel odometry and the
-`odom`→`base_link` TF), the OAK-D IMU chain — `depthai_ros_driver` (raw on
+Starts the ros2_control stack (`diff_drive_controller`: wheel odometry and the
+`odom`→`base_link` TF), the OAK-D IMU chain: `depthai_ros_driver` (raw on
 `/oak/imu/data`) → `imu_remap` (axis signs + gyro bias, `/oak/imu/data_raw`) →
-`imu_filter_madgwick` (fused on `/oak/imu/fused`) — and `robot_state_publisher`
+`imu_filter_madgwick` (fused on `/oak/imu/fused`), and `robot_state_publisher`
 for the URDF. **Keep the robot still for ~2 s after launch** until `imu_remap`
 logs `gyro bias = …`: the gyro bias is averaged at startup and subtracted from
 then on. With `ekf:=true`, `robot_localization`
 fuses wheel odometry + IMU into `/odometry/filtered` (set `enable_odom_tf: false`
 in `diff_drive_controller.yaml` so the EKF owns the `odom`→`base_link` TF).
 
-**Terminal 3** — keyboard control (wheels + fans + belt, all in one terminal):
+**Terminal 3**: keyboard control (wheels + fans + belt, all in one terminal):
 
 ```
 ros2 run manual_controller manual_controller
 ```
 
-`w/s` forward/backward, `a/d` turn — published to `/cmd_vel`, which is
+`w/s` forward/backward, `a/d` turn, published to `/cmd_vel`, which is
 remapped straight into `diff_drive_controller` (ros2_control applies the
-velocity/acceleration limits). `q/e` fans, `r/t` belt (latched — tap again to
+velocity/acceleration limits). `q/e` fans, `r/t` belt (latched, tap again to
 stop), `space` stops everything. `u/j`, `i/k`, `o/l` adjust max/linear/angular
 speed.
 
@@ -78,38 +103,33 @@ speed.
 
 Run this once per room to build a map. Drive the full perimeter slowly.
 
-**Terminal 1** — micro-ROS agent (same as above)
+**Terminal 1**: micro-ROS agent (same as above)
 
-**Terminal 2** — full stack with lidar + SLAM:
+**Terminal 2**: full stack with lidar + SLAM:
 
 ```
 ros2 launch manual_controller eyerobot.launch.py lidar:=true slam:=true ekf:=true
 ```
 
-**Terminal 3** — keyboard control (same as above)
+**Terminal 3**: keyboard control (same as above)
 
-**Terminal 5** — save map after driving the room:
+**Terminal 5**: save map after driving the room:
 
 ```
 ros2 run nav2_map_server map_saver_cli -f /eyerobot/ros2_ws/maps/room_8x8 --ros-args -p map_subscribe_transient_local:=true
 ```
 
 Check that the saved `.yaml` shows `resolution: 0.05`. If it shows `0.005` the map
-came from a stale publisher — close all terminals, restart only the SLAM launch, and
+came from a stale publisher; close all terminals, restart only the SLAM launch, and
 save again.
 
 ### Autonomous mission (one command)
 
-The whole stack — agent, sensors, Nav2, cmd_vel bridge, behavior tree — from a
+The whole stack (agent, sensors, Nav2, cmd_vel bridge, behavior tree) from a
 single script (run in one container terminal):
 
 ```
 bash /eyerobot/ros2_ws/src/manual_controller/launch/run_autonomous.sh full
-```
-```
-cd ../docker && ./build_ws.sh
-
-cd ../ros2_ws && source install/setup.bash
 ```
 
 `[mission]` selects the BT variant (pass one explicitly; the tree's own
@@ -119,7 +139,7 @@ and zone 4 collection, then the zone-1 home cleanup, closing with an
 unconditional unload at base. Each zone flag is the same flow with one leg
 removed: `zone3` = full minus the ramp/zone-4 leg; `zone4` = full minus the
 button/door/zone-3 leg; `zone1` = full minus *both* (blocks only, no button,
-no ramp). `test_center` is a Nav2 smoke test — localize, then a single goal at
+no ramp). `test_center` is a Nav2 smoke test: localize, then a single goal at
 the arena centre, with no fans, collection, or unload. Every mode (except
 `test_center`) turns the fans on before the first motion, always runs the
 zone-1 cleanup, and ends with an unconditional unload at base. Standalone
@@ -130,9 +150,9 @@ whole stack loudly if no IMU after 90 s) → `eyerobot.launch.py lidar:=true
 ekf:=true lego:=true bt:=true` (vision + behavior tree are part of the launch)
 → Nav2 with `maps/clean_room_8x8.yaml` and `full_nav:=true`. Nav2's `/cmd_vel`
 reaches `diff_drive_controller` directly (its subscription is remapped to
-`/cmd_vel` — no relay node). The behavior tree arms itself: it waits for the
+`/cmd_vel`, no relay node). The behavior tree arms itself: it waits for the
 Nav2 action servers (30–60 s on the Nano, logged every 5 s), then for AMCL
-localization — with the current config the mission starts as soon as AMCL
+localization; with the current config the mission starts as soon as AMCL
 accepts the default start pose from `nav2_params_custom.yaml` (`initial_pose`
 = arena/map `(1.0, 1.0)`). If you disable `set_initial_pose`, it will instead
 idle until you seed AMCL manually from Foxglove. Ctrl+C tears everything down.
@@ -143,10 +163,10 @@ idle until you seed AMCL manually from Foxglove. Ctrl+C tears everything down.
 - The lego vision node publishes map-frame detections on
   `/eyerobot/vision/lego_markers_map`; the BT's `BlockMemory` accumulates
   them (dedup at 0.30 m) and **drops any block the robot drives within
-  0.35 m of** — with the roomba intake, driving over a block IS collecting
+  0.35 m of**: with the roomba intake, driving over a block IS collecting
   it, so this doubles as the on-board block counter.
 - Each collection round: if blocks are known, flow through the ≤5 nearest
-  (`NavigateThroughPoses` — **no stopping**, fans absorb in passing);
+  (`NavigateThroughPoses`, **no stopping**, fans absorb in passing);
   otherwise drive the next predefined sweep chunk (`ZONE*_SWEEP_CHUNKS`,
   still placeholder routes), which collects blindly and lets the camera
   discover blocks for the next round.
@@ -170,17 +190,17 @@ effect on relaunch without a rebuild.
 Requires a pre-built map. Run eyerobot.launch.py **without** `slam:=true`, then
 start Nav2 in a separate terminal.
 
-**Terminal 1** — micro-ROS agent (same as above)
+**Terminal 1**: micro-ROS agent (same as above)
 
-**Terminal 2** — full stack with lidar (no SLAM — AMCL owns map→odom).
-`lego:=true` runs the vision node — required for the BT's vision-planned
+**Terminal 2**: full stack with lidar (no SLAM, AMCL owns map→odom).
+`lego:=true` runs the vision node, required for the BT's vision-planned
 block routes (without it the BT falls back to the predefined sweeps):
 
 ```
 ros2 launch manual_controller eyerobot.launch.py lidar:=true ekf:=true lego:=true
 ```
 
-**Terminal 3** — Nav2 (AMCL localization + planner/controller; `full_nav:=true`
+**Terminal 3**: Nav2 (AMCL localization + planner/controller; `full_nav:=true`
 also starts the planner/controller/waypoint servers the BT's actions need):
 
 ```
@@ -191,7 +211,7 @@ ros2 launch manual_controller nav2.launch.py map:=/eyerobot/ros2_ws/maps/clean_r
 to `/cmd_vel` in `manual_controller.launch.py`, so Nav2, teleop, and anything
 else publishing `/cmd_vel` drive the wheels directly.)
 
-**Terminal 4** — behavior tree (or skip it and drive manually / send Nav2
+**Terminal 4**: behavior tree (or skip it and drive manually / send Nav2
 goals from Foxglove). Either add `bt:=true bt_mission:=<mission>` to the
 Terminal 2 launch instead, or run it standalone:
 
@@ -204,7 +224,7 @@ pose from Foxglove.
 
 The robot has obstacle avoidance active at all times via the live local costmap.
 
-Do **not** run `slam:=true` and `nav2.launch.py` at the same time — both try to
+Do **not** run `slam:=true` and `nav2.launch.py` at the same time; both try to
 publish `map→odom` and will conflict.
 
 ### AMCL sanity check (do this once per map before trusting navigation)
@@ -220,7 +240,7 @@ derived by pixel-correlating the GIMP-cleaned image against the original map.
    the 3D panel toolbar, publishes `/initialpose`), then click-drag on the map
    at the robot's real position, dragging in its facing direction.
 4. The laser scan should snap onto the map walls within a second or two.
-   Drive forward ~1 m and rotate in place — the scan must stay glued to the
+   Drive forward ~1 m and rotate in place; the scan must stay glued to the
    walls while the robot moves.
 
 Reading the result:
@@ -237,7 +257,7 @@ Reading the result:
 Note this check **cannot** detect a wrong yaml `origin`: the map renderer and
 AMCL both place the grid using the same origin, so an origin error shifts the
 displayed map and the pose estimate together and the scan still lands on the
-walls. A wrong origin only bites coordinates authored *outside* this yaml —
+walls. A wrong origin only bites coordinates authored *outside* this yaml:
 hardcoded mission waypoints, saved lego positions, numeric `initial_pose`
 params (for `clean_room_8x8.yaml` those were authored in the original
 `room_8x8` frame, which its corrected origin is meant to reproduce). To
@@ -251,7 +271,7 @@ Open [Foxglove Studio](https://foxglove.dev) on your PC and connect to
 the launch file.
 
 To visualize the robot model: display the topic `/robot_description_volatile`
-(URDF custom layer, or the topic row in newer Foxglove) — NOT
+(URDF custom layer, or the topic row in newer Foxglove), NOT
 `/robot_description`: that topic is shared with the depthai driver's
 camera-only URDF (last latched writer wins, and the camera boots last), so it
 shows an OAK-D box instead of the robot. Details + mesh setup: `URDF.md`.
@@ -260,14 +280,14 @@ To send Nav2 goals: in the 3D panel settings → **Publish**, change the *Pose*
 topic from its `/move_base_simple/goal` default to **`/goal_pose`** (one-time;
 *Pose estimate* already defaults to `/initialpose`). With Nav2 up
 (`full_nav:=true` + relay) and AMCL localized, use the publish-pose tool and
-click-drag on the map (click = position, drag = heading) — `bt_navigator`
+click-drag on the map (click = position, drag = heading); `bt_navigator`
 turns `/goal_pose` into a NavigateToPose action by itself. Publishing from
 Foxglove needs the bridge's `clientPublish` capability (already enabled in
 eyerobot.launch.py). Don't send manual goals while the `bt:=true` mission is
-running — they preempt each other.
+running; they preempt each other.
 
 To see the trajectory: in the 3D panel set the display frame to `odom` and
-enable the path topics — `/wheel_path` (raw wheel odometry, always published)
+enable the path topics: `/wheel_path` (raw wheel odometry, always published)
 and `/ekf_path` (fused EKF estimate, needs `ekf:=true`). Driving a loop and
 comparing where the two paths end up vs the robot's true position is the
 quickest EKF-precision check. Numeric pose readouts: `/pose2d_wheel`,
@@ -308,9 +328,40 @@ Analyse on the PC:
 python3 analyse_imu.py ~/bags/static_<name>
 ```
 
-Outputs per-axis angle random walk and bias values — use them to tune the
+Outputs per-axis angle random walk and bias values; use them to tune the
 `imu0` covariances in `ros2_ws/src/manual_controller/config/ekf.yaml` and the
 Madgwick gain in `config/imu_filter.yaml`.
+
+## Repository layout
+
+```
+EyeRobot/
+├── firmware/                     # ESP32 motor-control firmware (PlatformIO / ESP-IDF + FreeRTOS)
+│   ├── include/                  # AppBus, Channel, Encoder, MotorController, PiController, MotorTask,
+│   │                             #   MicroRosTask, Thread, pins
+│   ├── src/                      # task implementations + esp32_serial_transport + main.cpp
+│   ├── components/               # micro_ros_espidf_component (vendored)
+│   ├── platformio.ini            # build config (featheresp32 / upesy_wroom envs)
+│   └── DOCS.md
+├── ros2_ws/                      # ROS 2 Humble workspace (Jetson)
+│   ├── src/
+│   │   ├── manual_controller/    # teleop, cmd_vel/fans/belt bridge, IMU remap, vision nodes, launch + config
+│   │   │   ├── manual_controller/   # nodes: manual_controller, cmd_vel_bridge, imu_remap,
+│   │   │   │                        #   lego_vision (HSV), yolo_vision (VPU), block_tracker,
+│   │   │   │                        #   odom_to_path, urdf_relay, nn_config
+│   │   │   ├── launch/              # eyerobot, nav2, manual_controller, lego_test, run_autonomous.sh
+│   │   │   └── config/             # ekf, imu_filter, diff_drive_controller, nav2_params,
+│   │   │                           #   slam_toolbox_params, depthai_camera(_yolo)
+│   │   ├── autonomous_controller/   # mission behaviour tree (behavioral_tree.py) + nav2_params_custom
+│   │   ├── perception/              # trained model best.pt / best.blob + dataset/label/view tools
+│   │   ├── eyerobot_hardware/       # ros2_control SystemInterface plugin (bridges micro-ROS motor topics)
+│   │   └── robot_description/       # URDF (Robot.xacro), meshes, RViz/Gazebo launch
+│   └── maps/                     # saved SLAM maps (room_8x8, clean_room_8x8, ...)
+├── docker/                       # Dockerfile + build/run/attach/stop scripts, udev rules
+├── microros_agent/              # micro-ROS agent assets
+├── ml/                           # detector training / dataset work
+└── report/                       # LaTeX report (main.tex), figures, references.bib
+```
 
 ---
 

@@ -106,7 +106,7 @@ RUN { \
     } > /etc/profile.d/eyerobot_ros.sh \
  && echo "source /etc/profile.d/eyerobot_ros.sh" >> /etc/bash.bashrc
 
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+COPY container_init.sh /container_init.sh
+RUN chmod +x /container_init.sh
+ENTRYPOINT ["/container_init.sh"]
 CMD ["bash"]

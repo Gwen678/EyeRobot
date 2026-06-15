@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Container entrypoint: source ROS 2 + the EyeRobot overlay (if built), then exec
+# Container startup script: source ROS 2 + the EyeRobot overlay (if built), then exec
 # whatever command was given (defaults to an interactive bash in the workspace).
 set -e
 

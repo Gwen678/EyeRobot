@@ -74,10 +74,10 @@ without that, vcpkg bootstrap fails on arm64.
 | `attach.sh` | Open another shell in the running container (or run a one-off command). |
 | `stop.sh` | Remove the container. |
 | `build_ws.sh` | Build the ROS workspace inside the container. |
-| `entrypoint.sh` | Container entrypoint: sources ROS + agent overlay + workspace. |
+| `container_init.sh` | Container startup script: sources ROS + agent overlay + workspace, then execs the command. |
 
 Shells from `run.sh`/`attach.sh` come in via `docker exec`, which bypasses the
-entrypoint — so ROS + the agent + the workspace are also auto-sourced from
+startup script — so ROS + the agent + the workspace are also auto-sourced from
 `/root/.bashrc` (baked into the image).
 
 ## micro-ROS agent
