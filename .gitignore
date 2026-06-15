@@ -55,6 +55,5 @@ yolov8*.pt
 # ── Local-only docs mirror (nav2/ros2 doc copies, scratch) ───────────────────
 docs/
 Docs/
-images/
 report/VIDEO.mp4
 report/CAD.zip
